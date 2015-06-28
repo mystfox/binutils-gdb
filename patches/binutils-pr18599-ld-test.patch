@@ -1,0 +1,1566 @@
+From f0b7391d8c2a6d20ff9f430ef9cef13231f5fbf7 Mon Sep 17 00:00:00 2001
+From: "H.J. Lu" <hjl.tools@gmail.com>
+Date: Sat, 27 Jun 2015 11:48:42 -0700
+Subject: [PATCH 4/4] Update linker tests
+
+---
+ ld/testsuite/ld-alpha/tlsbin.rd              |  3 +--
+ ld/testsuite/ld-alpha/tlsbinr.rd             |  3 +--
+ ld/testsuite/ld-alpha/tlspic.rd              |  3 +--
+ ld/testsuite/ld-cris/hiddef1.d               |  2 +-
+ ld/testsuite/ld-cris/libdso-2.d              |  5 ++---
+ ld/testsuite/ld-i386/pr12718.d               |  7 +++----
+ ld/testsuite/ld-i386/pr12921.d               |  7 +++----
+ ld/testsuite/ld-i386/tlsbin-nacl.rd          |  3 +--
+ ld/testsuite/ld-i386/tlsbin.rd               |  3 +--
+ ld/testsuite/ld-i386/tlsbindesc-nacl.rd      |  3 +--
+ ld/testsuite/ld-i386/tlsbindesc.rd           |  3 +--
+ ld/testsuite/ld-i386/tlsdesc-nacl.rd         |  3 +--
+ ld/testsuite/ld-i386/tlsdesc.rd              |  3 +--
+ ld/testsuite/ld-i386/tlsgdesc-nacl.rd        |  3 +--
+ ld/testsuite/ld-i386/tlsgdesc.rd             |  3 +--
+ ld/testsuite/ld-i386/tlsnopic-nacl.rd        |  3 +--
+ ld/testsuite/ld-i386/tlsnopic.rd             |  3 +--
+ ld/testsuite/ld-i386/tlspic-nacl.rd          |  3 +--
+ ld/testsuite/ld-i386/tlspic.rd               |  3 +--
+ ld/testsuite/ld-ia64/tlsbin.rd               |  3 +--
+ ld/testsuite/ld-ia64/tlspic.rd               |  3 +--
+ ld/testsuite/ld-mmix/bspec1.d                | 10 ++++------
+ ld/testsuite/ld-mmix/bspec2.d                | 10 ++++------
+ ld/testsuite/ld-mmix/local1.d                | 10 ++++------
+ ld/testsuite/ld-mmix/local3.d                | 10 ++++------
+ ld/testsuite/ld-mmix/local5.d                | 10 ++++------
+ ld/testsuite/ld-mmix/local7.d                | 10 ++++------
+ ld/testsuite/ld-mmix/undef-3.d               | 10 ++++------
+ ld/testsuite/ld-powerpc/tlsexe.r             |  3 +--
+ ld/testsuite/ld-powerpc/tlsexe32.r           |  3 +--
+ ld/testsuite/ld-powerpc/tlsexetoc.r          |  3 +--
+ ld/testsuite/ld-powerpc/tlsso.r              |  3 +--
+ ld/testsuite/ld-powerpc/tlsso32.r            |  3 +--
+ ld/testsuite/ld-powerpc/tlstocso.r           |  3 +--
+ ld/testsuite/ld-s390/tlsbin.rd               |  3 +--
+ ld/testsuite/ld-s390/tlsbin_64.rd            |  3 +--
+ ld/testsuite/ld-s390/tlspic.rd               |  3 +--
+ ld/testsuite/ld-s390/tlspic_64.rd            |  3 +--
+ ld/testsuite/ld-sh/tlsbin-2.d                |  3 +--
+ ld/testsuite/ld-sh/tlspic-2.d                |  3 +--
+ ld/testsuite/ld-sparc/gotop32.rd             |  3 +--
+ ld/testsuite/ld-sparc/gotop64.rd             |  3 +--
+ ld/testsuite/ld-sparc/tlssunbin32.rd         |  3 +--
+ ld/testsuite/ld-sparc/tlssunbin64.rd         |  3 +--
+ ld/testsuite/ld-sparc/tlssunnopic32.rd       |  3 +--
+ ld/testsuite/ld-sparc/tlssunnopic64.rd       |  3 +--
+ ld/testsuite/ld-sparc/tlssunpic32.rd         |  3 +--
+ ld/testsuite/ld-sparc/tlssunpic64.rd         |  3 +--
+ ld/testsuite/ld-tic6x/common.d               |  7 +++----
+ ld/testsuite/ld-tic6x/shlib-1.rd             |  7 +++----
+ ld/testsuite/ld-tic6x/shlib-1b.rd            |  7 +++----
+ ld/testsuite/ld-tic6x/shlib-1r.rd            |  7 +++----
+ ld/testsuite/ld-tic6x/shlib-1rb.rd           |  7 +++----
+ ld/testsuite/ld-tic6x/shlib-app-1.rd         |  7 +++----
+ ld/testsuite/ld-tic6x/shlib-app-1b.rd        |  7 +++----
+ ld/testsuite/ld-tic6x/shlib-app-1r.rd        |  7 +++----
+ ld/testsuite/ld-tic6x/shlib-app-1rb.rd       |  7 +++----
+ ld/testsuite/ld-tic6x/shlib-noindex.rd       |  7 +++----
+ ld/testsuite/ld-tic6x/static-app-1.rd        |  7 +++----
+ ld/testsuite/ld-tic6x/static-app-1b.rd       |  7 +++----
+ ld/testsuite/ld-tic6x/static-app-1r.rd       |  7 +++----
+ ld/testsuite/ld-tic6x/static-app-1rb.rd      |  7 +++----
+ ld/testsuite/ld-x86-64/ilp32-4-nacl.d        |  7 +++----
+ ld/testsuite/ld-x86-64/ilp32-4.d             |  7 +++----
+ ld/testsuite/ld-x86-64/pr12718.d             |  7 +++----
+ ld/testsuite/ld-x86-64/pr12921.d             |  7 +++----
+ ld/testsuite/ld-x86-64/split-by-file-nacl.rd |  7 +++----
+ ld/testsuite/ld-x86-64/split-by-file.rd      |  7 +++----
+ ld/testsuite/ld-x86-64/tlsbin-nacl.rd        |  3 +--
+ ld/testsuite/ld-x86-64/tlsbin.rd             |  3 +--
+ ld/testsuite/ld-x86-64/tlsbindesc-nacl.rd    |  3 +--
+ ld/testsuite/ld-x86-64/tlsbindesc.rd         |  3 +--
+ ld/testsuite/ld-x86-64/tlsdesc-nacl.rd       |  3 +--
+ ld/testsuite/ld-x86-64/tlsdesc.rd            |  3 +--
+ ld/testsuite/ld-x86-64/tlsgdesc-nacl.rd      |  3 +--
+ ld/testsuite/ld-x86-64/tlsgdesc.rd           |  3 +--
+ ld/testsuite/ld-x86-64/tlspic-nacl.rd        |  3 +--
+ ld/testsuite/ld-x86-64/tlspic.rd             |  3 +--
+ ld/testsuite/ld-xtensa/tlsbin.rd             |  3 +--
+ ld/testsuite/ld-xtensa/tlspic.rd             |  3 +--
+ 80 files changed, 146 insertions(+), 232 deletions(-)
+
+diff --git a/ld/testsuite/ld-alpha/tlsbin.rd b/ld/testsuite/ld-alpha/tlsbin.rd
+index 2184e5e..19d1613 100644
+--- a/ld/testsuite/ld-alpha/tlsbin.rd
++++ b/ld/testsuite/ld-alpha/tlsbin.rd
+@@ -24,9 +24,8 @@ Section Headers:
+  +\[[ 0-9]+\] .tbss +NOBITS +[0-9a-f]+ [0-9a-f]+ [0-9a-f]+ 00 WAT +0 +0 +1
+  +\[[ 0-9]+\] .dynamic +DYNAMIC +[0-9a-f]+ [0-9a-f]+ [0-9a-f]+ 10 +WA +4 +0 +8
+  +\[[ 0-9]+\] .got +PROGBITS +[0-9a-f]+ [0-9a-f]+ [0-9a-f]+ 00 +WA +0 +0 +8
+- +\[[ 0-9]+\] .shstrtab +.*
+- +\[[ 0-9]+\] .symtab +.*
+  +\[[ 0-9]+\] .strtab +.*
++ +\[[ 0-9]+\] .symtab +.*
+ #...
+ 
+ Elf file type is EXEC \(Executable file\)
+diff --git a/ld/testsuite/ld-alpha/tlsbinr.rd b/ld/testsuite/ld-alpha/tlsbinr.rd
+index 0329ba9..cb03f4e 100644
+--- a/ld/testsuite/ld-alpha/tlsbinr.rd
++++ b/ld/testsuite/ld-alpha/tlsbinr.rd
+@@ -24,9 +24,8 @@ Section Headers:
+  +\[[ 0-9]+\] \.tbss +NOBITS +[0-9a-f]+ [0-9a-f]+ [0-9a-f]+ 0+ WAT +0 +0 +1
+  +\[[ 0-9]+\] \.dynamic +DYNAMIC +[0-9a-f]+ [0-9a-f]+ [0-9a-f]+ 10 +WA +4 +0 +8
+  +\[[ 0-9]+\] \.got +PROGBITS +[0-9a-f]+ [0-9a-f]+ [0-9a-f]+ 0+ +WA +0 +0 +8
+- +\[[ 0-9]+\] \.shstrtab +.*
+- +\[[ 0-9]+\] \.symtab +.*
+  +\[[ 0-9]+\] \.strtab +.*
++ +\[[ 0-9]+\] \.symtab +.*
+ #...
+ 
+ Elf file type is EXEC \(Executable file\)
+diff --git a/ld/testsuite/ld-alpha/tlspic.rd b/ld/testsuite/ld-alpha/tlspic.rd
+index 7a97847..710641f 100644
+--- a/ld/testsuite/ld-alpha/tlspic.rd
++++ b/ld/testsuite/ld-alpha/tlspic.rd
+@@ -23,9 +23,8 @@ Section Headers:
+  +\[[ 0-9]+\] .tbss +NOBITS +[0-9a-f]+ [0-9a-f]+ [0-9a-f]+ 0+ WAT +0 +0 +1
+  +\[[ 0-9]+\] .dynamic +DYNAMIC +[0-9a-f]+ [0-9a-f]+ [0-9a-f]+ 10 +WA +3 +0 +8
+  +\[[ 0-9]+\] .got +PROGBITS +[0-9a-f]+ [0-9a-f]+ [0-9a-f]+ 0+ +WA +0 +0 +8
+- +\[[ 0-9]+\] .shstrtab +.*
+- +\[[ 0-9]+\] .symtab +.*
+  +\[[ 0-9]+\] .strtab +.*
++ +\[[ 0-9]+\] .symtab +.*
+ #...
+ 
+ Elf file type is DYN \(Shared object file\)
+diff --git a/ld/testsuite/ld-cris/hiddef1.d b/ld/testsuite/ld-cris/hiddef1.d
+index 0be90a1..7d4cdbe 100644
+--- a/ld/testsuite/ld-cris/hiddef1.d
++++ b/ld/testsuite/ld-cris/hiddef1.d
+@@ -14,7 +14,7 @@
+ # and sections change, make sure that there's no .plt and that
+ # dsofn is hidden (not exported as a dynamic symbol).
+ 
+-There are 11 section headers, starting at offset 0x[0-9a-f]+:
++There are [0-9]+ section headers, starting at offset 0x[0-9a-f]+:
+ #...
+   \[[ 0-9]+\] \.got              PROGBITS        [0-9a-f]+ [0-9a-f]+ 0+10 04  WA  0   0  4
+ #...
+diff --git a/ld/testsuite/ld-cris/libdso-2.d b/ld/testsuite/ld-cris/libdso-2.d
+index 3b4777a..a988b7a 100644
+--- a/ld/testsuite/ld-cris/libdso-2.d
++++ b/ld/testsuite/ld-cris/libdso-2.d
+@@ -10,7 +10,7 @@
+ # entries.  This formerly SEGV:ed because .rela.got was created
+ # too late to have it mapped to an output section.
+ 
+-There are 13 section headers.*
++There are [0-9]+ section headers.*
+ #...
+  +\[ 1\] \.hash +HASH +.*
+  +\[ 2\] \.dynsym +DYNSYM +.*
+@@ -21,9 +21,8 @@ There are 13 section headers.*
+  +\[ 7\] \.text +PROGBITS .*
+  +\[ 8\] \.dynamic +DYNAMIC +.*
+  +\[ 9\] \.got +PROGBITS .*
+- +\[10\] \.shstrtab +STRTAB +.*
++ +\[10\] \.strtab +STRTAB +.*
+  +\[11\] \.symtab +SYMTAB +.*
+- +\[12\] \.strtab +STRTAB +.*
+ #...
+ Relocation section '\.rela\.dyn' at offset 0x[0-9a-f]+ contains 1 entries:
+ #...
+diff --git a/ld/testsuite/ld-i386/pr12718.d b/ld/testsuite/ld-i386/pr12718.d
+index 6bcea85..08446f5 100644
+--- a/ld/testsuite/ld-i386/pr12718.d
++++ b/ld/testsuite/ld-i386/pr12718.d
+@@ -3,15 +3,14 @@
+ #ld: -melf_i386
+ #readelf: -S
+ 
+-There are 5 section headers, starting at offset 0x[0-9a-f]+:
++There are 4 section headers, starting at offset 0x[0-9a-f]+:
+ 
+ Section Headers:
+  +\[Nr\] Name +Type +Addr +Off +Size +ES +Flg +Lk +Inf +Al
+  +\[ 0\] +NULL +0+ +0+ +0+ +0+ +0 +0 +0
+  +\[ 1\] +.text +PROGBITS +[0-9a-f]+ +[0-9a-f]+ +000006 00 +AX +0 +0 +1
+- +\[ 2\] +.shstrtab +STRTAB +0+ +[0-9a-f]+ +[0-9a-f]+ +0+ +0 +0 +1
+- +\[ 3\] +.symtab +SYMTAB +0+ +[0-9a-f]+ +[0-9a-f]+ 10 +4 +[0-9] +4
+- +\[ 4\] +.strtab +STRTAB +0+ +[0-9a-f]+ +[0-9a-f]+ 00 +0 +0 +1
++ +\[ 2\] +.strtab +STRTAB +0+ +[0-9a-f]+ +[0-9a-f]+ 00 +0 +0 +1
++ +\[ 3\] +.symtab +SYMTAB +0+ +[0-9a-f]+ +[0-9a-f]+ 10 +2 +[0-9] +4
+ Key to Flags:
+   W \(write\), A \(alloc\), X \(execute\), M \(merge\), S \(strings\)
+   I \(info\), L \(link order\), G \(group\), T \(TLS\), E \(exclude\), x \(unknown\)
+diff --git a/ld/testsuite/ld-i386/pr12921.d b/ld/testsuite/ld-i386/pr12921.d
+index 891db8b..fb31fb5 100644
+--- a/ld/testsuite/ld-i386/pr12921.d
++++ b/ld/testsuite/ld-i386/pr12921.d
+@@ -3,7 +3,7 @@
+ #ld: -melf_i386
+ #readelf: -S --wide
+ 
+-There are 7 section headers, starting at offset 0x[0-9a-f]+:
++There are 6 section headers, starting at offset 0x[0-9a-f]+:
+ 
+ Section Headers:
+  +\[Nr\] Name +Type +Addr +Off +Size +ES +Flg +Lk +Inf +Al
+@@ -11,9 +11,8 @@ Section Headers:
+  +\[ 1\] .text +PROGBITS +[0-9a-f]+ +[0-9a-f]+ +0+1 00 +AX +0 +0 +4096
+  +\[ 2\] .data +PROGBITS +[0-9a-f]+ +[0-9a-f]+000 +0+20 +00 +WA +0 +0 +4096
+  +\[ 3\] .bss +NOBITS +[0-9a-f]+ +[0-9a-f]+020 +0+10000 +00 +WA +0 +0 +4096
+- +\[ 4\] .shstrtab +STRTAB +0+ +[0-9a-f]+ +0+2c +00 +0 +0 +1
+- +\[ 5\] .symtab +SYMTAB +0+ +[0-9a-f]+ +[0-9a-f]+ +10 +6 +[0-9] +4
+- +\[ 6\] .strtab +STRTAB +0+ +[0-9a-f]+ +[0-9a-f]+ +00 +0 +0 +1
++ +\[ 4\] .strtab +STRTAB +0+ +[0-9a-f]+ +[0-9a-f]+ +00 +0 +0 +1
++ +\[ 5\] .symtab +SYMTAB +0+ +[0-9a-f]+ +[0-9a-f]+ +10 +4 +[0-9] +4
+ Key to Flags:
+   W \(write\), A \(alloc\), X \(execute\), M \(merge\), S \(strings\)
+   I \(info\), L \(link order\), G \(group\), T \(TLS\), E \(exclude\), x \(unknown\)
+diff --git a/ld/testsuite/ld-i386/tlsbin-nacl.rd b/ld/testsuite/ld-i386/tlsbin-nacl.rd
+index 8061ccc..af592ce 100644
+--- a/ld/testsuite/ld-i386/tlsbin-nacl.rd
++++ b/ld/testsuite/ld-i386/tlsbin-nacl.rd
+@@ -23,9 +23,8 @@ Section Headers:
+  +\[[ 0-9]+\] \.dynamic +DYNAMIC +0*10031060 .*
+  +\[[ 0-9]+\] \.got +PROGBITS +0*10031100 .*
+  +\[[ 0-9]+\] \.got\.plt +PROGBITS +0*10031124 .*
+- +\[[ 0-9]+\] \.shstrtab +.*
+- +\[[ 0-9]+\] \.symtab +.*
+  +\[[ 0-9]+\] \.strtab +.*
++ +\[[ 0-9]+\] \.symtab +.*
+ Key to Flags:
+ .*
+ .*
+diff --git a/ld/testsuite/ld-i386/tlsbin.rd b/ld/testsuite/ld-i386/tlsbin.rd
+index 6a641dc..4833df3 100644
+--- a/ld/testsuite/ld-i386/tlsbin.rd
++++ b/ld/testsuite/ld-i386/tlsbin.rd
+@@ -23,9 +23,8 @@ Section Headers:
+  +\[[ 0-9]+\] \.dynamic +DYNAMIC +0+804a060 .*
+  +\[[ 0-9]+\] \.got +PROGBITS +0+804a100 .*
+  +\[[ 0-9]+\] \.got\.plt +PROGBITS +0+804a124 .*
+- +\[[ 0-9]+\] \.shstrtab +.*
+- +\[[ 0-9]+\] \.symtab +.*
+  +\[[ 0-9]+\] \.strtab +.*
++ +\[[ 0-9]+\] \.symtab +.*
+ Key to Flags:
+ .*
+ .*
+diff --git a/ld/testsuite/ld-i386/tlsbindesc-nacl.rd b/ld/testsuite/ld-i386/tlsbindesc-nacl.rd
+index 7d51f71..fdb105c 100644
+--- a/ld/testsuite/ld-i386/tlsbindesc-nacl.rd
++++ b/ld/testsuite/ld-i386/tlsbindesc-nacl.rd
+@@ -21,9 +21,8 @@ Section Headers:
+  +\[[ 0-9]+\] \.dynamic +DYNAMIC +0*10031060 .*
+  +\[[ 0-9]+\] \.got +PROGBITS +0*100310e0 .*
+  +\[[ 0-9]+\] \.got\.plt +PROGBITS +0*10031104 .*
+- +\[[ 0-9]+\] \.shstrtab +.*
+- +\[[ 0-9]+\] \.symtab +.*
+  +\[[ 0-9]+\] \.strtab +.*
++ +\[[ 0-9]+\] \.symtab +.*
+ Key to Flags:
+ .*
+ .*
+diff --git a/ld/testsuite/ld-i386/tlsbindesc.rd b/ld/testsuite/ld-i386/tlsbindesc.rd
+index 3127de4..2039a88 100644
+--- a/ld/testsuite/ld-i386/tlsbindesc.rd
++++ b/ld/testsuite/ld-i386/tlsbindesc.rd
+@@ -21,9 +21,8 @@ Section Headers:
+  +\[[ 0-9]+\] \.dynamic +DYNAMIC +0+804a060 .*
+  +\[[ 0-9]+\] \.got +PROGBITS +0+804a0e0 .*
+  +\[[ 0-9]+\] \.got\.plt +PROGBITS +0+804a104 .*
+- +\[[ 0-9]+\] \.shstrtab +.*
+- +\[[ 0-9]+\] \.symtab +.*
+  +\[[ 0-9]+\] \.strtab +.*
++ +\[[ 0-9]+\] \.symtab +.*
+ Key to Flags:
+ .*
+ .*
+diff --git a/ld/testsuite/ld-i386/tlsdesc-nacl.rd b/ld/testsuite/ld-i386/tlsdesc-nacl.rd
+index c8c82f3..ffd46dd 100644
+--- a/ld/testsuite/ld-i386/tlsdesc-nacl.rd
++++ b/ld/testsuite/ld-i386/tlsdesc-nacl.rd
+@@ -21,9 +21,8 @@ Section Headers:
+  +\[[ 0-9]+\] \.dynamic +.*
+  +\[[ 0-9]+\] \.got +.*
+  +\[[ 0-9]+\] \.got.plt +.*
+- +\[[ 0-9]+\] \.shstrtab +.*
+- +\[[ 0-9]+\] \.symtab +.*
+  +\[[ 0-9]+\] \.strtab +.*
++ +\[[ 0-9]+\] \.symtab +.*
+ Key to Flags:
+ .*
+ .*
+diff --git a/ld/testsuite/ld-i386/tlsdesc.rd b/ld/testsuite/ld-i386/tlsdesc.rd
+index 9b00c39..90c0a11 100644
+--- a/ld/testsuite/ld-i386/tlsdesc.rd
++++ b/ld/testsuite/ld-i386/tlsdesc.rd
+@@ -21,9 +21,8 @@ Section Headers:
+  +\[[ 0-9]+\] \.dynamic +.*
+  +\[[ 0-9]+\] \.got +.*
+  +\[[ 0-9]+\] \.got.plt +.*
+- +\[[ 0-9]+\] \.shstrtab +.*
+- +\[[ 0-9]+\] \.symtab +.*
+  +\[[ 0-9]+\] \.strtab +.*
++ +\[[ 0-9]+\] \.symtab +.*
+ Key to Flags:
+ .*
+ .*
+diff --git a/ld/testsuite/ld-i386/tlsgdesc-nacl.rd b/ld/testsuite/ld-i386/tlsgdesc-nacl.rd
+index 43f9a3d..5203e65 100644
+--- a/ld/testsuite/ld-i386/tlsgdesc-nacl.rd
++++ b/ld/testsuite/ld-i386/tlsgdesc-nacl.rd
+@@ -19,9 +19,8 @@ Section Headers:
+  +\[[ 0-9]+\] \.dynamic +.*
+  +\[[ 0-9]+\] \.got +.*
+  +\[[ 0-9]+\] \.got.plt +.*
+- +\[[ 0-9]+\] \.shstrtab +.*
+- +\[[ 0-9]+\] \.symtab +.*
+  +\[[ 0-9]+\] \.strtab +.*
++ +\[[ 0-9]+\] \.symtab +.*
+ Key to Flags:
+ .*
+ .*
+diff --git a/ld/testsuite/ld-i386/tlsgdesc.rd b/ld/testsuite/ld-i386/tlsgdesc.rd
+index 1e074c7..e4c59e1 100644
+--- a/ld/testsuite/ld-i386/tlsgdesc.rd
++++ b/ld/testsuite/ld-i386/tlsgdesc.rd
+@@ -19,9 +19,8 @@ Section Headers:
+  +\[[ 0-9]+\] \.dynamic +.*
+  +\[[ 0-9]+\] \.got +.*
+  +\[[ 0-9]+\] \.got.plt +.*
+- +\[[ 0-9]+\] \.shstrtab +.*
+- +\[[ 0-9]+\] \.symtab +.*
+  +\[[ 0-9]+\] \.strtab +.*
++ +\[[ 0-9]+\] \.symtab +.*
+ Key to Flags:
+ .*
+ .*
+diff --git a/ld/testsuite/ld-i386/tlsnopic-nacl.rd b/ld/testsuite/ld-i386/tlsnopic-nacl.rd
+index d3fe642..24fdbd3 100644
+--- a/ld/testsuite/ld-i386/tlsnopic-nacl.rd
++++ b/ld/testsuite/ld-i386/tlsnopic-nacl.rd
+@@ -19,9 +19,8 @@ Section Headers:
+  +\[[ 0-9]+\] \.dynamic +DYNAMIC +0*10010284 .*
+  +\[[ 0-9]+\] \.got +PROGBITS +0*10010304 .*
+  +\[[ 0-9]+\] \.got.plt +PROGBITS +0*1001031c .*
+- +\[[ 0-9]+\] \.shstrtab +.*
+- +\[[ 0-9]+\] \.symtab +.*
+  +\[[ 0-9]+\] \.strtab +.*
++ +\[[ 0-9]+\] \.symtab +.*
+ Key to Flags:
+ .*
+ .*
+diff --git a/ld/testsuite/ld-i386/tlsnopic.rd b/ld/testsuite/ld-i386/tlsnopic.rd
+index 9b163c8..a369236 100644
+--- a/ld/testsuite/ld-i386/tlsnopic.rd
++++ b/ld/testsuite/ld-i386/tlsnopic.rd
+@@ -19,9 +19,8 @@ Section Headers:
+  +\[[ 0-9]+\] \.dynamic +DYNAMIC +0+20f4 .*
+  +\[[ 0-9]+\] \.got +PROGBITS +0+2174 .*
+  +\[[ 0-9]+\] \.got.plt +PROGBITS +0+218c .*
+- +\[[ 0-9]+\] \.shstrtab +.*
+- +\[[ 0-9]+\] \.symtab +.*
+  +\[[ 0-9]+\] \.strtab +.*
++ +\[[ 0-9]+\] \.symtab +.*
+ Key to Flags:
+ .*
+ .*
+diff --git a/ld/testsuite/ld-i386/tlspic-nacl.rd b/ld/testsuite/ld-i386/tlspic-nacl.rd
+index 77dd9ce..720e6b6 100644
+--- a/ld/testsuite/ld-i386/tlspic-nacl.rd
++++ b/ld/testsuite/ld-i386/tlspic-nacl.rd
+@@ -22,9 +22,8 @@ Section Headers:
+  +\[[ 0-9]+\] \.dynamic +.*
+  +\[[ 0-9]+\] \.got +.*
+  +\[[ 0-9]+\] \.got.plt +.*
+- +\[[ 0-9]+\] \.shstrtab +.*
+- +\[[ 0-9]+\] \.symtab +.*
+  +\[[ 0-9]+\] \.strtab +.*
++ +\[[ 0-9]+\] \.symtab +.*
+ Key to Flags:
+ .*
+ .*
+diff --git a/ld/testsuite/ld-i386/tlspic.rd b/ld/testsuite/ld-i386/tlspic.rd
+index e26dc70..a5f649c 100644
+--- a/ld/testsuite/ld-i386/tlspic.rd
++++ b/ld/testsuite/ld-i386/tlspic.rd
+@@ -22,9 +22,8 @@ Section Headers:
+  +\[[ 0-9]+\] \.dynamic +.*
+  +\[[ 0-9]+\] \.got +.*
+  +\[[ 0-9]+\] \.got.plt +.*
+- +\[[ 0-9]+\] \.shstrtab +.*
+- +\[[ 0-9]+\] \.symtab +.*
+  +\[[ 0-9]+\] \.strtab +.*
++ +\[[ 0-9]+\] \.symtab +.*
+ Key to Flags:
+ .*
+ .*
+diff --git a/ld/testsuite/ld-ia64/tlsbin.rd b/ld/testsuite/ld-ia64/tlsbin.rd
+index ab2dacd..f4452b0 100644
+--- a/ld/testsuite/ld-ia64/tlsbin.rd
++++ b/ld/testsuite/ld-ia64/tlsbin.rd
+@@ -25,9 +25,8 @@ Section Headers:
+  +\[[ 0-9]+\] .dynamic +DYNAMIC +60+1[0-9a-f]+ 0+1[0-9a-f]+ 0+150 10 +WA +4 +0 +8
+  +\[[ 0-9]+\] .got +PROGBITS +60+1318 0+1318 0+48 00 WAp +0 +0 +8
+  +\[[ 0-9]+\] .IA_64.pltoff +.*
+- +\[[ 0-9]+\] .shstrtab +.*
+- +\[[ 0-9]+\] .symtab +.*
+  +\[[ 0-9]+\] .strtab +.*
++ +\[[ 0-9]+\] .symtab +.*
+ #...
+ 
+ Elf file type is EXEC \(Executable file\)
+diff --git a/ld/testsuite/ld-ia64/tlspic.rd b/ld/testsuite/ld-ia64/tlspic.rd
+index 9666f86..abac12a 100644
+--- a/ld/testsuite/ld-ia64/tlspic.rd
++++ b/ld/testsuite/ld-ia64/tlspic.rd
+@@ -24,9 +24,8 @@ Section Headers:
+  +\[[ 0-9]+\] .dynamic +DYNAMIC +0+11[0-9a-f]+ 0+1[0-9a-f]+ 0+140 10 +WA +3 +0 +8
+  +\[[ 0-9]+\] .got +PROGBITS +0+112d8 0+12d8 0+50 00 WAp +0 +0 +8
+  +\[[ 0-9]+\] .IA_64.pltoff +.*
+- +\[[ 0-9]+\] .shstrtab +.*
+- +\[[ 0-9]+\] .symtab +.*
+  +\[[ 0-9]+\] .strtab +.*
++ +\[[ 0-9]+\] .symtab +.*
+ Key to Flags:
+ #...
+ 
+diff --git a/ld/testsuite/ld-mmix/bspec1.d b/ld/testsuite/ld-mmix/bspec1.d
+index 6440bbe..58c325f 100644
+--- a/ld/testsuite/ld-mmix/bspec1.d
++++ b/ld/testsuite/ld-mmix/bspec1.d
+@@ -3,7 +3,7 @@
+ #ld: -m elf64mmix
+ #readelf: -Ssr -x1 -x2
+ 
+-There are 6 section headers, starting at offset .*:
++There are [0-9]+ section headers, starting at offset .*:
+ 
+ Section Headers:
+  +\[Nr\] Name +Type +Address +Offset
+@@ -14,12 +14,10 @@ Section Headers:
+  +0+4 +0+ +AX +0 +0 +4
+  +\[ 2\] \.MMIX\.spec_data\.2 PROGBITS +0+ +0+7c
+  +0+4 +0+ +0 +0 +4
+- +\[ 3\] \.shstrtab +STRTAB +0+ +[0-9a-f]+
+- +0+33 +0+ +0 +0 +1
++ +\[ 3\] \.strtab +STRTAB +0+ .*
++ +0+4e +0+ +0 +0 +1
+  +\[ 4\] \.symtab +SYMTAB +0+ .*
+- +0+d8 +0+18 +5 +3 +8
+- +\[ 5\] \.strtab +STRTAB +0+ .*
+- +0+26 +0+ +0 +0 +1
++ +0+d8 +0+18 +3 +3 +8
+ Key to Flags:
+ #...
+ 
+diff --git a/ld/testsuite/ld-mmix/bspec2.d b/ld/testsuite/ld-mmix/bspec2.d
+index e881b08..f1ecd61 100644
+--- a/ld/testsuite/ld-mmix/bspec2.d
++++ b/ld/testsuite/ld-mmix/bspec2.d
+@@ -6,7 +6,7 @@
+ #ld: -m elf64mmix
+ #readelf: -Ssr -x1 -x2 -x3
+ 
+-There are 7 section headers, starting at offset .*:
++There are [0-9]+ section headers, starting at offset .*:
+ 
+ Section Headers:
+  +\[Nr\] Name +Type +Address +Offset
+@@ -19,12 +19,10 @@ Section Headers:
+  +0+8 +0+ +0 +0 +4
+  +\[ 3\] \.MMIX\.spec_data\.3 PROGBITS +0+ +0+84
+  +0+4 +0+ +0 +0 +4
+- +\[ 4\] \.shstrtab +STRTAB +0+ +[0-9a-f]+
+- +0+45 +0+ +0 +0 +1
++ +\[ 4\] \.strtab +STRTAB +0+ .*
++ +0+65 +0+ +0 +0 +1
+  +\[ 5\] \.symtab +SYMTAB +0+ .*
+- +0+108 +0+18 +6 +4 +8
+- +\[ 6\] \.strtab +STRTAB +0+ .*
+- +0+2b +0+ +0 +0 +1
++ +0+108 +0+18 +4 +4 +8
+ Key to Flags:
+ #...
+ 
+diff --git a/ld/testsuite/ld-mmix/local1.d b/ld/testsuite/ld-mmix/local1.d
+index 478d17b..7725168 100644
+--- a/ld/testsuite/ld-mmix/local1.d
++++ b/ld/testsuite/ld-mmix/local1.d
+@@ -10,7 +10,7 @@
+ # (different meaning of "local" than for symbol), which can be seen as
+ # somewhat twisted.
+ 
+-There are 6 section headers, starting at offset .*:
++There are [0-9]+ section headers, starting at offset .*:
+ 
+ Section Headers:
+  +\[Nr\] Name +Type +Address +Offset
+@@ -21,12 +21,10 @@ Section Headers:
+  +0+8 +0+ +AX +0 +0 +4
+  +\[ 2\] \.MMIX\.reg_content PROGBITS +0+7e8 +0+80
+  +0+10 +0+ +W +0 +0 +1
+- +\[ 3\] \.shstrtab +STRTAB +0+ +[0-9a-f]+
+- +0+34 +0+ +0 +0 +1
+- +\[ 4\] \.symtab +SYMTAB +0+ +[0-9a-f]+
+- +[0-9a-f]+ +0+18 +5 +[0-9] +8
+- +\[ 5\] \.strtab +STRTAB +0+ +[0-9a-f]+
++ +\[ 3\] \.strtab +STRTAB +0+ +[0-9a-f]+
+  +[0-9a-f]+ +0+ +0 +0 +1
++ +\[ 4\] \.symtab +SYMTAB +0+ +[0-9a-f]+
++ +[0-9a-f]+ +0+18 +3 +[0-9] +8
+ Key to Flags:
+ #...
+ 
+diff --git a/ld/testsuite/ld-mmix/local3.d b/ld/testsuite/ld-mmix/local3.d
+index 9b9001a..fb520f5 100644
+--- a/ld/testsuite/ld-mmix/local3.d
++++ b/ld/testsuite/ld-mmix/local3.d
+@@ -8,7 +8,7 @@
+ 
+ # Like local1, but ext1 is here a constant, not a global register.
+ 
+-There are 6 section headers, starting at offset .*:
++There are [0-9]+ section headers, starting at offset .*:
+ 
+ Section Headers:
+  +\[Nr\] Name +Type +Address +Offset
+@@ -19,12 +19,10 @@ Section Headers:
+  +0+8 +0+ +AX +0 +0 +4
+  +\[ 2\] \.MMIX\.reg_content PROGBITS +0+7e8 +0+80
+  +0+10 +0+ +W +0 +0 +1
+- +\[ 3\] \.shstrtab +STRTAB +0+ +[0-9a-f]+
+- +0+34 +0+ +0 +0 +1
+- +\[ 4\] \.symtab +SYMTAB +0+ +[0-9a-f]+
+- +[0-9a-f]+ +0+18 +5 +[0-9] +8
+- +\[ 5\] \.strtab +STRTAB +0+ +[0-9a-f]+
++ +\[ 3\] \.strtab +STRTAB +0+ +[0-9a-f]+
+  +[0-9a-f]+ +0+ +0 +0 +1
++ +\[ 4\] \.symtab +SYMTAB +0+ +[0-9a-f]+
++ +[0-9a-f]+ +0+18 +3 +[0-9] +8
+ Key to Flags:
+ #...
+ 
+diff --git a/ld/testsuite/ld-mmix/local5.d b/ld/testsuite/ld-mmix/local5.d
+index 93bacd3..f0bf63d 100644
+--- a/ld/testsuite/ld-mmix/local5.d
++++ b/ld/testsuite/ld-mmix/local5.d
+@@ -9,7 +9,7 @@
+ 
+ # Like local1, but with two checks for a local register.
+ 
+-There are 6 section headers, starting at offset .*:
++There are [0-9]+ section headers, starting at offset .*:
+ 
+ Section Headers:
+  +\[Nr\] Name +Type +Address +Offset
+@@ -20,12 +20,10 @@ Section Headers:
+  +0+c +0+ +AX +0 +0 +4
+  +\[ 2\] \.MMIX\.reg_content PROGBITS +0+7e8 +0+84
+  +0+10 +0+ +W +0 +0 +1
+- +\[ 3\] \.shstrtab +STRTAB +0+ +[0-9a-f]+
+- +0+34 +0+ +0 +0 +1
+- +\[ 4\] \.symtab +SYMTAB +0+ +[0-9a-f]+
+- +[0-9a-f]+ +0+18 +5 +[0-9] +8
+- +\[ 5\] \.strtab +STRTAB +0+ +[0-9a-f]+
++ +\[ 3\] \.strtab +STRTAB +0+ +[0-9a-f]+
+  +[0-9a-f]+ +0+ +0 +0 +1
++ +\[ 4\] \.symtab +SYMTAB +0+ +[0-9a-f]+
++ +[0-9a-f]+ +0+18 +3 +[0-9] +8
+ Key to Flags:
+ #...
+ 
+diff --git a/ld/testsuite/ld-mmix/local7.d b/ld/testsuite/ld-mmix/local7.d
+index 1495bf1..1ebaaba 100644
+--- a/ld/testsuite/ld-mmix/local7.d
++++ b/ld/testsuite/ld-mmix/local7.d
+@@ -10,7 +10,7 @@
+ # Like local1, but ext1 is here a constant, not a global register and two
+ # local-register checks.
+ 
+-There are 6 section headers, starting at offset .*:
++There are [0-9]+ section headers, starting at offset .*:
+ 
+ Section Headers:
+  +\[Nr\] Name +Type +Address +Offset
+@@ -21,12 +21,10 @@ Section Headers:
+  +0+c +0+ +AX +0 +0 +4
+  +\[ 2\] \.MMIX\.reg_content PROGBITS +0+7e8 +0+84
+  +0+10 +0+ +W +0 +0 +1
+- +\[ 3\] \.shstrtab +STRTAB +0+ +[0-9a-f]+
+- +0+34 +0+ +0 +0 +1
+- +\[ 4\] \.symtab +SYMTAB +0+ +[0-9a-f]+
+- +[0-9a-f]+ +0+18 +5 +[0-9] +8
+- +\[ 5\] \.strtab +STRTAB +0+ +[0-9a-f]+
++ +\[ 3\] \.strtab +STRTAB +0+ +[0-9a-f]+
+  +[0-9a-f]+ +0+ +0 +0 +1
++ +\[ 4\] \.symtab +SYMTAB +0+ +[0-9a-f]+
++ +[0-9a-f]+ +0+18 +3 +[0-9] +8
+ Key to Flags:
+ #...
+ 
+diff --git a/ld/testsuite/ld-mmix/undef-3.d b/ld/testsuite/ld-mmix/undef-3.d
+index 94eeeaa..4126406 100644
+--- a/ld/testsuite/ld-mmix/undef-3.d
++++ b/ld/testsuite/ld-mmix/undef-3.d
+@@ -2,7 +2,7 @@
+ #ld: -u undefd -m elf64mmix
+ #readelf: -S -s
+ 
+-There are 5 section headers, starting at offset .*:
++There are [0-9]+ section headers, starting at offset .*:
+ 
+ Section Headers:
+  +\[Nr\] Name +Type +Address +Offset
+@@ -11,12 +11,10 @@ Section Headers:
+  +0+ +0+ +0 +0 +0
+  +\[ 1\] \.text +PROGBITS +0+ +0+78
+  +0+4 +0+ +AX +0 +0 +4
+- +\[ 2\] \.shstrtab +STRTAB +0+ +[0-9a-f]+
+- +0+21 +0+ +0 +0 +1
++ +\[ 2\] \.strtab +STRTAB +0+ .*
++ +0+37 +0+ +0 +0 +1
+  +\[ 3\] \.symtab +SYMTAB +0+ .*
+- +0+a8 +0+18 +4 +2 +8
+- +\[ 4\] \.strtab +STRTAB +0+ .*
+- +0+21 +0+ +0 +0 +1
++ +0+a8 +0+18 +2 +2 +8
+ Key to Flags:
+ #...
+ 
+diff --git a/ld/testsuite/ld-powerpc/tlsexe.r b/ld/testsuite/ld-powerpc/tlsexe.r
+index db72ad7..998326d 100644
+--- a/ld/testsuite/ld-powerpc/tlsexe.r
++++ b/ld/testsuite/ld-powerpc/tlsexe.r
+@@ -23,9 +23,8 @@ Section Headers:
+  +\[[ 0-9]+\] \.opd .*
+  +\[[ 0-9]+\] \.got +PROGBITS .* 0+30 08 +WA +0 +0 +256
+  +\[[ 0-9]+\] \.plt +.*
+- +\[[ 0-9]+\] \.shstrtab +.*
+- +\[[ 0-9]+\] \.symtab +.*
+  +\[[ 0-9]+\] \.strtab +.*
++ +\[[ 0-9]+\] \.symtab +.*
+ #...
+ 
+ Elf file type is EXEC \(Executable file\)
+diff --git a/ld/testsuite/ld-powerpc/tlsexe32.r b/ld/testsuite/ld-powerpc/tlsexe32.r
+index a3304ec..c582e38 100644
+--- a/ld/testsuite/ld-powerpc/tlsexe32.r
++++ b/ld/testsuite/ld-powerpc/tlsexe32.r
+@@ -22,9 +22,8 @@ Section Headers:
+  +\[[ 0-9]+\] \.dynamic +DYNAMIC +[0-9a-f]+ [0-9a-f]+ [0-9a-f]+ 08 +WA +4 +0 +4
+  +\[[ 0-9]+\] \.got +PROGBITS +[0-9a-f]+ [0-9a-f]+ 000018 04 +WA +0 +0 +4
+  +\[[ 0-9]+\] \.plt +PROGBITS +[0-9a-f]+ [0-9a-f]+ 000004 00 +WA +0 +0 +4
+- +\[[ 0-9]+\] \.shstrtab +STRTAB +.*
+- +\[[ 0-9]+\] \.symtab +SYMTAB +.*
+  +\[[ 0-9]+\] \.strtab +STRTAB +.*
++ +\[[ 0-9]+\] \.symtab +SYMTAB +.*
+ #...
+ 
+ Elf file type is EXEC \(Executable file\)
+diff --git a/ld/testsuite/ld-powerpc/tlsexetoc.r b/ld/testsuite/ld-powerpc/tlsexetoc.r
+index 56716bb..2084882 100644
+--- a/ld/testsuite/ld-powerpc/tlsexetoc.r
++++ b/ld/testsuite/ld-powerpc/tlsexetoc.r
+@@ -23,9 +23,8 @@ Section Headers:
+  +\[[ 0-9]+\] \.opd .*
+  +\[[ 0-9]+\] \.got +PROGBITS .* 0+58 08 +WA +0 +0 +256
+  +\[[ 0-9]+\] \.plt +.*
+- +\[[ 0-9]+\] \.shstrtab +.*
+- +\[[ 0-9]+\] \.symtab +.*
+  +\[[ 0-9]+\] \.strtab +.*
++ +\[[ 0-9]+\] \.symtab +.*
+ #...
+ 
+ Elf file type is EXEC \(Executable file\)
+diff --git a/ld/testsuite/ld-powerpc/tlsso.r b/ld/testsuite/ld-powerpc/tlsso.r
+index fd3002b..52991ad 100644
+--- a/ld/testsuite/ld-powerpc/tlsso.r
++++ b/ld/testsuite/ld-powerpc/tlsso.r
+@@ -21,9 +21,8 @@ Section Headers:
+  +\[[ 0-9]+\] \.opd .*
+  +\[[ 0-9]+\] \.got .*
+  +\[[ 0-9]+\] \.plt .*
+- +\[[ 0-9]+\] \.shstrtab .*
+- +\[[ 0-9]+\] \.symtab .*
+  +\[[ 0-9]+\] \.strtab .*
++ +\[[ 0-9]+\] \.symtab .*
+ #...
+ 
+ Elf file type is DYN \(Shared object file\)
+diff --git a/ld/testsuite/ld-powerpc/tlsso32.r b/ld/testsuite/ld-powerpc/tlsso32.r
+index 4d12c48..57fe353 100644
+--- a/ld/testsuite/ld-powerpc/tlsso32.r
++++ b/ld/testsuite/ld-powerpc/tlsso32.r
+@@ -20,9 +20,8 @@ Section Headers:
+  +\[[ 0-9]+\] \.dynamic +DYNAMIC .* 08 +WA +3 +0 +4
+  +\[[ 0-9]+\] \.got +PROGBITS .* 0+30 04 +WA +0 +0 +4
+  +\[[ 0-9]+\] \.plt +PROGBITS .* 0+4 00 +WA +0 +0 +4
+- +\[[ 0-9]+\] \.shstrtab +.*
+- +\[[ 0-9]+\] \.symtab +.*
+  +\[[ 0-9]+\] \.strtab +.*
++ +\[[ 0-9]+\] \.symtab +.*
+ #...
+ 
+ Elf file type is DYN \(Shared object file\)
+diff --git a/ld/testsuite/ld-powerpc/tlstocso.r b/ld/testsuite/ld-powerpc/tlstocso.r
+index 765bf08..da6dc95 100644
+--- a/ld/testsuite/ld-powerpc/tlstocso.r
++++ b/ld/testsuite/ld-powerpc/tlstocso.r
+@@ -21,9 +21,8 @@ Section Headers:
+  +\[[ 0-9]+\] \.opd .*
+  +\[[ 0-9]+\] \.got .*
+  +\[[ 0-9]+\] \.plt .*
+- +\[[ 0-9]+\] \.shstrtab .*
+- +\[[ 0-9]+\] \.symtab .*
+  +\[[ 0-9]+\] \.strtab .*
++ +\[[ 0-9]+\] \.symtab .*
+ #...
+ 
+ Elf file type is DYN \(Shared object file\)
+diff --git a/ld/testsuite/ld-s390/tlsbin.rd b/ld/testsuite/ld-s390/tlsbin.rd
+index b9efe8a..9b95445 100644
+--- a/ld/testsuite/ld-s390/tlsbin.rd
++++ b/ld/testsuite/ld-s390/tlsbin.rd
+@@ -22,9 +22,8 @@ Section Headers:
+  +\[[ 0-9]+\] .tbss +NOBITS .* 0+40 00 WAT +0 +0 +1
+  +\[[ 0-9]+\] .dynamic +DYNAMIC .*
+  +\[[ 0-9]+\] .got +PROGBITS .*
+- +\[[ 0-9]+\] .shstrtab .*
+- +\[[ 0-9]+\] .symtab .*
+  +\[[ 0-9]+\] .strtab .*
++ +\[[ 0-9]+\] .symtab .*
+ Key to Flags:
+ .*
+ .*
+diff --git a/ld/testsuite/ld-s390/tlsbin_64.rd b/ld/testsuite/ld-s390/tlsbin_64.rd
+index f461f51..e844fd9 100644
+--- a/ld/testsuite/ld-s390/tlsbin_64.rd
++++ b/ld/testsuite/ld-s390/tlsbin_64.rd
+@@ -22,9 +22,8 @@ Section Headers:
+  +\[[ 0-9]+\] .tbss +NOBITS .* 0+40 00 WAT +0 +0 +1
+  +\[[ 0-9]+\] .dynamic +DYNAMIC .*
+  +\[[ 0-9]+\] .got +PROGBITS .*
+- +\[[ 0-9]+\] .shstrtab .*
+- +\[[ 0-9]+\] .symtab .*
+  +\[[ 0-9]+\] .strtab .*
++ +\[[ 0-9]+\] .symtab .*
+ Key to Flags:
+ .*
+ .*
+diff --git a/ld/testsuite/ld-s390/tlspic.rd b/ld/testsuite/ld-s390/tlspic.rd
+index 37ebe47..4a99737 100644
+--- a/ld/testsuite/ld-s390/tlspic.rd
++++ b/ld/testsuite/ld-s390/tlspic.rd
+@@ -21,9 +21,8 @@ Section Headers:
+  +\[[ 0-9]+\] .tbss +NOBITS .* 0+20 00 WAT +0 +0 +1
+  +\[[ 0-9]+\] .dynamic +DYNAMIC .*
+  +\[[ 0-9]+\] .got +PROGBITS .*
+- +\[[ 0-9]+\] .shstrtab .*
+- +\[[ 0-9]+\] .symtab .*
+  +\[[ 0-9]+\] .strtab .*
++ +\[[ 0-9]+\] .symtab .*
+ Key to Flags:
+ .*
+ .*
+diff --git a/ld/testsuite/ld-s390/tlspic_64.rd b/ld/testsuite/ld-s390/tlspic_64.rd
+index 9b4105c..a5cbdde 100644
+--- a/ld/testsuite/ld-s390/tlspic_64.rd
++++ b/ld/testsuite/ld-s390/tlspic_64.rd
+@@ -21,9 +21,8 @@ Section Headers:
+  +\[[ 0-9]+\] .tbss +NOBITS .* 0+20 00 WAT +0 +0 +1
+  +\[[ 0-9]+\] .dynamic +DYNAMIC .*
+  +\[[ 0-9]+\] .got +PROGBITS .*
+- +\[[ 0-9]+\] .shstrtab .*
+- +\[[ 0-9]+\] .symtab .*
+  +\[[ 0-9]+\] .strtab .*
++ +\[[ 0-9]+\] .symtab .*
+ Key to Flags:
+ .*
+ .*
+diff --git a/ld/testsuite/ld-sh/tlsbin-2.d b/ld/testsuite/ld-sh/tlsbin-2.d
+index cd30833..5d96959 100644
+--- a/ld/testsuite/ld-sh/tlsbin-2.d
++++ b/ld/testsuite/ld-sh/tlsbin-2.d
+@@ -23,9 +23,8 @@ Section Headers:
+ #...
+  +\[[0-9a-f]+\] \.got +PROGBITS .*
+ #...
+- +\[[0-9a-f]+\] \.shstrtab .*
+- +\[[0-9a-f]+\] \.symtab .*
+  +\[[0-9a-f]+\] \.strtab .*
++ +\[[0-9a-f]+\] \.symtab .*
+ Key to Flags:
+ .*
+ .*
+diff --git a/ld/testsuite/ld-sh/tlspic-2.d b/ld/testsuite/ld-sh/tlspic-2.d
+index d8e355f..6d85115 100644
+--- a/ld/testsuite/ld-sh/tlspic-2.d
++++ b/ld/testsuite/ld-sh/tlspic-2.d
+@@ -22,9 +22,8 @@ Section Headers:
+ #...
+  +\[[0-9a-f]+\] \.got +PROGBITS .*
+ #...
+- +\[[0-9a-f]+\] \.shstrtab .*
+- +\[[0-9a-f]+\] \.symtab .*
+  +\[[0-9a-f]+\] \.strtab .*
++ +\[[0-9a-f]+\] \.symtab .*
+ Key to Flags:
+ .*
+ .*
+diff --git a/ld/testsuite/ld-sparc/gotop32.rd b/ld/testsuite/ld-sparc/gotop32.rd
+index 3b5b942..bdf7c42 100644
+--- a/ld/testsuite/ld-sparc/gotop32.rd
++++ b/ld/testsuite/ld-sparc/gotop32.rd
+@@ -17,9 +17,8 @@ Section Headers:
+  +\[[ 0-9]+\] .dynamic +DYNAMIC +0+12000 0+2000 0+70 08 +WA +3 +0 +4
+  +\[[ 0-9]+\] .got +PROGBITS +0+12070 0+2070 0+8 04 +WA +0 +0 +4
+  +\[[ 0-9]+\] .data +PROGBITS +0+13000 0+3000 0+8 00 +WA +0 +0 4096
+- +\[[ 0-9]+\] .shstrtab +.*
+- +\[[ 0-9]+\] .symtab +.*
+  +\[[ 0-9]+\] .strtab +.*
++ +\[[ 0-9]+\] .symtab +.*
+ #...
+ 
+ Elf file type is DYN \(Shared object file\)
+diff --git a/ld/testsuite/ld-sparc/gotop64.rd b/ld/testsuite/ld-sparc/gotop64.rd
+index 2d3ffec..8fb0da5 100644
+--- a/ld/testsuite/ld-sparc/gotop64.rd
++++ b/ld/testsuite/ld-sparc/gotop64.rd
+@@ -17,9 +17,8 @@ Section Headers:
+  +\[[ 0-9]+\] .dynamic +DYNAMIC +0+102000 0+2000 0+e0 10 +WA +3 +0 +8
+  +\[[ 0-9]+\] .got +PROGBITS +0+1020e0 0+20e0 0+10 08 +WA +0 +0 +8
+  +\[[ 0-9]+\] .data +PROGBITS +0+103000 0+3000 0+8 00 +WA +0 +0 4096
+- +\[[ 0-9]+\] .shstrtab +.*
+- +\[[ 0-9]+\] .symtab +.*
+  +\[[ 0-9]+\] .strtab +.*
++ +\[[ 0-9]+\] .symtab +.*
+ #...
+ 
+ Elf file type is DYN \(Shared object file\)
+diff --git a/ld/testsuite/ld-sparc/tlssunbin32.rd b/ld/testsuite/ld-sparc/tlssunbin32.rd
+index 7212732..ac22d93 100644
+--- a/ld/testsuite/ld-sparc/tlssunbin32.rd
++++ b/ld/testsuite/ld-sparc/tlssunbin32.rd
+@@ -19,9 +19,8 @@ Section Headers:
+  +\[[ 0-9]+\] .tbss +NOBITS +0+231f4 0+31f4 0+40 00 WAT +0 +0 +4
+  +\[[ 0-9]+\] .dynamic +DYNAMIC +0+231f4 0+31f4 0+80 08 +WA +4 +0 +4
+  +\[[ 0-9]+\] .got +PROGBITS +0+23274 0+3274 0+14 04 +WA +0 +0 +4
+- +\[[ 0-9]+\] .shstrtab +.*
+- +\[[ 0-9]+\] .symtab +.*
+  +\[[ 0-9]+\] .strtab +.*
++ +\[[ 0-9]+\] .symtab +.*
+ #...
+ 
+ Elf file type is EXEC \(Executable file\)
+diff --git a/ld/testsuite/ld-sparc/tlssunbin64.rd b/ld/testsuite/ld-sparc/tlssunbin64.rd
+index 5480dab..35f9108 100644
+--- a/ld/testsuite/ld-sparc/tlssunbin64.rd
++++ b/ld/testsuite/ld-sparc/tlssunbin64.rd
+@@ -19,9 +19,8 @@ Section Headers:
+  +\[[ 0-9]+\] .tbss +NOBITS +0+202204 0+2204 0+40 00 WAT +0 +0 +4
+  +\[[ 0-9]+\] .dynamic +DYNAMIC +0+202208 0+2208 0+100 10 +WA +4 +0 +8
+  +\[[ 0-9]+\] .got +PROGBITS +0+202308 0+2308 0+28 08 +WA +0 +0 +8
+- +\[[ 0-9]+\] .shstrtab +.*
+- +\[[ 0-9]+\] .symtab +.*
+  +\[[ 0-9]+\] .strtab +.*
++ +\[[ 0-9]+\] .symtab +.*
+ #...
+ 
+ Elf file type is EXEC \(Executable file\)
+diff --git a/ld/testsuite/ld-sparc/tlssunnopic32.rd b/ld/testsuite/ld-sparc/tlssunnopic32.rd
+index 21d07c0..945095c 100644
+--- a/ld/testsuite/ld-sparc/tlssunnopic32.rd
++++ b/ld/testsuite/ld-sparc/tlssunnopic32.rd
+@@ -18,9 +18,8 @@ Section Headers:
+  +\[[ 0-9]+\] .tbss +NOBITS +0+12000 0+2000 0+24 0+ WAT +0 +0 +4
+  +\[[ 0-9]+\] .dynamic +DYNAMIC +0+12000 0+2000 0+80 08 +WA +3 +0 +4
+  +\[[ 0-9]+\] .got +PROGBITS +0+12080 0+2080 0+1c 04 +WA +0 +0 +4
+- +\[[ 0-9]+\] .shstrtab +.*
+- +\[[ 0-9]+\] .symtab +.*
+  +\[[ 0-9]+\] .strtab +.*
++ +\[[ 0-9]+\] .symtab +.*
+ #...
+ Elf file type is DYN \(Shared object file\)
+ Entry point 0x1000
+diff --git a/ld/testsuite/ld-sparc/tlssunnopic64.rd b/ld/testsuite/ld-sparc/tlssunnopic64.rd
+index 6825aa9..3bb596a 100644
+--- a/ld/testsuite/ld-sparc/tlssunnopic64.rd
++++ b/ld/testsuite/ld-sparc/tlssunnopic64.rd
+@@ -18,9 +18,8 @@ Section Headers:
+  +\[[ 0-9]+\] .tbss +NOBITS +0+102000 0+2000 0+24 0+ WAT +0 +0 +4
+  +\[[ 0-9]+\] .dynamic +DYNAMIC +0+102000 0+2000 0+100 10 +WA +3 +0 +8
+  +\[[ 0-9]+\] .got +PROGBITS +0+102100 0+2100 0+38 08 +WA +0 +0 +8
+- +\[[ 0-9]+\] .shstrtab +.*
+- +\[[ 0-9]+\] .symtab +.*
+  +\[[ 0-9]+\] .strtab +.*
++ +\[[ 0-9]+\] .symtab +.*
+ #...
+ Elf file type is DYN \(Shared object file\)
+ Entry point 0x1000
+diff --git a/ld/testsuite/ld-sparc/tlssunpic32.rd b/ld/testsuite/ld-sparc/tlssunpic32.rd
+index 4d96736..20144b4 100644
+--- a/ld/testsuite/ld-sparc/tlssunpic32.rd
++++ b/ld/testsuite/ld-sparc/tlssunpic32.rd
+@@ -21,9 +21,8 @@ Section Headers:
+  +\[[ 0-9]+\] .dynamic +DYNAMIC +0+12060 0+2060 0+98 08 +WA +3 +0 +4
+  +\[[ 0-9]+\] .got +PROGBITS +0+120f8 0+20f8 0+4c 04 +WA +0 +0 +4
+  +\[[ 0-9]+\] .plt +.*
+- +\[[ 0-9]+\] .shstrtab +.*
+- +\[[ 0-9]+\] .symtab +.*
+  +\[[ 0-9]+\] .strtab +.*
++ +\[[ 0-9]+\] .symtab +.*
+ #...
+ 
+ Elf file type is DYN \(Shared object file\)
+diff --git a/ld/testsuite/ld-sparc/tlssunpic64.rd b/ld/testsuite/ld-sparc/tlssunpic64.rd
+index 6f91fee..5c1e821 100644
+--- a/ld/testsuite/ld-sparc/tlssunpic64.rd
++++ b/ld/testsuite/ld-sparc/tlssunpic64.rd
+@@ -21,9 +21,8 @@ Section Headers:
+  +\[[ 0-9]+\] .dynamic +DYNAMIC +0+102060 0+2060 0+130 10 +WA +3 +0 +8
+  +\[[ 0-9]+\] .got +PROGBITS +0+102190 0+2190 0+98 08 +WA +0 +0 +8
+  +\[[ 0-9]+\] .plt +.*
+- +\[[ 0-9]+\] .shstrtab +.*
+- +\[[ 0-9]+\] .symtab +.*
+  +\[[ 0-9]+\] .strtab +.*
++ +\[[ 0-9]+\] .symtab +.*
+ #...
+ 
+ Elf file type is DYN \(Shared object file\)
+diff --git a/ld/testsuite/ld-tic6x/common.d b/ld/testsuite/ld-tic6x/common.d
+index 83f533d..fab7044 100644
+--- a/ld/testsuite/ld-tic6x/common.d
++++ b/ld/testsuite/ld-tic6x/common.d
+@@ -4,16 +4,15 @@
+ #source: common.s
+ #readelf: -Ss
+ 
+-There are 6 section headers, starting at offset .*:
++There are [0-9]+ section headers, starting at offset .*:
+ 
+ Section Headers:
+   \[Nr\] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
+   \[ 0\]                   NULL            00000000 000000 000000 00      0   0  0
+   \[ 1\] \.far              NOBITS          00000080 000080 000008 00  WA  0   0  4
+   \[ 2\] \.bss              NOBITS          00000100 000080 000004 00  WA  0   0  4
+-  \[ 3\] \.shstrtab         STRTAB          00000000 [0-9a-f]+ 000025 00      0   0  1
+-  \[ 4\] \.symtab           SYMTAB          00000000 [0-9a-f]+ 000050 10      5   3  4
+-  \[ 5\] \.strtab           STRTAB          00000000 [0-9a-f]+ 000005 00      0   0  1
++  \[ 3\] \.strtab           STRTAB          00000000 [0-9a-f]+ 00001f 00      0   0  1
++  \[ 4\] \.symtab           SYMTAB          00000000 [0-9a-f]+ 000050 10      3   3  4
+ Key to Flags:
+   W \(write\), A \(alloc\), X \(execute\), M \(merge\), S \(strings\)
+   I \(info\), L \(link order\), G \(group\), T \(TLS\), E \(exclude\), x \(unknown\)
+diff --git a/ld/testsuite/ld-tic6x/shlib-1.rd b/ld/testsuite/ld-tic6x/shlib-1.rd
+index b4a3c30..0ad6b9c 100644
+--- a/ld/testsuite/ld-tic6x/shlib-1.rd
++++ b/ld/testsuite/ld-tic6x/shlib-1.rd
+@@ -1,4 +1,4 @@
+-There are 17 section headers, starting at offset .*:
++There are [0-9]+ section headers, starting at offset .*:
+ 
+ Section Headers:
+   \[Nr\] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
+@@ -16,9 +16,8 @@ Section Headers:
+   \[11\] \.neardata         PROGBITS        10000128 002128 000008 00  WA  0   0  4
+   \[12\] \.bss              NOBITS          10000130 002130 000004 00  WA  0   0  4
+   \[13\] \.c6xabi\.attributes C6000_ATTRIBUTES 00000000 002130 000019 00      0   0  1
+-  \[14\] \.shstrtab         STRTAB          00000000 [0-9a-f]+ 00007b 00      0   0  1
+-  \[15\] \.symtab           SYMTAB          00000000 [0-9a-f]+ [0-9a-f]+ 10     16  [0-9]+  4
+-  \[16\] \.strtab           STRTAB          00000000 [0-9a-f]+ [0-9a-f]+ 00      0   0  1
++  \[14\] \.strtab           STRTAB          00000000 [0-9a-f]+ [0-9a-f]+ 00      0   0  1
++  \[15\] \.symtab           SYMTAB          00000000 [0-9a-f]+ [0-9a-f]+ 10     14  [0-9]+  4
+ Key to Flags:
+   W \(write\), A \(alloc\), X \(execute\), M \(merge\), S \(strings\)
+   I \(info\), L \(link order\), G \(group\), T \(TLS\), E \(exclude\), x \(unknown\)
+diff --git a/ld/testsuite/ld-tic6x/shlib-1b.rd b/ld/testsuite/ld-tic6x/shlib-1b.rd
+index b4a3c30..0ad6b9c 100644
+--- a/ld/testsuite/ld-tic6x/shlib-1b.rd
++++ b/ld/testsuite/ld-tic6x/shlib-1b.rd
+@@ -1,4 +1,4 @@
+-There are 17 section headers, starting at offset .*:
++There are [0-9]+ section headers, starting at offset .*:
+ 
+ Section Headers:
+   \[Nr\] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
+@@ -16,9 +16,8 @@ Section Headers:
+   \[11\] \.neardata         PROGBITS        10000128 002128 000008 00  WA  0   0  4
+   \[12\] \.bss              NOBITS          10000130 002130 000004 00  WA  0   0  4
+   \[13\] \.c6xabi\.attributes C6000_ATTRIBUTES 00000000 002130 000019 00      0   0  1
+-  \[14\] \.shstrtab         STRTAB          00000000 [0-9a-f]+ 00007b 00      0   0  1
+-  \[15\] \.symtab           SYMTAB          00000000 [0-9a-f]+ [0-9a-f]+ 10     16  [0-9]+  4
+-  \[16\] \.strtab           STRTAB          00000000 [0-9a-f]+ [0-9a-f]+ 00      0   0  1
++  \[14\] \.strtab           STRTAB          00000000 [0-9a-f]+ [0-9a-f]+ 00      0   0  1
++  \[15\] \.symtab           SYMTAB          00000000 [0-9a-f]+ [0-9a-f]+ 10     14  [0-9]+  4
+ Key to Flags:
+   W \(write\), A \(alloc\), X \(execute\), M \(merge\), S \(strings\)
+   I \(info\), L \(link order\), G \(group\), T \(TLS\), E \(exclude\), x \(unknown\)
+diff --git a/ld/testsuite/ld-tic6x/shlib-1r.rd b/ld/testsuite/ld-tic6x/shlib-1r.rd
+index b4a3c30..0ad6b9c 100644
+--- a/ld/testsuite/ld-tic6x/shlib-1r.rd
++++ b/ld/testsuite/ld-tic6x/shlib-1r.rd
+@@ -1,4 +1,4 @@
+-There are 17 section headers, starting at offset .*:
++There are [0-9]+ section headers, starting at offset .*:
+ 
+ Section Headers:
+   \[Nr\] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
+@@ -16,9 +16,8 @@ Section Headers:
+   \[11\] \.neardata         PROGBITS        10000128 002128 000008 00  WA  0   0  4
+   \[12\] \.bss              NOBITS          10000130 002130 000004 00  WA  0   0  4
+   \[13\] \.c6xabi\.attributes C6000_ATTRIBUTES 00000000 002130 000019 00      0   0  1
+-  \[14\] \.shstrtab         STRTAB          00000000 [0-9a-f]+ 00007b 00      0   0  1
+-  \[15\] \.symtab           SYMTAB          00000000 [0-9a-f]+ [0-9a-f]+ 10     16  [0-9]+  4
+-  \[16\] \.strtab           STRTAB          00000000 [0-9a-f]+ [0-9a-f]+ 00      0   0  1
++  \[14\] \.strtab           STRTAB          00000000 [0-9a-f]+ [0-9a-f]+ 00      0   0  1
++  \[15\] \.symtab           SYMTAB          00000000 [0-9a-f]+ [0-9a-f]+ 10     14  [0-9]+  4
+ Key to Flags:
+   W \(write\), A \(alloc\), X \(execute\), M \(merge\), S \(strings\)
+   I \(info\), L \(link order\), G \(group\), T \(TLS\), E \(exclude\), x \(unknown\)
+diff --git a/ld/testsuite/ld-tic6x/shlib-1rb.rd b/ld/testsuite/ld-tic6x/shlib-1rb.rd
+index b4a3c30..0ad6b9c 100644
+--- a/ld/testsuite/ld-tic6x/shlib-1rb.rd
++++ b/ld/testsuite/ld-tic6x/shlib-1rb.rd
+@@ -1,4 +1,4 @@
+-There are 17 section headers, starting at offset .*:
++There are [0-9]+ section headers, starting at offset .*:
+ 
+ Section Headers:
+   \[Nr\] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
+@@ -16,9 +16,8 @@ Section Headers:
+   \[11\] \.neardata         PROGBITS        10000128 002128 000008 00  WA  0   0  4
+   \[12\] \.bss              NOBITS          10000130 002130 000004 00  WA  0   0  4
+   \[13\] \.c6xabi\.attributes C6000_ATTRIBUTES 00000000 002130 000019 00      0   0  1
+-  \[14\] \.shstrtab         STRTAB          00000000 [0-9a-f]+ 00007b 00      0   0  1
+-  \[15\] \.symtab           SYMTAB          00000000 [0-9a-f]+ [0-9a-f]+ 10     16  [0-9]+  4
+-  \[16\] \.strtab           STRTAB          00000000 [0-9a-f]+ [0-9a-f]+ 00      0   0  1
++  \[14\] \.strtab           STRTAB          00000000 [0-9a-f]+ [0-9a-f]+ 00      0   0  1
++  \[15\] \.symtab           SYMTAB          00000000 [0-9a-f]+ [0-9a-f]+ 10     14  [0-9]+  4
+ Key to Flags:
+   W \(write\), A \(alloc\), X \(execute\), M \(merge\), S \(strings\)
+   I \(info\), L \(link order\), G \(group\), T \(TLS\), E \(exclude\), x \(unknown\)
+diff --git a/ld/testsuite/ld-tic6x/shlib-app-1.rd b/ld/testsuite/ld-tic6x/shlib-app-1.rd
+index 23fb91c..0e9e3bb 100644
+--- a/ld/testsuite/ld-tic6x/shlib-app-1.rd
++++ b/ld/testsuite/ld-tic6x/shlib-app-1.rd
+@@ -1,4 +1,4 @@
+-There are 18 section headers, starting at offset .*:
++There are [0-9]+ section headers, starting at offset .*:
+ 
+ Section Headers:
+   \[Nr\] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
+@@ -17,9 +17,8 @@ Section Headers:
+   \[12\] \.neardata         PROGBITS        100000c0 0020c0 00000c 00  WA  0   0  4
+   \[13\] \.bss              NOBITS          100000cc 0020cc 000004 00  WA  0   0  4
+   \[14\] \.c6xabi\.attributes C6000_ATTRIBUTES 00000000 0020cc 000019 00      0   0  1
+-  \[15\] \.shstrtab         STRTAB          00000000 [0-9a-f]+ 000080 00      0   0  1
+-  \[16\] \.symtab           SYMTAB          00000000 [0-9a-f]+ [0-9a-f]+ 10     17  [0-9]+  4
+-  \[17\] \.strtab           STRTAB          00000000 [0-9a-f]+ [0-9a-f]+ 00      0   0  1
++  \[15\] \.strtab           STRTAB          00000000 [0-9a-f]+ [0-9a-f]+ 00      0   0  1
++  \[16\] \.symtab           SYMTAB          00000000 [0-9a-f]+ [0-9a-f]+ 10     15  [0-9]+  4
+ Key to Flags:
+   W \(write\), A \(alloc\), X \(execute\), M \(merge\), S \(strings\)
+   I \(info\), L \(link order\), G \(group\), T \(TLS\), E \(exclude\), x \(unknown\)
+diff --git a/ld/testsuite/ld-tic6x/shlib-app-1b.rd b/ld/testsuite/ld-tic6x/shlib-app-1b.rd
+index 7509e0a..5e1b830 100644
+--- a/ld/testsuite/ld-tic6x/shlib-app-1b.rd
++++ b/ld/testsuite/ld-tic6x/shlib-app-1b.rd
+@@ -1,4 +1,4 @@
+-There are 18 section headers, starting at offset .*:
++There are [0-9]+ section headers, starting at offset .*:
+ 
+ Section Headers:
+   \[Nr\] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
+@@ -17,9 +17,8 @@ Section Headers:
+   \[12\] \.neardata         PROGBITS        100000c0 0020c0 00000c 00  WA  0   0  4
+   \[13\] \.bss              NOBITS          100000cc 0020cc 000004 00  WA  0   0  4
+   \[14\] \.c6xabi\.attributes C6000_ATTRIBUTES 00000000 0020cc 000019 00      0   0  1
+-  \[15\] \.shstrtab         STRTAB          00000000 [0-9a-f]+ 000080 00      0   0  1
+-  \[16\] \.symtab           SYMTAB          00000000 [0-9a-f]+ [0-9a-f]+ 10     17  [0-9]+  4
+-  \[17\] \.strtab           STRTAB          00000000 [0-9a-f]+ [0-9a-f]+ 00      0   0  1
++  \[15\] \.strtab           STRTAB          00000000 [0-9a-f]+ [0-9a-f]+ 00      0   0  1
++  \[16\] \.symtab           SYMTAB          00000000 [0-9a-f]+ [0-9a-f]+ 10     15  [0-9]+  4
+ Key to Flags:
+   W \(write\), A \(alloc\), X \(execute\), M \(merge\), S \(strings\)
+   I \(info\), L \(link order\), G \(group\), T \(TLS\), E \(exclude\), x \(unknown\)
+diff --git a/ld/testsuite/ld-tic6x/shlib-app-1r.rd b/ld/testsuite/ld-tic6x/shlib-app-1r.rd
+index ba0e84d..47cae4b 100644
+--- a/ld/testsuite/ld-tic6x/shlib-app-1r.rd
++++ b/ld/testsuite/ld-tic6x/shlib-app-1r.rd
+@@ -1,4 +1,4 @@
+-There are 17 section headers, starting at offset .*:
++There are [0-9]+ section headers, starting at offset .*:
+ 
+ Section Headers:
+   \[Nr\] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
+@@ -16,9 +16,8 @@ Section Headers:
+   \[11\] \.neardata         PROGBITS        100000c0 0020c0 000004 00  WA  0   0  4
+   \[12\] \.bss              NOBITS          100000c4 0020c4 000004 00  WA  0   0  4
+   \[13\] \.c6xabi\.attributes C6000_ATTRIBUTES 00000000 0020c4 000019 00      0   0  1
+-  \[14\] \.shstrtab         STRTAB          00000000 [0-9a-f]+ 00007b 00      0   0  1
+-  \[15\] \.symtab           SYMTAB          00000000 [0-9a-f]+ [0-9a-f]+ 10     16  [0-9]+  4
+-  \[16\] \.strtab           STRTAB          00000000 [0-9a-f]+ [0-9a-f]+ 00      0   0  1
++  \[14\] \.strtab           STRTAB          00000000 [0-9a-f]+ [0-9a-f]+ 00      0   0  1
++  \[15\] \.symtab           SYMTAB          00000000 [0-9a-f]+ [0-9a-f]+ 10     14  [0-9]+  4
+ Key to Flags:
+   W \(write\), A \(alloc\), X \(execute\), M \(merge\), S \(strings\)
+   I \(info\), L \(link order\), G \(group\), T \(TLS\), E \(exclude\), x \(unknown\)
+diff --git a/ld/testsuite/ld-tic6x/shlib-app-1rb.rd b/ld/testsuite/ld-tic6x/shlib-app-1rb.rd
+index f7ff5a0..862039c 100644
+--- a/ld/testsuite/ld-tic6x/shlib-app-1rb.rd
++++ b/ld/testsuite/ld-tic6x/shlib-app-1rb.rd
+@@ -1,4 +1,4 @@
+-There are 17 section headers, starting at offset .*:
++There are [0-9]+ section headers, starting at offset .*:
+ 
+ Section Headers:
+   \[Nr\] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
+@@ -16,9 +16,8 @@ Section Headers:
+   \[11\] \.neardata         PROGBITS        100000c0 0020c0 000004 00  WA  0   0  4
+   \[12\] \.bss              NOBITS          100000c4 0020c4 000004 00  WA  0   0  4
+   \[13\] \.c6xabi\.attributes C6000_ATTRIBUTES 00000000 0020c4 000019 00      0   0  1
+-  \[14\] \.shstrtab         STRTAB          00000000 [0-9a-f]+ 00007b 00      0   0  1
+-  \[15\] \.symtab           SYMTAB          00000000 [0-9a-f]+ [0-9a-f]+ 10     16  [0-9]+  4
+-  \[16\] \.strtab           STRTAB          00000000 [0-9a-f]+ [0-9a-f]+ 00      0   0  1
++  \[14\] \.strtab           STRTAB          00000000 [0-9a-f]+ [0-9a-f]+ 00      0   0  1
++  \[15\] \.symtab           SYMTAB          00000000 [0-9a-f]+ [0-9a-f]+ 10     14  [0-9]+  4
+ Key to Flags:
+   W \(write\), A \(alloc\), X \(execute\), M \(merge\), S \(strings\)
+   I \(info\), L \(link order\), G \(group\), T \(TLS\), E \(exclude\), x \(unknown\)
+diff --git a/ld/testsuite/ld-tic6x/shlib-noindex.rd b/ld/testsuite/ld-tic6x/shlib-noindex.rd
+index aae19f7..4933ac6 100644
+--- a/ld/testsuite/ld-tic6x/shlib-noindex.rd
++++ b/ld/testsuite/ld-tic6x/shlib-noindex.rd
+@@ -1,4 +1,4 @@
+-There are 18 section headers, starting at offset .*:
++There are [0-9]+ section headers, starting at offset .*:
+ 
+ Section Headers:
+   \[Nr\] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
+@@ -17,9 +17,8 @@ Section Headers:
+   \[12\] \.neardata         PROGBITS        10000128 002128 000008 00  WA  0   0  4
+   \[13\] \.bss              NOBITS          10000130 002130 000004 00  WA  0   0  4
+   \[14\] \.c6xabi\.attributes C6000_ATTRIBUTES 00000000 002130 000019 00      0   0  1
+-  \[15\] \.shstrtab         STRTAB          00000000 [0-9a-f]+ 000080 00      0   0  1
+-  \[16\] \.symtab           SYMTAB          00000000 [0-9a-f]+ [0-9a-f]+ 10     17  [0-9]+  4
+-  \[17\] \.strtab           STRTAB          00000000 [0-9a-f]+ [0-9a-f]+ 00      0   0  1
++  \[15\] \.strtab           STRTAB          00000000 [0-9a-f]+ [0-9a-f]+ 00      0   0  1
++  \[16\] \.symtab           SYMTAB          00000000 [0-9a-f]+ [0-9a-f]+ 10     15  [0-9]+  4
+ Key to Flags:
+   W \(write\), A \(alloc\), X \(execute\), M \(merge\), S \(strings\)
+   I \(info\), L \(link order\), G \(group\), T \(TLS\), E \(exclude\), x \(unknown\)
+diff --git a/ld/testsuite/ld-tic6x/static-app-1.rd b/ld/testsuite/ld-tic6x/static-app-1.rd
+index 01ff975..961601f 100644
+--- a/ld/testsuite/ld-tic6x/static-app-1.rd
++++ b/ld/testsuite/ld-tic6x/static-app-1.rd
+@@ -1,4 +1,4 @@
+-There are 15 section headers, starting at offset .*:
++There are [0-9]+ section headers, starting at offset .*:
+ 
+ Section Headers:
+   \[Nr\] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
+@@ -14,9 +14,8 @@ Section Headers:
+   \[ 9\] \.neardata         PROGBITS        100000e0 0020e0 000014 00  WA  0   0  4
+   \[10\] \.bss              NOBITS          100000f4 0020f4 000004 00  WA  0   0  4
+   \[11\] \.c6xabi\.attributes C6000_ATTRIBUTES 00000000 0020f4 000019 00      0   0  1
+-  \[12\] \.shstrtab         STRTAB          00000000 [0-9a-f]+ 000071 00      0   0  1
+-  \[13\] \.symtab           SYMTAB          00000000 [0-9a-f]+ [0-9a-f]+ 10     14  [0-9]+  4
+-  \[14\] \.strtab           STRTAB          00000000 [0-9a-f]+ [0-9a-f]+ 00      0   0  1
++  \[12\] \.strtab           STRTAB          00000000 [0-9a-f]+ [0-9a-f]+ 00      0   0  1
++  \[13\] \.symtab           SYMTAB          00000000 [0-9a-f]+ [0-9a-f]+ 10     12  [0-9]+  4
+ Key to Flags:
+   W \(write\), A \(alloc\), X \(execute\), M \(merge\), S \(strings\)
+   I \(info\), L \(link order\), G \(group\), T \(TLS\), E \(exclude\), x \(unknown\)
+diff --git a/ld/testsuite/ld-tic6x/static-app-1b.rd b/ld/testsuite/ld-tic6x/static-app-1b.rd
+index 01ff975..961601f 100644
+--- a/ld/testsuite/ld-tic6x/static-app-1b.rd
++++ b/ld/testsuite/ld-tic6x/static-app-1b.rd
+@@ -1,4 +1,4 @@
+-There are 15 section headers, starting at offset .*:
++There are [0-9]+ section headers, starting at offset .*:
+ 
+ Section Headers:
+   \[Nr\] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
+@@ -14,9 +14,8 @@ Section Headers:
+   \[ 9\] \.neardata         PROGBITS        100000e0 0020e0 000014 00  WA  0   0  4
+   \[10\] \.bss              NOBITS          100000f4 0020f4 000004 00  WA  0   0  4
+   \[11\] \.c6xabi\.attributes C6000_ATTRIBUTES 00000000 0020f4 000019 00      0   0  1
+-  \[12\] \.shstrtab         STRTAB          00000000 [0-9a-f]+ 000071 00      0   0  1
+-  \[13\] \.symtab           SYMTAB          00000000 [0-9a-f]+ [0-9a-f]+ 10     14  [0-9]+  4
+-  \[14\] \.strtab           STRTAB          00000000 [0-9a-f]+ [0-9a-f]+ 00      0   0  1
++  \[12\] \.strtab           STRTAB          00000000 [0-9a-f]+ [0-9a-f]+ 00      0   0  1
++  \[13\] \.symtab           SYMTAB          00000000 [0-9a-f]+ [0-9a-f]+ 10     12  [0-9]+  4
+ Key to Flags:
+   W \(write\), A \(alloc\), X \(execute\), M \(merge\), S \(strings\)
+   I \(info\), L \(link order\), G \(group\), T \(TLS\), E \(exclude\), x \(unknown\)
+diff --git a/ld/testsuite/ld-tic6x/static-app-1r.rd b/ld/testsuite/ld-tic6x/static-app-1r.rd
+index 041caf4..999830c 100644
+--- a/ld/testsuite/ld-tic6x/static-app-1r.rd
++++ b/ld/testsuite/ld-tic6x/static-app-1r.rd
+@@ -1,4 +1,4 @@
+-There are 15 section headers, starting at offset .*:
++There are [0-9]+ section headers, starting at offset .*:
+ 
+ Section Headers:
+   \[Nr\] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
+@@ -14,9 +14,8 @@ Section Headers:
+   \[ 9\] \.neardata         PROGBITS        100000e0 0020e0 00000c 00  WA  0   0  4
+   \[10\] \.bss              NOBITS          100000ec 0020ec 000004 00  WA  0   0  4
+   \[11\] \.c6xabi\.attributes C6000_ATTRIBUTES 00000000 0020ec 000019 00      0   0  1
+-  \[12\] \.shstrtab         STRTAB          00000000 [0-9a-f]+ 000071 00      0   0  1
+-  \[13\] \.symtab           SYMTAB          00000000 [0-9a-f]+ [0-9a-f]+ 10     14  [0-9]+  4
+-  \[14\] \.strtab           STRTAB          00000000 [0-9a-f]+ [0-9a-f]+ 00      0   0  1
++  \[12\] \.strtab           STRTAB          00000000 [0-9a-f]+ [0-9a-f]+ 00      0   0  1
++  \[13\] \.symtab           SYMTAB          00000000 [0-9a-f]+ [0-9a-f]+ 10     12  [0-9]+  4
+ Key to Flags:
+   W \(write\), A \(alloc\), X \(execute\), M \(merge\), S \(strings\)
+   I \(info\), L \(link order\), G \(group\), T \(TLS\), E \(exclude\), x \(unknown\)
+diff --git a/ld/testsuite/ld-tic6x/static-app-1rb.rd b/ld/testsuite/ld-tic6x/static-app-1rb.rd
+index 041caf4..999830c 100644
+--- a/ld/testsuite/ld-tic6x/static-app-1rb.rd
++++ b/ld/testsuite/ld-tic6x/static-app-1rb.rd
+@@ -1,4 +1,4 @@
+-There are 15 section headers, starting at offset .*:
++There are [0-9]+ section headers, starting at offset .*:
+ 
+ Section Headers:
+   \[Nr\] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
+@@ -14,9 +14,8 @@ Section Headers:
+   \[ 9\] \.neardata         PROGBITS        100000e0 0020e0 00000c 00  WA  0   0  4
+   \[10\] \.bss              NOBITS          100000ec 0020ec 000004 00  WA  0   0  4
+   \[11\] \.c6xabi\.attributes C6000_ATTRIBUTES 00000000 0020ec 000019 00      0   0  1
+-  \[12\] \.shstrtab         STRTAB          00000000 [0-9a-f]+ 000071 00      0   0  1
+-  \[13\] \.symtab           SYMTAB          00000000 [0-9a-f]+ [0-9a-f]+ 10     14  [0-9]+  4
+-  \[14\] \.strtab           STRTAB          00000000 [0-9a-f]+ [0-9a-f]+ 00      0   0  1
++  \[12\] \.strtab           STRTAB          00000000 [0-9a-f]+ [0-9a-f]+ 00      0   0  1
++  \[13\] \.symtab           SYMTAB          00000000 [0-9a-f]+ [0-9a-f]+ 10     12  [0-9]+  4
+ Key to Flags:
+   W \(write\), A \(alloc\), X \(execute\), M \(merge\), S \(strings\)
+   I \(info\), L \(link order\), G \(group\), T \(TLS\), E \(exclude\), x \(unknown\)
+diff --git a/ld/testsuite/ld-x86-64/ilp32-4-nacl.d b/ld/testsuite/ld-x86-64/ilp32-4-nacl.d
+index 181868c..536f0fc 100644
+--- a/ld/testsuite/ld-x86-64/ilp32-4-nacl.d
++++ b/ld/testsuite/ld-x86-64/ilp32-4-nacl.d
+@@ -4,7 +4,7 @@
+ #readelf: -d -S --wide
+ #target: x86_64-*-nacl*
+ 
+-There are 9 section headers, starting at offset 0x[0-9a-f]+:
++There are 8 section headers, starting at offset 0x[0-9a-f]+:
+ 
+ Section Headers:
+  +\[Nr\] Name +Type +Addr +Off +Size +ES +Flg +Lk +Inf +Al
+@@ -14,9 +14,8 @@ Section Headers:
+  +\[ 3\] \.dynsym +DYNSYM +100000e0 +0+e0 +0+60 +10 +A +4 +2 +4
+  +\[ 4\] \.dynstr +STRTAB +10000140 +0+140 +0+19 +00 +A +0 +0 +1
+  +\[ 5\] \.dynamic +DYNAMIC +1001015c +0+15c +0+58 +08 +WA +4 +0 +4
+- +\[ 6\] \.shstrtab +STRTAB +0+ +[0-9a-f]+ +0+40 +00 +0 +0 +1
+- +\[ 7\] \.symtab +SYMTAB +0+0 +[0-9a-f]+ +[0-9a-f]+ +10 +8 +[0-9] +4
+- +\[ 8\] \.strtab +STRTAB +0+ +[0-9a-f]+ +[0-9a-f]+ +00 +0 +0 +1
++ +\[ 6\] \.strtab +STRTAB +0+ +[0-9a-f]+ +[0-9a-f]+ +00 +0 +0 +1
++ +\[ 7\] \.symtab +SYMTAB +0+0 +[0-9a-f]+ +[0-9a-f]+ +10 +6 +[0-9] +4
+ Key to Flags:
+   W \(write\), A \(alloc\), X \(execute\), M \(merge\), S \(strings\), l \(large\)
+   I \(info\), L \(link order\), G \(group\), T \(TLS\), E \(exclude\), x \(unknown\)
+diff --git a/ld/testsuite/ld-x86-64/ilp32-4.d b/ld/testsuite/ld-x86-64/ilp32-4.d
+index 6b63e5a..e8e35ae 100644
+--- a/ld/testsuite/ld-x86-64/ilp32-4.d
++++ b/ld/testsuite/ld-x86-64/ilp32-4.d
+@@ -3,7 +3,7 @@
+ #readelf: -d -S --wide
+ #target: x86_64-*-linux*
+ 
+-There are 9 section headers, starting at offset .*:
++There are 8 section headers, starting at offset .*:
+ 
+ Section Headers:
+   \[Nr\] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
+@@ -13,9 +13,8 @@ Section Headers:
+   \[ 3\] .dynstr           STRTAB          00000120 000120 000019 00   A  0   0  1
+   \[ 4\] .text             PROGBITS        00000139 000139 000001 00  AX  0   0  1
+   \[ 5\] .dynamic          DYNAMIC         0020013c 00013c 000058 08  WA  3   0  4
+-  \[ 6\] .shstrtab         STRTAB          00000000 [0-9a-f]+ 000040 00      0   0  1
+-  \[ 7\] .symtab           SYMTAB          00000000 [0-9a-f]+ [0-9a-f]+ 10      8   [0-9]  4
+-  \[ 8\] .strtab           STRTAB          00000000 [0-9a-f]+ [0-9a-f]+ 00      0   0  1
++  \[ 6\] .strtab           STRTAB          00000000 [0-9a-f]+ [0-9a-f]+ 00      0   0  1
++  \[ 7\] .symtab           SYMTAB          00000000 [0-9a-f]+ [0-9a-f]+ 10      6   [0-9]  4
+ Key to Flags:
+   W \(write\), A \(alloc\), X \(execute\), M \(merge\), S \(strings\), l \(large\)
+   I \(info\), L \(link order\), G \(group\), T \(TLS\), E \(exclude\), x \(unknown\)
+diff --git a/ld/testsuite/ld-x86-64/pr12718.d b/ld/testsuite/ld-x86-64/pr12718.d
+index 8e28651..0eb0d2a 100644
+--- a/ld/testsuite/ld-x86-64/pr12718.d
++++ b/ld/testsuite/ld-x86-64/pr12718.d
+@@ -3,15 +3,14 @@
+ #ld: -melf_x86_64
+ #readelf: -S --wide
+ 
+-There are 5 section headers, starting at offset 0x[0-9a-f]+:
++There are 4 section headers, starting at offset 0x[0-9a-f]+:
+ 
+ Section Headers:
+  +\[Nr\] Name +Type +Address +Off +Size +ES +Flg +Lk +Inf +Al
+  +\[ 0\] +NULL +0+ +0+ +0+ +0+ +0 +0 +0
+  +\[ 1\] +.text +PROGBITS +[0-9a-f]+ +[0-9a-f]+ +000006 00 +AX +0 +0 +1
+- +\[ 2\] +.shstrtab +STRTAB +0+ +[0-9a-f]+ +[0-9a-f]+ +0+ +0 +0 +1
+- +\[ 3\] +.symtab +SYMTAB +0+ +[0-9a-f]+ +[0-9a-f]+ 18 +4 +[0-9] +8
+- +\[ 4\] +.strtab +STRTAB +0+ +[0-9a-f]+ +[0-9a-f]+ 00 +0 +0 +1
++ +\[ 2\] +.strtab +STRTAB +0+ +[0-9a-f]+ +[0-9a-f]+ 00 +0 +0 +1
++ +\[ 3\] +.symtab +SYMTAB +0+ +[0-9a-f]+ +[0-9a-f]+ 18 +2 +[0-9] +8
+ Key to Flags:
+   W \(write\), A \(alloc\), X \(execute\), M \(merge\), S \(strings\), l \(large\)
+   I \(info\), L \(link order\), G \(group\), T \(TLS\), E \(exclude\), x \(unknown\)
+diff --git a/ld/testsuite/ld-x86-64/pr12921.d b/ld/testsuite/ld-x86-64/pr12921.d
+index 61939e4..e431ba4 100644
+--- a/ld/testsuite/ld-x86-64/pr12921.d
++++ b/ld/testsuite/ld-x86-64/pr12921.d
+@@ -3,7 +3,7 @@
+ #ld: -melf_x86_64
+ #readelf: -S --wide
+ 
+-There are 7 section headers, starting at offset 0x[0-9a-f]+:
++There are 6 section headers, starting at offset 0x[0-9a-f]+:
+ 
+ Section Headers:
+  +\[Nr\] Name +Type +Address +Off +Size +ES +Flg +Lk +Inf +Al
+@@ -11,9 +11,8 @@ Section Headers:
+  +\[ 1\] .text +PROGBITS +[0-9a-f]+ +[0-9a-f]+ +0+1 00 +AX +0 +0 +4096
+  +\[ 2\] .data +PROGBITS +[0-9a-f]+ +[0-9a-f]+000 +0+28 +00 +WA +0 +0 +4096
+  +\[ 3\] .bss +NOBITS +[0-9a-f]+ +[0-9a-f]+028 +0+10000 +00 +WA +0 +0 +4096
+- +\[ 4\] .shstrtab +STRTAB +0+ +[0-9a-f]+ +0+2c +00 +0 +0 +1
+- +\[ 5\] .symtab +SYMTAB +0+ +[0-9a-f]+ +[0-9a-f]+ +18 +6 +[0-9] +8
+- +\[ 6\] .strtab +STRTAB +0+ +[0-9a-f]+ +[0-9a-f]+ +00 +0 +0 +1
++ +\[ 4\] .strtab +STRTAB +0+ +[0-9a-f]+ +[0-9a-f]+ +00 +0 +0 +1
++ +\[ 5\] .symtab +SYMTAB +0+ +[0-9a-f]+ +[0-9a-f]+ +18 +4 +[0-9] +8
+ Key to Flags:
+   W \(write\), A \(alloc\), X \(execute\), M \(merge\), S \(strings\), l \(large\)
+   I \(info\), L \(link order\), G \(group\), T \(TLS\), E \(exclude\), x \(unknown\)
+diff --git a/ld/testsuite/ld-x86-64/split-by-file-nacl.rd b/ld/testsuite/ld-x86-64/split-by-file-nacl.rd
+index 340c5fc..db49d0b 100644
+--- a/ld/testsuite/ld-x86-64/split-by-file-nacl.rd
++++ b/ld/testsuite/ld-x86-64/split-by-file-nacl.rd
+@@ -1,4 +1,4 @@
+-There are 9 section headers, starting at offset .*:
++There are 8 section headers, starting at offset .*:
+ 
+ Section Headers:
+   \[Nr\] Name              Type            Address          Off    Size   ES Flg Lk Inf Al
+@@ -8,9 +8,8 @@ Section Headers:
+   \[ 3\] .data             PROGBITS        0000000000000000 000043 000000 00  WA  0   0  1
+   \[ 4\] .bss              NOBITS          0000000000000000 000043 000000 00  WA  0   0  1
+   \[ 5\] .foo.0            PROGBITS        0000000000000003 000043 000003 00 AXl  0   0  1
+-  \[ 6\] .shstrtab         STRTAB          0000000000000000 [0-9a-f]+ 000038 00      0   0  1
+-  \[ 7\] .symtab           SYMTAB          0000000000000000 [0-9a-f]+ [0-9a-f]+ 18      8   [0-9]  8
+-  \[ 8\] .strtab           STRTAB          0000000000000000 [0-9a-f]+ [0-9a-f]+ 00      0   0  1
++  \[ 6\] .strtab           STRTAB          0000000000000000 [0-9a-f]+ [0-9a-f]+ 00      0   0  1
++  \[ 7\] .symtab           SYMTAB          0000000000000000 [0-9a-f]+ [0-9a-f]+ 18      6   [0-9]  8
+ Key to Flags:
+   W \(write\), A \(alloc\), X \(execute\), M \(merge\), S \(strings\), l \(large\)
+   I \(info\), L \(link order\), G \(group\), T \(TLS\), E \(exclude\), x \(unknown\)
+diff --git a/ld/testsuite/ld-x86-64/split-by-file.rd b/ld/testsuite/ld-x86-64/split-by-file.rd
+index 340c5fc..db49d0b 100644
+--- a/ld/testsuite/ld-x86-64/split-by-file.rd
++++ b/ld/testsuite/ld-x86-64/split-by-file.rd
+@@ -1,4 +1,4 @@
+-There are 9 section headers, starting at offset .*:
++There are 8 section headers, starting at offset .*:
+ 
+ Section Headers:
+   \[Nr\] Name              Type            Address          Off    Size   ES Flg Lk Inf Al
+@@ -8,9 +8,8 @@ Section Headers:
+   \[ 3\] .data             PROGBITS        0000000000000000 000043 000000 00  WA  0   0  1
+   \[ 4\] .bss              NOBITS          0000000000000000 000043 000000 00  WA  0   0  1
+   \[ 5\] .foo.0            PROGBITS        0000000000000003 000043 000003 00 AXl  0   0  1
+-  \[ 6\] .shstrtab         STRTAB          0000000000000000 [0-9a-f]+ 000038 00      0   0  1
+-  \[ 7\] .symtab           SYMTAB          0000000000000000 [0-9a-f]+ [0-9a-f]+ 18      8   [0-9]  8
+-  \[ 8\] .strtab           STRTAB          0000000000000000 [0-9a-f]+ [0-9a-f]+ 00      0   0  1
++  \[ 6\] .strtab           STRTAB          0000000000000000 [0-9a-f]+ [0-9a-f]+ 00      0   0  1
++  \[ 7\] .symtab           SYMTAB          0000000000000000 [0-9a-f]+ [0-9a-f]+ 18      6   [0-9]  8
+ Key to Flags:
+   W \(write\), A \(alloc\), X \(execute\), M \(merge\), S \(strings\), l \(large\)
+   I \(info\), L \(link order\), G \(group\), T \(TLS\), E \(exclude\), x \(unknown\)
+diff --git a/ld/testsuite/ld-x86-64/tlsbin-nacl.rd b/ld/testsuite/ld-x86-64/tlsbin-nacl.rd
+index 94c14a0..ef2a567 100644
+--- a/ld/testsuite/ld-x86-64/tlsbin-nacl.rd
++++ b/ld/testsuite/ld-x86-64/tlsbin-nacl.rd
+@@ -23,9 +23,8 @@ Section Headers:
+  +\[[ 0-9]+\] .dynamic +DYNAMIC +0+10030410 [0-9a-f]+ 0+140 10 +WA +6 +0 +8
+  +\[[ 0-9]+\] .got +PROGBITS +0+10030550 [0-9a-f]+ 0+20 08 +WA +0 +0 +8
+  +\[[ 0-9]+\] .got.plt +PROGBITS +0+10030570 [0-9a-f]+ 0+20 08 +WA +0 +0 +8
+- +\[[ 0-9]+\] .shstrtab +.*
+- +\[[ 0-9]+\] .symtab +.*
+  +\[[ 0-9]+\] .strtab +.*
++ +\[[ 0-9]+\] .symtab +.*
+ Key to Flags:
+ .*
+ .*
+diff --git a/ld/testsuite/ld-x86-64/tlsbin.rd b/ld/testsuite/ld-x86-64/tlsbin.rd
+index 9aaddbf..2cd6d6e 100644
+--- a/ld/testsuite/ld-x86-64/tlsbin.rd
++++ b/ld/testsuite/ld-x86-64/tlsbin.rd
+@@ -23,9 +23,8 @@ Section Headers:
+  +\[[ 0-9]+\] .dynamic +DYNAMIC +0+601298 0+1298 0+140 10 +WA +4 +0 +8
+  +\[[ 0-9]+\] .got +PROGBITS +0+6013d8 0+13d8 0+20 08 +WA +0 +0 +8
+  +\[[ 0-9]+\] .got.plt +PROGBITS +0+6013f8 0+13f8 0+20 08 +WA +0 +0 +8
+- +\[[ 0-9]+\] .shstrtab +.*
+- +\[[ 0-9]+\] .symtab +.*
+  +\[[ 0-9]+\] .strtab +.*
++ +\[[ 0-9]+\] .symtab +.*
+ Key to Flags:
+ .*
+ .*
+diff --git a/ld/testsuite/ld-x86-64/tlsbindesc-nacl.rd b/ld/testsuite/ld-x86-64/tlsbindesc-nacl.rd
+index 6ae8daa..06dca3a 100644
+--- a/ld/testsuite/ld-x86-64/tlsbindesc-nacl.rd
++++ b/ld/testsuite/ld-x86-64/tlsbindesc-nacl.rd
+@@ -21,9 +21,8 @@ Section Headers:
+  +\[[ 0-9]+\] .dynamic +DYNAMIC +0+100303d0 0+3d0 0+100 10 +WA +5 +0 +8
+  +\[[ 0-9]+\] .got +PROGBITS +0+100304d0 0+4d0 0+20 08 +WA +0 +0 +8
+  +\[[ 0-9]+\] .got.plt +PROGBITS +0+100304f0 0+4f0 0+18 08 +WA +0 +0 +8
+- +\[[ 0-9]+\] .shstrtab +.*
+- +\[[ 0-9]+\] .symtab +.*
+  +\[[ 0-9]+\] .strtab +.*
++ +\[[ 0-9]+\] .symtab +.*
+ Key to Flags:
+ .*
+ .*
+diff --git a/ld/testsuite/ld-x86-64/tlsbindesc.rd b/ld/testsuite/ld-x86-64/tlsbindesc.rd
+index 48bbdb9..4b89718 100644
+--- a/ld/testsuite/ld-x86-64/tlsbindesc.rd
++++ b/ld/testsuite/ld-x86-64/tlsbindesc.rd
+@@ -21,9 +21,8 @@ Section Headers:
+  +\[[ 0-9]+\] .dynamic +DYNAMIC +0+601260 0+1260 0+100 10 +WA +4 +0 +8
+  +\[[ 0-9]+\] .got +PROGBITS +0+601360 0+1360 0+20 08 +WA +0 +0 +8
+  +\[[ 0-9]+\] .got.plt +PROGBITS +0+601380 0+1380 0+18 08 +WA +0 +0 +8
+- +\[[ 0-9]+\] .shstrtab +.*
+- +\[[ 0-9]+\] .symtab +.*
+  +\[[ 0-9]+\] .strtab +.*
++ +\[[ 0-9]+\] .symtab +.*
+ Key to Flags:
+ .*
+ .*
+diff --git a/ld/testsuite/ld-x86-64/tlsdesc-nacl.rd b/ld/testsuite/ld-x86-64/tlsdesc-nacl.rd
+index 25bbd9b..30ad1c0 100644
+--- a/ld/testsuite/ld-x86-64/tlsdesc-nacl.rd
++++ b/ld/testsuite/ld-x86-64/tlsdesc-nacl.rd
+@@ -22,9 +22,8 @@ Section Headers:
+  +\[[ 0-9]+\] .dynamic +DYNAMIC +0+100104e8 [0-9a-f]+ 0+150 10 +WA +5 +0 +8
+  +\[[ 0-9]+\] .got +PROGBITS +0+10010638 [0-9a-f]+ 0+48 08 +WA +0 +0 +8
+  +\[[ 0-9]+\] .got.plt +PROGBITS +0+10010680 [0-9a-f]+ 0+68 08 +WA +0 +0 +8
+- +\[[ 0-9]+\] .shstrtab +.*
+- +\[[ 0-9]+\] .symtab +.*
+  +\[[ 0-9]+\] .strtab +.*
++ +\[[ 0-9]+\] .symtab +.*
+ Key to Flags:
+ .*
+ .*
+diff --git a/ld/testsuite/ld-x86-64/tlsdesc.rd b/ld/testsuite/ld-x86-64/tlsdesc.rd
+index 1efea46..b66b992 100644
+--- a/ld/testsuite/ld-x86-64/tlsdesc.rd
++++ b/ld/testsuite/ld-x86-64/tlsdesc.rd
+@@ -22,9 +22,8 @@ Section Headers:
+  +\[[ 0-9]+\] .dynamic +DYNAMIC +0+2011b8 0+11b8 0+150 10 +WA +3 +0 +8
+  +\[[ 0-9]+\] .got +PROGBITS +0+201308 0+1308 0+48 08 +WA +0 +0 +8
+  +\[[ 0-9]+\] .got.plt +PROGBITS +0+201350 0+1350 0+68 08 +WA +0 +0 +8
+- +\[[ 0-9]+\] .shstrtab +.*
+- +\[[ 0-9]+\] .symtab +.*
+  +\[[ 0-9]+\] .strtab +.*
++ +\[[ 0-9]+\] .symtab +.*
+ Key to Flags:
+ .*
+ .*
+diff --git a/ld/testsuite/ld-x86-64/tlsgdesc-nacl.rd b/ld/testsuite/ld-x86-64/tlsgdesc-nacl.rd
+index e867862..fa71634 100644
+--- a/ld/testsuite/ld-x86-64/tlsgdesc-nacl.rd
++++ b/ld/testsuite/ld-x86-64/tlsgdesc-nacl.rd
+@@ -19,9 +19,8 @@ Section Headers:
+  +\[[ 0-9]+\] \.dynamic +.*
+  +\[[ 0-9]+\] \.got +.*
+  +\[[ 0-9]+\] \.got.plt +.*
+- +\[[ 0-9]+\] \.shstrtab +.*
+- +\[[ 0-9]+\] \.symtab +.*
+  +\[[ 0-9]+\] \.strtab +.*
++ +\[[ 0-9]+\] \.symtab +.*
+ Key to Flags:
+ .*
+ .*
+diff --git a/ld/testsuite/ld-x86-64/tlsgdesc.rd b/ld/testsuite/ld-x86-64/tlsgdesc.rd
+index 2eb2ec0..eb9ef4b 100644
+--- a/ld/testsuite/ld-x86-64/tlsgdesc.rd
++++ b/ld/testsuite/ld-x86-64/tlsgdesc.rd
+@@ -19,9 +19,8 @@ Section Headers:
+  +\[[ 0-9]+\] \.dynamic +.*
+  +\[[ 0-9]+\] \.got +.*
+  +\[[ 0-9]+\] \.got.plt +.*
+- +\[[ 0-9]+\] \.shstrtab +.*
+- +\[[ 0-9]+\] \.symtab +.*
+  +\[[ 0-9]+\] \.strtab +.*
++ +\[[ 0-9]+\] \.symtab +.*
+ Key to Flags:
+ .*
+ .*
+diff --git a/ld/testsuite/ld-x86-64/tlspic-nacl.rd b/ld/testsuite/ld-x86-64/tlspic-nacl.rd
+index 2233690..762c1c6 100644
+--- a/ld/testsuite/ld-x86-64/tlspic-nacl.rd
++++ b/ld/testsuite/ld-x86-64/tlspic-nacl.rd
+@@ -22,9 +22,8 @@ Section Headers:
+  +\[[ 0-9]+\] .dynamic +DYNAMIC +0+10010548 [0-9a-f]+ 0+130 10 +WA +5 +0 +8
+  +\[[ 0-9]+\] .got +PROGBITS +0+10010678 [0-9a-f]+ 0+90 08 +WA +0 +0 +8
+  +\[[ 0-9]+\] .got.plt +PROGBITS +0+10010708 [0-9a-f]+ 0+20 08 +WA +0 +0 +8
+- +\[[ 0-9]+\] .shstrtab +.*
+- +\[[ 0-9]+\] .symtab +.*
+  +\[[ 0-9]+\] .strtab +.*
++ +\[[ 0-9]+\] .symtab +.*
+ Key to Flags:
+ .*
+ .*
+diff --git a/ld/testsuite/ld-x86-64/tlspic.rd b/ld/testsuite/ld-x86-64/tlspic.rd
+index c2830e9..6d662b1 100644
+--- a/ld/testsuite/ld-x86-64/tlspic.rd
++++ b/ld/testsuite/ld-x86-64/tlspic.rd
+@@ -22,9 +22,8 @@ Section Headers:
+  +\[[ 0-9]+\] .dynamic +DYNAMIC +0+201380 0+1380 0+130 10 +WA +3 +0 +8
+  +\[[ 0-9]+\] .got +PROGBITS +0+2014b0 0+14b0 0+90 08 +WA +0 +0 +8
+  +\[[ 0-9]+\] .got.plt +PROGBITS +0+201540 0+1540 0+20 08 +WA +0 +0 +8
+- +\[[ 0-9]+\] .shstrtab +.*
+- +\[[ 0-9]+\] .symtab +.*
+  +\[[ 0-9]+\] .strtab +.*
++ +\[[ 0-9]+\] .symtab +.*
+ Key to Flags:
+ .*
+ .*
+diff --git a/ld/testsuite/ld-xtensa/tlsbin.rd b/ld/testsuite/ld-xtensa/tlsbin.rd
+index 6226ea7..9fcec4e 100644
+--- a/ld/testsuite/ld-xtensa/tlsbin.rd
++++ b/ld/testsuite/ld-xtensa/tlsbin.rd
+@@ -22,9 +22,8 @@ Section Headers:
+  +\[[ 0-9]+\] .xtensa.info +NOTE +0+ .*
+  +\[[ 0-9]+\] .xt.lit +PROGBITS +0+ .*
+  +\[[ 0-9]+\] .xt.prop +PROGBITS +0+ .*
+- +\[[ 0-9]+\] .shstrtab +.*
+- +\[[ 0-9]+\] .symtab +.*
+  +\[[ 0-9]+\] .strtab +.*
++ +\[[ 0-9]+\] .symtab +.*
+ Key to Flags:
+ .*
+ .*
+diff --git a/ld/testsuite/ld-xtensa/tlspic.rd b/ld/testsuite/ld-xtensa/tlspic.rd
+index 2edd54f..46d1845 100644
+--- a/ld/testsuite/ld-xtensa/tlspic.rd
++++ b/ld/testsuite/ld-xtensa/tlspic.rd
+@@ -23,9 +23,8 @@ Section Headers:
+  +\[[ 0-9]+\] .xtensa.info +NOTE +0+ .*
+  +\[[ 0-9]+\] .xt.lit +PROGBITS +0+ .*
+  +\[[ 0-9]+\] .xt.prop +PROGBITS +0+ .*
+- +\[[ 0-9]+\] .shstrtab +.*
+- +\[[ 0-9]+\] .symtab +.*
+  +\[[ 0-9]+\] .strtab +.*
++ +\[[ 0-9]+\] .symtab +.*
+ Key to Flags:
+ .*
+ .*
+-- 
+2.1.0
+
