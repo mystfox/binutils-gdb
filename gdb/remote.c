@@ -7563,10 +7563,6 @@ process_g_packet (struct regcache *regcache)
 
   buf_len = strlen (rs->buf);
 
-  /* Further sanity checks */
-  if (buf_len > MAX_REMOTE_PACKET_SIZE)
-    error (_("Remote 'g' packet reply is too long: %s"), rs->buf);
-
   /* Save the size of the packet sent to us by the target.  It is used
      as a heuristic when determining the max size of packets that the
      target can safely receive.  */
