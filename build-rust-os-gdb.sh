@@ -16,4 +16,6 @@ make
 make install
 cd ..
 rm -rf build-binutils
+cp binutils-gdb/rust-gdb rust-os-gdb/bin/rust-gdb
+chmod +x rust-os-gdb/bin/rust-gdb
 rm -rf binutils-gdb
