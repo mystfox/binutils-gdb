@@ -10,6 +10,7 @@ git clone -b rust-os --depth 1 \
 mkdir build-binutils
 cd build-binutils
 ../binutils-gdb/configure --target=x86_64-pc-linux-gnu --prefix="$DIR/rust-os-gdb" --with-python=yes \
+  --enable-tui --with-curses \
   --disable-nls --disable-werror \
   --disable-gas --disable-binutils --disable-ld --disable-gprof
 make

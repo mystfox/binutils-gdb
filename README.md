@@ -4,7 +4,7 @@
 First install the build dependencies:
 
 ```
-apt-get install texinfo flex bison python-dev
+apt-get install texinfo flex bison python-dev ncurses-dev
 ```
 
 Then download and build the fixed GDB for `x86_64-pc-linux-gnu`:
