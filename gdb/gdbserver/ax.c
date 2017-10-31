@@ -1,5 +1,5 @@
 /* Agent expression code for remote server.
-   Copyright (C) 2009-2016 Free Software Foundation, Inc.
+   Copyright (C) 2009-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -95,9 +95,9 @@ gdb_agent_op_name (int op)
    of bytes in expression, a comma, and then the bytes.  */
 
 struct agent_expr *
-gdb_parse_agent_expr (char **actparm)
+gdb_parse_agent_expr (const char **actparm)
 {
-  char *act = *actparm;
+  const char *act = *actparm;
   ULONGEST xlen;
   struct agent_expr *aexpr;
 

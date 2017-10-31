@@ -1,5 +1,5 @@
 /* Alpha specific support for 64-bit ELF
-   Copyright (C) 1996-2016 Free Software Foundation, Inc.
+   Copyright (C) 1996-2017 Free Software Foundation, Inc.
    Contributed by Richard Henderson <rth@tamu.edu>.
 
    This file is part of BFD, the Binary File Descriptor library.
@@ -1838,7 +1838,7 @@ elf64_alpha_check_relocs (bfd *abfd, struct bfd_link_info *info,
 
 	  /* PR15323, ref flags aren't set for references in the same
 	     object.  */
-	  h->root.root.non_ir_ref = 1;
+	  h->root.root.non_ir_ref_regular = 1;
 	  h->root.ref_regular = 1;
 	}
 
@@ -2038,72 +2038,6 @@ elf64_alpha_gc_mark_hook (asection *sec, struct bfd_link_info *info,
     }
 
   return _bfd_elf_gc_mark_hook (sec, info, rel, h, sym);
-}
-
-/* Update the got entry reference counts for the section being removed.  */
-
-static bfd_boolean
-elf64_alpha_gc_sweep_hook (bfd *abfd, struct bfd_link_info *info,
-			   asection *sec, const Elf_Internal_Rela *relocs)
-{
-  Elf_Internal_Shdr *symtab_hdr;
-  struct alpha_elf_link_hash_entry **sym_hashes;
-  const Elf_Internal_Rela *rel, *relend;
-
-  if (bfd_link_relocatable (info))
-    return TRUE;
-
-  symtab_hdr = &elf_symtab_hdr (abfd);
-  sym_hashes = alpha_elf_sym_hashes (abfd);
-
-  relend = relocs + sec->reloc_count;
-  for (rel = relocs; rel < relend; rel++)
-    {
-      unsigned long r_symndx, r_type;
-      struct alpha_elf_link_hash_entry *h = NULL;
-      struct alpha_elf_got_entry *gotent;
-
-      r_symndx = ELF64_R_SYM (rel->r_info);
-      if (r_symndx >= symtab_hdr->sh_info)
-	{
-	  h = sym_hashes[r_symndx - symtab_hdr->sh_info];
-	  while (h->root.root.type == bfd_link_hash_indirect
-		 || h->root.root.type == bfd_link_hash_warning)
-	    h = (struct alpha_elf_link_hash_entry *) h->root.root.u.i.link;
-	}
-
-      r_type = ELF64_R_TYPE (rel->r_info);
-      switch (r_type)
-	{
-	case R_ALPHA_LITERAL:
-	  /* ??? Ignore re-computation of gotent_flags.  We're not
-	     carrying a use-count for each bit in that mask.  */
-
-	case R_ALPHA_TLSGD:
-	case R_ALPHA_GOTDTPREL:
-	case R_ALPHA_GOTTPREL:
-	  /* Fetch the got entry from the tables.  */
-	  gotent = get_got_entry (abfd, h, r_type, r_symndx, rel->r_addend);
-
-	  /* The got entry *must* exist, since we should have created it
-	     before during check_relocs.  Also note that get_got_entry
-	     assumed this was going to be another use, and so incremented
-	     the use count again.  Thus the use count must be at least the
-	     one real use and the "use" we just added.  */
-	  if (gotent == NULL || gotent->use_count < 2)
-	    {
-	      abort ();
-	      return FALSE;
-	    }
-	  gotent->use_count -= 2;
-	  break;
-
-	default:
-	  break;
-	}
-    }
-
-  return TRUE;
 }
 
 /* Adjust a symbol defined by a dynamic object and referenced by a
@@ -2879,7 +2813,7 @@ elf64_alpha_size_dynamic_sections (bfd *output_bfd ATTRIBUTE_UNUSED,
 {
   bfd *dynobj;
   asection *s;
-  bfd_boolean relplt;
+  bfd_boolean relplt, relocs;
   struct alpha_elf_link_hash_table * htab;
 
   htab = alpha_elf_hash_table (info);
@@ -2916,6 +2850,7 @@ elf64_alpha_size_dynamic_sections (bfd *output_bfd ATTRIBUTE_UNUSED,
      determined the sizes of the various dynamic sections.  Allocate
      memory for them.  */
   relplt = FALSE;
+  relocs = FALSE;
   for (s = dynobj->sections; s != NULL; s = s->next)
     {
       const char *name;
@@ -2933,6 +2868,8 @@ elf64_alpha_size_dynamic_sections (bfd *output_bfd ATTRIBUTE_UNUSED,
 	    {
 	      if (strcmp (name, ".rela.plt") == 0)
 		relplt = TRUE;
+	      else
+		relocs = TRUE;
 
 	      /* We use the reloc_count field as a counter if we need
 		 to copy relocs into the output file.  */
@@ -2997,15 +2934,18 @@ elf64_alpha_size_dynamic_sections (bfd *output_bfd ATTRIBUTE_UNUSED,
 	    return FALSE;
 	}
 
-      if (!add_dynamic_entry (DT_RELA, 0)
-	  || !add_dynamic_entry (DT_RELASZ, 0)
-	  || !add_dynamic_entry (DT_RELAENT, sizeof (Elf64_External_Rela)))
-	return FALSE;
-
-      if (info->flags & DF_TEXTREL)
+      if (relocs)
 	{
-	  if (!add_dynamic_entry (DT_TEXTREL, 0))
+	  if (!add_dynamic_entry (DT_RELA, 0)
+	      || !add_dynamic_entry (DT_RELASZ, 0)
+	      || !add_dynamic_entry (DT_RELAENT, sizeof (Elf64_External_Rela)))
 	    return FALSE;
+
+	  if (info->flags & DF_TEXTREL)
+	    {
+	      if (!add_dynamic_entry (DT_TEXTREL, 0))
+		return FALSE;
+	    }
 	}
     }
 #undef add_dynamic_entry
@@ -3075,9 +3015,8 @@ elf64_alpha_relax_got_load (struct alpha_relax_info *info, bfd_vma symval,
       reloc_howto_type *howto = elf64_alpha_howto_table + r_type;
       _bfd_error_handler
 	/* xgettext:c-format */
-	(_("%B: %A+0x%lx: warning: %s relocation against unexpected insn"),
-	 info->abfd, info->sec,
-	 (unsigned long) irel->r_offset, howto->name);
+	(_("%B: %A+%#Lx: warning: %s relocation against unexpected insn"),
+	 info->abfd, info->sec, irel->r_offset, howto->name);
       return TRUE;
     }
 
@@ -3215,7 +3154,9 @@ elf64_alpha_relax_opt_call (struct alpha_relax_info *info, bfd_vma symval)
 	  if (tsec_relocs == NULL)
 	    return 0;
 	  tsec_relend = tsec_relocs + info->tsec->reloc_count;
-	  tsec_free = (info->link_info->keep_memory ? NULL : tsec_relocs);
+	  tsec_free = (elf_section_data (info->tsec)->relocs == tsec_relocs
+		       ? NULL
+		       : tsec_relocs);
 	}
 
       /* Recover the symbol's offset within the section.  */
@@ -3269,9 +3210,8 @@ elf64_alpha_relax_with_lituse (struct alpha_relax_info *info,
     {
       _bfd_error_handler
 	/* xgettext:c-format */
-	(_("%B: %A+0x%lx: warning: LITERAL relocation against unexpected insn"),
-	 abfd, info->sec,
-	 (unsigned long) irel->r_offset);
+	(_("%B: %A+%#Lx: warning: LITERAL relocation against unexpected insn"),
+	 abfd, info->sec, irel->r_offset);
       return TRUE;
     }
 
@@ -5570,7 +5510,6 @@ static const struct elf_size_info alpha_elf_size_info =
 
 #define elf_backend_can_gc_sections	1
 #define elf_backend_gc_mark_hook	elf64_alpha_gc_mark_hook
-#define elf_backend_gc_sweep_hook	elf64_alpha_gc_sweep_hook
 
 #define elf_backend_ecoff_debug_swap \
   &elf64_alpha_ecoff_debug_swap

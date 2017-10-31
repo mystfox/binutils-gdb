@@ -1,5 +1,5 @@
 /* Object file "section" support for the BFD library.
-   Copyright (C) 1990-2016 Free Software Foundation, Inc.
+   Copyright (C) 1990-2017 Free Software Foundation, Inc.
    Written by Cygnus Support.
 
    This file is part of BFD, the Binary File Descriptor library.
@@ -738,19 +738,19 @@ CODE_FRAGMENT
 .     { NULL }, { NULL }						\
 .    }
 .
+.{* We use a macro to initialize the static asymbol structures because
+.   traditional C does not permit us to initialize a union member while
+.   gcc warns if we don't initialize it.
+.   the_bfd, name, value, attr, section [, udata]  *}
+.#ifdef __STDC__
+.#define GLOBAL_SYM_INIT(NAME, SECTION) \
+.  { 0, NAME, 0, BSF_SECTION_SYM, SECTION, { 0 }}
+.#else
+.#define GLOBAL_SYM_INIT(NAME, SECTION) \
+.  { 0, NAME, 0, BSF_SECTION_SYM, SECTION }
+.#endif
+.
 */
-
-/* We use a macro to initialize the static asymbol structures because
-   traditional C does not permit us to initialize a union member while
-   gcc warns if we don't initialize it.  */
- /* the_bfd, name, value, attr, section [, udata] */
-#ifdef __STDC__
-#define GLOBAL_SYM_INIT(NAME, SECTION) \
-  { 0, NAME, 0, BSF_SECTION_SYM, SECTION, { 0 }}
-#else
-#define GLOBAL_SYM_INIT(NAME, SECTION) \
-  { 0, NAME, 0, BSF_SECTION_SYM, SECTION }
-#endif
 
 /* These symbols are global, not specific to any BFD.  Therefore, anything
    that tries to change them is broken, and should be repaired.  */
@@ -1240,7 +1240,7 @@ bfd_make_section_with_flags (bfd *abfd, const char *name,
   struct section_hash_entry *sh;
   asection *newsect;
 
-  if (abfd->output_has_begun)
+  if (abfd == NULL || name == NULL || abfd->output_has_begun)
     {
       bfd_set_error (bfd_error_invalid_operation);
       return NULL;

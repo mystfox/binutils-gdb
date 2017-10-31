@@ -1,6 +1,6 @@
 /* Target-dependent code for the Motorola 88000 series.
 
-   Copyright (C) 2004-2016 Free Software Foundation, Inc.
+   Copyright (C) 2004-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -49,7 +49,7 @@ m88k_fetch_instruction (CORE_ADDR pc, enum bfd_endian byte_order)
 static const char *
 m88k_register_name (struct gdbarch *gdbarch, int regnum)
 {
-  static char *register_names[] =
+  static const char *register_names[] =
   {
     "r0",  "r1",  "r2",  "r3",  "r4",  "r5",  "r6",  "r7",
     "r8",  "r9",  "r10", "r11", "r12", "r13", "r14", "r15",
@@ -161,6 +161,7 @@ m88k_integral_or_pointer_p (const struct type *type)
       return 1;
     case TYPE_CODE_PTR:
     case TYPE_CODE_REF:
+    case TYPE_CODE_RVALUE_REF:
       {
 	/* Allow only 32-bit pointers.  */
 	return (TYPE_LENGTH (type) == 4);
@@ -251,7 +252,7 @@ static CORE_ADDR
 m88k_store_arguments (struct regcache *regcache, int nargs,
 		      struct value **args, CORE_ADDR sp)
 {
-  struct gdbarch *gdbarch = get_regcache_arch (regcache);
+  struct gdbarch *gdbarch = regcache->arch ();
   int num_register_words = 0;
   int num_stack_words = 0;
   int i;
@@ -837,8 +838,6 @@ m88k_gdbarch_init (struct gdbarch_info info, struct gdbarch_list *arches)
   set_gdbarch_iterate_over_regset_sections
     (gdbarch, m88k_iterate_over_regset_sections);
 
-  set_gdbarch_print_insn (gdbarch, print_insn_m88k);
-
   set_gdbarch_skip_prologue (gdbarch, m88k_skip_prologue);
 
   /* Stack grows downward.  */
@@ -862,10 +861,6 @@ m88k_gdbarch_init (struct gdbarch_info info, struct gdbarch_list *arches)
 
   return gdbarch;
 }
-
-
-/* Provide a prototype to silence -Wmissing-prototypes.  */
-void _initialize_m88k_tdep (void);
 
 void
 _initialize_m88k_tdep (void)

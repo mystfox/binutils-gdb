@@ -1,5 +1,5 @@
 /* Meta support for 32-bit ELF
-   Copyright (C) 2013-2016 Free Software Foundation, Inc.
+   Copyright (C) 2013-2017 Free Software Foundation, Inc.
    Contributed by Imagination Technologies Ltd.
 
    This file is part of BFD, the Binary File Descriptor library.
@@ -841,10 +841,6 @@ struct elf_metag_link_hash_table
   unsigned int top_index;
   asection **input_list;
   Elf_Internal_Sym **all_local_syms;
-
-  /* Short-cuts to get to dynamic linker sections.  */
-  asection *sdynbss;
-  asection *srelbss;
 
   /* Small local sym cache.  */
   struct sym_cache sym_cache;
@@ -1877,7 +1873,7 @@ elf_metag_relocate_section (bfd *output_bfd,
 			/* PR 20675 */
 			if (bfd_link_pic (info))
 			  _bfd_error_handler (_("%B(%A): multiple TLS models are not supported"),
-					      input_bfd, input_section, name);
+					      input_bfd, input_section);
 			else
 			  _bfd_error_handler (_("%B(%A): shared library symbol %s encountered whilst performing a static link"),
 					      input_bfd, input_section, name);
@@ -1932,9 +1928,8 @@ elf_metag_relocate_section (bfd *output_bfd,
 	    {
 	      _bfd_error_handler
 		/* xgettext:c-format */
-		(_("%B(%A+0x%lx): R_METAG_TLS_LE/IENONPIC relocation not permitted in shared object"),
-		 input_bfd, input_section,
-		 (long) rel->r_offset, howto->name);
+		(_("%B(%A+%#Lx): %s relocation not permitted in shared object"),
+		 input_bfd, input_section, rel->r_offset, howto->name);
 	      return FALSE;
 	    }
 	  else
@@ -2069,9 +2064,6 @@ elf_metag_create_dynamic_sections (bfd *abfd, struct bfd_link_info *info)
 
   htab->etab.hgot = eh;
 
-  htab->sdynbss = bfd_get_linker_section (abfd, ".dynbss");
-  htab->srelbss = bfd_get_linker_section (abfd, ".rela.bss");
-
   return TRUE;
 }
 
@@ -2139,7 +2131,7 @@ elf_metag_check_relocs (bfd *abfd,
 
 	  /* PR15323, ref flags aren't set for references in the same
 	     object.  */
-	  hh->eh.root.non_ir_ref = 1;
+	  hh->eh.root.non_ir_ref_regular = 1;
 	}
 
       /* Some relocs require a global offset table.  */
@@ -2477,7 +2469,7 @@ elf_metag_adjust_dynamic_symbol (struct bfd_link_info *info,
   struct elf_metag_link_hash_table *htab;
   struct elf_metag_link_hash_entry *hh;
   struct elf_metag_dyn_reloc_entry *hdh_p;
-  asection *s;
+  asection *s, *srel;
 
   /* If this is a function, put it in the procedure linkage table.  We
      will fill in the contents of the procedure linkage table later,
@@ -2571,13 +2563,21 @@ elf_metag_adjust_dynamic_symbol (struct bfd_link_info *info,
   /* We must generate a COPY reloc to tell the dynamic linker to
      copy the initial value out of the dynamic object and into the
      runtime process image.  */
+  if ((eh->root.u.def.section->flags & SEC_READONLY) != 0)
+    {
+      s = htab->etab.sdynrelro;
+      srel = htab->etab.sreldynrelro;
+    }
+  else
+    {
+      s = htab->etab.sdynbss;
+      srel = htab->etab.srelbss;
+    }
   if ((eh->root.u.def.section->flags & SEC_ALLOC) != 0 && eh->size != 0)
     {
-      htab->srelbss->size += sizeof (Elf32_External_Rela);
+      srel->size += sizeof (Elf32_External_Rela);
       eh->needs_copy = 1;
     }
-
-  s = htab->sdynbss;
 
   return _bfd_elf_adjust_dynamic_copy (info, eh, s);
 }
@@ -2940,7 +2940,8 @@ elf_metag_size_dynamic_sections (bfd *output_bfd ATTRIBUTE_UNUSED,
       if (s == htab->etab.splt
 	  || s == htab->etab.sgot
 	  || s == htab->etab.sgotplt
-	  || s == htab->sdynbss)
+	  || s == htab->etab.sdynbss
+	  || s == htab->etab.sdynrelro)
 	{
 	  /* Strip this section if we don't need it; see the
 	     comment below.  */
@@ -3222,13 +3223,15 @@ elf_metag_finish_dynamic_symbol (bfd *output_bfd,
 		 || eh->root.type == bfd_link_hash_defweak)))
 	abort ();
 
-      s = htab->srelbss;
-
       rel.r_offset = (eh->root.u.def.value
 		      + eh->root.u.def.section->output_offset
 		      + eh->root.u.def.section->output_section->vma);
       rel.r_addend = 0;
       rel.r_info = ELF32_R_INFO (eh->dynindx, R_METAG_COPY);
+      if (eh->root.u.def.section == htab->etab.sdynrelro)
+	s = htab->etab.sreldynrelro;
+      else
+	s = htab->etab.srelbss;
       loc = s->contents + s->reloc_count++ * sizeof (Elf32_External_Rela);
       bfd_elf32_swap_reloca_out (output_bfd, &rel, loc);
     }
@@ -3412,131 +3415,6 @@ elf_metag_gc_mark_hook (asection *sec,
       }
 
   return _bfd_elf_gc_mark_hook (sec, info, rela, hh, sym);
-}
-
-/* Update the got and plt entry reference counts for the section being
-   removed.  */
-
-static bfd_boolean
-elf_metag_gc_sweep_hook (bfd *abfd ATTRIBUTE_UNUSED,
-			 struct bfd_link_info *info ATTRIBUTE_UNUSED,
-			 asection *sec ATTRIBUTE_UNUSED,
-			 const Elf_Internal_Rela *relocs ATTRIBUTE_UNUSED)
-{
-  Elf_Internal_Shdr *symtab_hdr;
-  struct elf_link_hash_entry **eh_syms;
-  bfd_signed_vma *local_got_refcounts;
-  bfd_signed_vma *local_plt_refcounts;
-  const Elf_Internal_Rela *rel, *relend;
-
-  if (bfd_link_relocatable (info))
-    return TRUE;
-
-  elf_section_data (sec)->local_dynrel = NULL;
-
-  symtab_hdr = &elf_tdata (abfd)->symtab_hdr;
-  eh_syms = elf_sym_hashes (abfd);
-  local_got_refcounts = elf_local_got_refcounts (abfd);
-  local_plt_refcounts = local_got_refcounts;
-  if (local_plt_refcounts != NULL)
-    local_plt_refcounts += symtab_hdr->sh_info;
-
-  relend = relocs + sec->reloc_count;
-  for (rel = relocs; rel < relend; rel++)
-    {
-      unsigned long r_symndx;
-      unsigned int r_type;
-      struct elf_link_hash_entry *eh = NULL;
-
-      r_symndx = ELF32_R_SYM (rel->r_info);
-      if (r_symndx >= symtab_hdr->sh_info)
-	{
-	  struct elf_metag_link_hash_entry *hh;
-	  struct elf_metag_dyn_reloc_entry **hdh_pp;
-	  struct elf_metag_dyn_reloc_entry *hdh_p;
-
-	  eh = eh_syms[r_symndx - symtab_hdr->sh_info];
-	  while (eh->root.type == bfd_link_hash_indirect
-		 || eh->root.type == bfd_link_hash_warning)
-	    eh = (struct elf_link_hash_entry *) eh->root.u.i.link;
-	  hh = (struct elf_metag_link_hash_entry *) eh;
-
-	  for (hdh_pp = &hh->dyn_relocs; (hdh_p = *hdh_pp) != NULL;
-	       hdh_pp = &hdh_p->hdh_next)
-	    if (hdh_p->sec == sec)
-	      {
-		/* Everything must go for SEC.  */
-		*hdh_pp = hdh_p->hdh_next;
-		break;
-	      }
-	}
-
-      r_type = ELF32_R_TYPE (rel->r_info);
-      switch (r_type)
-	{
-	case R_METAG_TLS_LDM:
-	  if (metag_link_hash_table (info)->tls_ldm_got.refcount > 0)
-	    metag_link_hash_table (info)->tls_ldm_got.refcount -= 1;
-	  break;
-	case R_METAG_TLS_IE:
-	case R_METAG_TLS_GD:
-	case R_METAG_GETSET_GOT:
-	  if (eh != NULL)
-	    {
-	      if (eh->got.refcount > 0)
-		eh->got.refcount -= 1;
-	    }
-	  else if (local_got_refcounts != NULL)
-	    {
-	      if (local_got_refcounts[r_symndx] > 0)
-		local_got_refcounts[r_symndx] -= 1;
-	    }
-	  break;
-
-	case R_METAG_RELBRANCH_PLT:
-	  if (eh != NULL)
-	    {
-	      if (eh->plt.refcount > 0)
-		eh->plt.refcount -= 1;
-	    }
-	  break;
-
-	case R_METAG_ADDR32:
-	case R_METAG_HIADDR16:
-	case R_METAG_LOADDR16:
-	case R_METAG_GETSETOFF:
-	case R_METAG_RELBRANCH:
-	  if (eh != NULL)
-	    {
-	      struct elf_metag_link_hash_entry *hh;
-	      struct elf_metag_dyn_reloc_entry **hdh_pp;
-	      struct elf_metag_dyn_reloc_entry *hdh_p;
-
-	      if (!bfd_link_pic (info) && eh->plt.refcount > 0)
-		eh->plt.refcount -= 1;
-
-	      hh = (struct elf_metag_link_hash_entry *) eh;
-
-	      for (hdh_pp = &hh->dyn_relocs; (hdh_p = *hdh_pp) != NULL;
-		   hdh_pp = &hdh_p->hdh_next)
-		if (hdh_p->sec == sec)
-		  {
-		    if (ELF32_R_TYPE (rel->r_info) == R_METAG_RELBRANCH)
-		      hdh_p->relative_count -= 1;
-		    hdh_p->count -= 1;
-		    if (hdh_p->count == 0)
-		      *hdh_pp = hdh_p->hdh_next;
-		    break;
-		  }
-	    }
-	  break;
-
-	default:
-	  break;
-	}
-    }
-
-  return TRUE;
 }
 
 /* Determine the type of stub needed, if any, for a call.  */
@@ -4271,7 +4149,6 @@ elf_metag_plt_sym_val (bfd_vma i, const asection *plt,
 	elf_metag_link_hash_table_create
 #define elf_backend_relocate_section		elf_metag_relocate_section
 #define elf_backend_gc_mark_hook		elf_metag_gc_mark_hook
-#define elf_backend_gc_sweep_hook		elf_metag_gc_sweep_hook
 #define elf_backend_check_relocs		elf_metag_check_relocs
 #define elf_backend_create_dynamic_sections	elf_metag_create_dynamic_sections
 #define elf_backend_adjust_dynamic_symbol	elf_metag_adjust_dynamic_symbol
@@ -4293,6 +4170,7 @@ elf_metag_plt_sym_val (bfd_vma i, const asection *plt,
 #define elf_backend_want_plt_sym		0
 #define elf_backend_plt_readonly		1
 #define elf_backend_dtrel_excludes_plt		1
+#define elf_backend_want_dynrelro		1
 
 #define bfd_elf32_bfd_reloc_type_lookup	metag_reloc_type_lookup
 #define bfd_elf32_bfd_reloc_name_lookup	metag_reloc_name_lookup

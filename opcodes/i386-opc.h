@@ -1,5 +1,5 @@
 /* Declarations for Intel 80386 opcode table
-   Copyright (C) 2007-2016 Free Software Foundation, Inc.
+   Copyright (C) 2007-2017 Free Software Foundation, Inc.
 
    This file is part of the GNU opcodes library.
 
@@ -196,6 +196,14 @@ enum
   CpuAVX512_4FMAPS,
   /* Intel AVX-512 4VNNIW Instructions support required.  */
   CpuAVX512_4VNNIW,
+  /* Intel AVX-512 VPOPCNTDQ Instructions support required.  */
+  CpuAVX512_VPOPCNTDQ,
+  /* Intel AVX-512 VBMI2 Instructions support required.  */
+  CpuAVX512_VBMI2,
+  /* Intel AVX-512 VNNI Instructions support required.  */
+  CpuAVX512_VNNI,
+  /* Intel AVX-512 BITALG Instructions support required.  */
+  CpuAVX512_BITALG,
   /* mwaitx instruction required */
   CpuMWAITX,
   /* Clzero instruction required */
@@ -206,6 +214,14 @@ enum
   CpuRDPID,
   /* PTWRITE instruction required */
   CpuPTWRITE,
+  /* CET instruction support required */
+  CpuCET,
+  /* GFNI instructions required */
+  CpuGFNI,
+  /* VAES instructions required */
+  CpuVAES,
+  /* VPCLMULQDQ instructions required */
+  CpuVPCLMULQDQ,
   /* MMX register support required */
   CpuRegMMX,
   /* XMM register support required */
@@ -321,11 +337,19 @@ typedef union i386_cpu_flags
       unsigned int cpuavx512vbmi:1;
       unsigned int cpuavx512_4fmaps:1;
       unsigned int cpuavx512_4vnniw:1;
+      unsigned int cpuavx512_vpopcntdq:1;
+      unsigned int cpuavx512_vbmi2:1;
+      unsigned int cpuavx512_vnni:1;
+      unsigned int cpuavx512_bitalg:1;
       unsigned int cpumwaitx:1;
       unsigned int cpuclzero:1;
       unsigned int cpuospke:1;
       unsigned int cpurdpid:1;
       unsigned int cpuptwrite:1;
+      unsigned int cpucet:1;
+      unsigned int cpugfni:1;
+      unsigned int cpuvaes:1;
+      unsigned int cpuvpclmulqdq:1;
       unsigned int cpuregmmx:1;
       unsigned int cpuregxmm:1;
       unsigned int cpuregymm:1;
@@ -348,9 +372,8 @@ enum
   D = 0,
   /* set if operands can be words or dwords encoded the canonical way */
   W,
-  /* Skip the current insn and use the next insn in i386-opc.tbl to swap
-     operand in encoding.  */
-  S,
+  /* load form instruction. Must be placed before store form.  */
+  Load,
   /* insn has a modrm byte. */
   Modrm,
   /* register is in low 3 bits of opcode */
@@ -400,6 +423,8 @@ enum
   IsString,
   /* quick test if branch instruction is MPX supported */
   BNDPrefixOk,
+  /* quick test if NOTRACK prefix is supported */
+  NoTrackPrefixOk,
   /* quick test for lockable instructions */
   IsLockable,
   /* fake an extra reg operand for clr, imul and special register
@@ -590,7 +615,7 @@ typedef struct i386_opcode_modifier
 {
   unsigned int d:1;
   unsigned int w:1;
-  unsigned int s:1;
+  unsigned int load:1;
   unsigned int modrm:1;
   unsigned int shortform:1;
   unsigned int jump:1;
@@ -615,6 +640,7 @@ typedef struct i386_opcode_modifier
   unsigned int fwait:1;
   unsigned int isstring:1;
   unsigned int bndprefixok:1;
+  unsigned int notrackprefixok:1;
   unsigned int islockable:1;
   unsigned int regkludge:1;
   unsigned int firstxmm0:1;

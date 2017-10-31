@@ -1,5 +1,5 @@
 /* Target-machine dependent code for Nios II, for GDB.
-   Copyright (C) 2012-2016 Free Software Foundation, Inc.
+   Copyright (C) 2012-2017 Free Software Foundation, Inc.
    Contributed by Peter Brookes (pbrookes@altera.com)
    and Andrew Draper (adraper@altera.com).
    Contributed by Mentor Graphics, Inc.
@@ -37,7 +37,6 @@
 #include "value.h"
 #include "symfile.h"
 #include "arch-utils.h"
-#include "floatformat.h"
 #include "infcall.h"
 #include "regset.h"
 #include "target-descriptions.h"
@@ -1772,18 +1771,6 @@ nios2_sw_breakpoint_from_kind (struct gdbarch *gdbarch, int kind, int *size)
     }
 }
 
-/* Implement the print_insn gdbarch method.  */
-
-static int
-nios2_print_insn (bfd_vma memaddr, disassemble_info *info)
-{
-  if (info->endian == BFD_ENDIAN_BIG)
-    return print_insn_big_nios2 (memaddr, info);
-  else
-    return print_insn_little_nios2 (memaddr, info);
-}
-
-
 /* Implement the frame_align gdbarch method.  */
 
 static CORE_ADDR
@@ -2128,7 +2115,7 @@ static const struct frame_unwind nios2_stub_frame_unwind =
 static CORE_ADDR
 nios2_get_next_pc (struct regcache *regcache, CORE_ADDR pc)
 {
-  struct gdbarch *gdbarch = get_regcache_arch (regcache);
+  struct gdbarch *gdbarch = regcache->arch ();
   struct gdbarch_tdep *tdep = gdbarch_tdep (gdbarch);
   unsigned long mach = gdbarch_bfd_arch_info (gdbarch)->mach;
   unsigned int insn;
@@ -2219,16 +2206,13 @@ nios2_get_next_pc (struct regcache *regcache, CORE_ADDR pc)
 
 /* Implement the software_single_step gdbarch method.  */
 
-static VEC (CORE_ADDR) *
+static std::vector<CORE_ADDR>
 nios2_software_single_step (struct regcache *regcache)
 {
-  struct gdbarch *gdbarch = get_regcache_arch (regcache);
+  struct gdbarch *gdbarch = regcache->arch ();
   CORE_ADDR next_pc = nios2_get_next_pc (regcache, regcache_read_pc (regcache));
-  VEC (CORE_ADDR) *next_pcs = NULL;
 
-  VEC_safe_push (CORE_ADDR, next_pcs, next_pc);
-
-  return next_pcs;
+  return {next_pc};
 }
 
 /* Implement the get_longjump_target gdbarch method.  */
@@ -2360,8 +2344,6 @@ nios2_gdbarch_init (struct gdbarch_info info, struct gdbarch_list *arches)
 
   frame_base_set_default (gdbarch, &nios2_frame_base);
 
-  set_gdbarch_print_insn (gdbarch, nios2_print_insn);
-
   /* Enable inferior call support.  */
   set_gdbarch_push_dummy_call (gdbarch, nios2_push_dummy_call);
 
@@ -2370,8 +2352,6 @@ nios2_gdbarch_init (struct gdbarch_info info, struct gdbarch_list *arches)
 
   return gdbarch;
 }
-
-extern initialize_file_ftype _initialize_nios2_tdep; /* -Wmissing-prototypes */
 
 void
 _initialize_nios2_tdep (void)

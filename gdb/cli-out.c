@@ -1,6 +1,6 @@
 /* Output generating routines for GDB CLI.
 
-   Copyright (C) 1999-2016 Free Software Foundation, Inc.
+   Copyright (C) 1999-2017 Free Software Foundation, Inc.
 
    Contributed by Cygnus Solutions.
    Written by Fernando Nasser for Cygnus.
@@ -227,15 +227,13 @@ cli_ui_out::do_flush ()
    and make it therefore active.  OUTSTREAM as NULL will pop the last pushed
    output stream; it is an internal error if it does not exist.  */
 
-int
+void
 cli_ui_out::do_redirect (ui_file *outstream)
 {
   if (outstream != NULL)
     m_streams.push_back (outstream);
   else
     m_streams.pop_back ();
-
-  return 0;
 }
 
 /* local functions */

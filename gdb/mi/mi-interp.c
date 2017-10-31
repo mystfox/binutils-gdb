@@ -1,6 +1,6 @@
 /* MI Interpreter Definitions and Commands for GDB, the GNU debugger.
 
-   Copyright (C) 2002-2016 Free Software Foundation, Inc.
+   Copyright (C) 2002-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -33,7 +33,6 @@
 #include "observer.h"
 #include "gdbthread.h"
 #include "solist.h"
-#include "gdb.h"
 #include "objfiles.h"
 #include "tracepoint.h"
 #include "cli-out.h"
@@ -108,14 +107,14 @@ static struct mi_interp *
 as_mi_interp (struct interp *interp)
 {
   if (interp_ui_out (interp)->is_mi_like_p ())
-    return (struct mi_interp *) interp_data (interp);
+    return (struct mi_interp *) interp;
   return NULL;
 }
 
-static void *
-mi_interpreter_init (struct interp *interp, int top_level)
+void
+mi_interp::init (bool top_level)
 {
-  struct mi_interp *mi = XNEW (struct mi_interp);
+  mi_interp *mi = this;
   const char *name;
   int mi_version;
 
@@ -126,13 +125,13 @@ mi_interpreter_init (struct interp *interp, int top_level)
 
   /* Create MI console channels, each with a different prefix so they
      can be distinguished.  */
-  mi->out = mi_console_file_new (mi->raw_stdout, "~", '"');
-  mi->err = mi_console_file_new (mi->raw_stdout, "&", '"');
+  mi->out = new mi_console_file (mi->raw_stdout, "~", '"');
+  mi->err = new mi_console_file (mi->raw_stdout, "&", '"');
   mi->log = mi->err;
-  mi->targ = mi_console_file_new (mi->raw_stdout, "@", '"');
-  mi->event_channel = mi_console_file_new (mi->raw_stdout, "=", 0);
+  mi->targ = new mi_console_file (mi->raw_stdout, "@", '"');
+  mi->event_channel = new mi_console_file (mi->raw_stdout, "=", 0);
 
-  name = interp_name (interp);
+  name = interp_name (this);
   /* INTERP_MI selects the most recent released version.  "mi2" was
      released as part of GDB 6.0.  */
   if (strcmp (name, INTERP_MI) == 0)
@@ -157,14 +156,12 @@ mi_interpreter_init (struct interp *interp, int top_level)
 	 up-front.  */
       iterate_over_inferiors (report_initial_inferior, mi);
     }
-
-  return mi;
 }
 
-static int
-mi_interpreter_resume (void *data)
+void
+mi_interp::resume ()
 {
-  struct mi_interp *mi = (struct mi_interp *) data;
+  struct mi_interp *mi = this;
   struct ui *ui = current_ui;
 
   /* As per hack note in mi_interpreter_init, swap in the output
@@ -188,31 +185,26 @@ mi_interpreter_resume (void *data)
   clear_interpreter_hooks ();
 
   deprecated_show_load_progress = mi_load_progress;
-
-  return 1;
 }
 
-static int
-mi_interpreter_suspend (void *data)
+void
+mi_interp::suspend ()
 {
   gdb_disable_readline ();
-  return 1;
 }
 
-static struct gdb_exception
-mi_interpreter_exec (void *data, const char *command)
+gdb_exception
+mi_interp::exec (const char *command)
 {
   mi_execute_command_wrapper (command);
   return exception_none;
 }
 
 void
-mi_cmd_interpreter_exec (char *command, char **argv, int argc)
+mi_cmd_interpreter_exec (const char *command, char **argv, int argc)
 {
   struct interp *interp_to_use;
   int i;
-  char *mi_error_message = NULL;
-  struct cleanup *old_chain;
 
   if (argc < 2)
     error (_("-interpreter-exec: "
@@ -236,24 +228,22 @@ mi_cmd_interpreter_exec (char *command, char **argv, int argc)
 
   /* Now run the code.  */
 
-  old_chain = make_cleanup (null_cleanup, 0);
+  std::string mi_error_message;
   for (i = 1; i < argc; i++)
     {
       struct gdb_exception e = interp_exec (interp_to_use, argv[i]);
 
       if (e.reason < 0)
 	{
-	  mi_error_message = xstrdup (e.message);
-	  make_cleanup (xfree, mi_error_message);
+	  mi_error_message = e.message;
 	  break;
 	}
     }
 
   mi_remove_notify_hooks ();
 
-  if (mi_error_message != NULL)
-    error ("%s", mi_error_message);
-  do_cleanups (old_chain);
+  if (!mi_error_message.empty ())
+    error ("%s", mi_error_message.c_str ());
 }
 
 /* This inserts a number of hooks that are meant to produce
@@ -327,10 +317,10 @@ mi_execute_command_input_handler (char *cmd)
     display_mi_prompt (mi);
 }
 
-static void
-mi_interpreter_pre_command_loop (struct interp *self)
+void
+mi_interp::pre_command_loop ()
 {
-  struct mi_interp *mi = (struct mi_interp *) interp_data (self);
+  struct mi_interp *mi = this;
 
   /* Turn off 8 bit strings in quoted output.  Any character with the
      high bit set is printed using C's octal format.  */
@@ -350,20 +340,17 @@ mi_new_thread (struct thread_info *t)
   SWITCH_THRU_ALL_UIS ()
     {
       struct mi_interp *mi = as_mi_interp (top_level_interpreter ());
-      struct cleanup *old_chain;
 
       if (mi == NULL)
 	continue;
 
-      old_chain = make_cleanup_restore_target_terminal ();
-      target_terminal_ours_for_output ();
+      target_terminal::scoped_restore_terminal_state term_state;
+      target_terminal::ours_for_output ();
 
       fprintf_unfiltered (mi->event_channel,
 			  "thread-created,id=\"%d\",group-id=\"i%d\"",
 			  t->global_num, inf->num);
       gdb_flush (mi->event_channel);
-
-      do_cleanups (old_chain);
     }
 }
 
@@ -376,19 +363,16 @@ mi_thread_exit (struct thread_info *t, int silent)
   SWITCH_THRU_ALL_UIS ()
     {
       struct mi_interp *mi = as_mi_interp (top_level_interpreter ());
-      struct cleanup *old_chain;
 
       if (mi == NULL)
 	continue;
 
-      old_chain = make_cleanup_restore_target_terminal ();
-      target_terminal_ours_for_output ();
+      target_terminal::scoped_restore_terminal_state term_state;
+      target_terminal::ours_for_output ();
       fprintf_unfiltered (mi->event_channel,
 			  "thread-exited,id=\"%d\",group-id=\"i%d\"",
 			  t->global_num, t->inf->num);
       gdb_flush (mi->event_channel);
-
-      do_cleanups (old_chain);
     }
 }
 
@@ -401,13 +385,12 @@ mi_record_changed (struct inferior *inferior, int started, const char *method,
   SWITCH_THRU_ALL_UIS ()
     {
       struct mi_interp *mi = as_mi_interp (top_level_interpreter ());
-      struct cleanup *old_chain;
 
       if (mi == NULL)
 	continue;
 
-      old_chain = make_cleanup_restore_target_terminal ();
-      target_terminal_ours_for_output ();
+      target_terminal::scoped_restore_terminal_state term_state;
+      target_terminal::ours_for_output ();
 
       if (started)
 	{
@@ -434,8 +417,6 @@ mi_record_changed (struct inferior *inferior, int started, const char *method,
 	}
 
       gdb_flush (mi->event_channel);
-
-      do_cleanups (old_chain);
     }
 }
 
@@ -446,7 +427,6 @@ mi_inferior_added (struct inferior *inf)
     {
       struct interp *interp;
       struct mi_interp *mi;
-      struct cleanup *old_chain;
 
       /* We'll be called once for the initial inferior, before the top
 	 level interpreter is set.  */
@@ -458,15 +438,13 @@ mi_inferior_added (struct inferior *inf)
       if (mi == NULL)
 	continue;
 
-      old_chain = make_cleanup_restore_target_terminal ();
-      target_terminal_ours_for_output ();
+      target_terminal::scoped_restore_terminal_state term_state;
+      target_terminal::ours_for_output ();
 
       fprintf_unfiltered (mi->event_channel,
 			  "thread-group-added,id=\"i%d\"",
 			  inf->num);
       gdb_flush (mi->event_channel);
-
-      do_cleanups (old_chain);
     }
 }
 
@@ -476,19 +454,17 @@ mi_inferior_appeared (struct inferior *inf)
   SWITCH_THRU_ALL_UIS ()
     {
       struct mi_interp *mi = as_mi_interp (top_level_interpreter ());
-      struct cleanup *old_chain;
 
       if (mi == NULL)
 	continue;
 
-      old_chain = make_cleanup_restore_target_terminal ();
-      target_terminal_ours_for_output ();
+      target_terminal::scoped_restore_terminal_state term_state;
+      target_terminal::ours_for_output ();
 
       fprintf_unfiltered (mi->event_channel,
 			  "thread-group-started,id=\"i%d\",pid=\"%d\"",
 			  inf->num, inf->pid);
       gdb_flush (mi->event_channel);
-      do_cleanups (old_chain);
     }
 }
 
@@ -498,13 +474,12 @@ mi_inferior_exit (struct inferior *inf)
   SWITCH_THRU_ALL_UIS ()
     {
       struct mi_interp *mi = as_mi_interp (top_level_interpreter ());
-      struct cleanup *old_chain;
 
       if (mi == NULL)
 	continue;
 
-      old_chain = make_cleanup_restore_target_terminal ();
-      target_terminal_ours_for_output ();
+      target_terminal::scoped_restore_terminal_state term_state;
+      target_terminal::ours_for_output ();
 
       if (inf->has_exit_code)
 	fprintf_unfiltered (mi->event_channel,
@@ -515,7 +490,6 @@ mi_inferior_exit (struct inferior *inf)
 			    "thread-group-exited,id=\"i%d\"", inf->num);
 
       gdb_flush (mi->event_channel);
-      do_cleanups (old_chain);
     }
 }
 
@@ -525,20 +499,17 @@ mi_inferior_removed (struct inferior *inf)
   SWITCH_THRU_ALL_UIS ()
     {
       struct mi_interp *mi = as_mi_interp (top_level_interpreter ());
-      struct cleanup *old_chain;
 
       if (mi == NULL)
 	continue;
 
-      old_chain = make_cleanup_restore_target_terminal ();
-      target_terminal_ours_for_output ();
+      target_terminal::scoped_restore_terminal_state term_state;
+      target_terminal::ours_for_output ();
 
       fprintf_unfiltered (mi->event_channel,
 			  "thread-group-removed,id=\"i%d\"",
 			  inf->num);
       gdb_flush (mi->event_channel);
-
-      do_cleanups (old_chain);
     }
 }
 
@@ -658,7 +629,7 @@ mi_on_normal_stop_1 (struct bpstats *bs, int print_frame)
      using cli interpreter, be sure to use MI uiout for output,
      not the current one.  */
   struct ui_out *mi_uiout = interp_ui_out (top_level_interpreter ());
-  struct mi_interp *mi = (struct mi_interp *) top_level_interpreter_data ();
+  struct mi_interp *mi = (struct mi_interp *) top_level_interpreter ();
 
   if (print_frame)
     {
@@ -685,11 +656,9 @@ mi_on_normal_stop_1 (struct bpstats *bs, int print_frame)
       mi_uiout->field_int ("thread-id", tp->global_num);
       if (non_stop)
 	{
-	  struct cleanup *back_to = make_cleanup_ui_out_list_begin_end 
-	    (mi_uiout, "stopped-threads");
+	  ui_out_emit_list list_emitter (mi_uiout, "stopped-threads");
 
 	  mi_uiout->field_int (NULL, tp->global_num);
-	  do_cleanups (back_to);
 	}
       else
 	mi_uiout->field_string ("stopped-threads", "all");
@@ -757,13 +726,12 @@ mi_traceframe_changed (int tfnum, int tpnum)
   SWITCH_THRU_ALL_UIS ()
     {
       struct mi_interp *mi = as_mi_interp (top_level_interpreter ());
-      struct cleanup *old_chain;
 
       if (mi == NULL)
 	continue;
 
-      old_chain = make_cleanup_restore_target_terminal ();
-      target_terminal_ours_for_output ();
+      target_terminal::scoped_restore_terminal_state term_state;
+      target_terminal::ours_for_output ();
 
       if (tfnum >= 0)
 	fprintf_unfiltered (mi->event_channel, "traceframe-changed,"
@@ -773,8 +741,6 @@ mi_traceframe_changed (int tfnum, int tpnum)
 	fprintf_unfiltered (mi->event_channel, "traceframe-changed,end");
 
       gdb_flush (mi->event_channel);
-
-      do_cleanups (old_chain);
     }
 }
 
@@ -786,21 +752,18 @@ mi_tsv_created (const struct trace_state_variable *tsv)
   SWITCH_THRU_ALL_UIS ()
     {
       struct mi_interp *mi = as_mi_interp (top_level_interpreter ());
-      struct cleanup *old_chain;
 
       if (mi == NULL)
 	continue;
 
-      old_chain = make_cleanup_restore_target_terminal ();
-      target_terminal_ours_for_output ();
+      target_terminal::scoped_restore_terminal_state term_state;
+      target_terminal::ours_for_output ();
 
       fprintf_unfiltered (mi->event_channel, "tsv-created,"
 			  "name=\"%s\",initial=\"%s\"\n",
 			  tsv->name, plongest (tsv->initial_value));
 
       gdb_flush (mi->event_channel);
-
-      do_cleanups (old_chain);
     }
 }
 
@@ -812,13 +775,12 @@ mi_tsv_deleted (const struct trace_state_variable *tsv)
   SWITCH_THRU_ALL_UIS ()
     {
       struct mi_interp *mi = as_mi_interp (top_level_interpreter ());
-      struct cleanup *old_chain;
 
       if (mi == NULL)
 	continue;
 
-      old_chain = make_cleanup_restore_target_terminal ();
-      target_terminal_ours_for_output ();
+      target_terminal::scoped_restore_terminal_state term_state;
+      target_terminal::ours_for_output ();
 
       if (tsv != NULL)
 	fprintf_unfiltered (mi->event_channel, "tsv-deleted,"
@@ -827,8 +789,6 @@ mi_tsv_deleted (const struct trace_state_variable *tsv)
 	fprintf_unfiltered (mi->event_channel, "tsv-deleted\n");
 
       gdb_flush (mi->event_channel);
-
-      do_cleanups (old_chain);
     }
 }
 
@@ -841,15 +801,14 @@ mi_tsv_modified (const struct trace_state_variable *tsv)
     {
       struct mi_interp *mi = as_mi_interp (top_level_interpreter ());
       struct ui_out *mi_uiout;
-      struct cleanup *old_chain;
 
       if (mi == NULL)
 	continue;
 
       mi_uiout = interp_ui_out (top_level_interpreter ());
 
-      old_chain = make_cleanup_restore_target_terminal ();
-      target_terminal_ours_for_output ();
+      target_terminal::scoped_restore_terminal_state term_state;
+      target_terminal::ours_for_output ();
 
       fprintf_unfiltered (mi->event_channel,
 			  "tsv-modified");
@@ -865,9 +824,39 @@ mi_tsv_modified (const struct trace_state_variable *tsv)
       mi_uiout->redirect (NULL);
 
       gdb_flush (mi->event_channel);
-
-      do_cleanups (old_chain);
     }
+}
+
+/* Print breakpoint BP on MI's event channel.  */
+
+static void
+mi_print_breakpoint_for_event (struct mi_interp *mi, breakpoint *bp)
+{
+  ui_out *mi_uiout = interp_ui_out (mi);
+
+  /* We want the output from print_breakpoint to go to
+     mi->event_channel.  One approach would be to just call
+     print_breakpoint, and then use mi_out_put to send the current
+     content of mi_uiout into mi->event_channel.  However, that will
+     break if anything is output to mi_uiout prior to calling the
+     breakpoint_created notifications.  So, we use
+     ui_out_redirect.  */
+  mi_uiout->redirect (mi->event_channel);
+
+  TRY
+    {
+      scoped_restore restore_uiout
+	= make_scoped_restore (&current_uiout, mi_uiout);
+
+      print_breakpoint (bp);
+    }
+  CATCH (ex, RETURN_MASK_ALL)
+    {
+      exception_print (gdb_stderr, ex);
+    }
+  END_CATCH
+
+  mi_uiout->redirect (NULL);
 }
 
 /* Emit notification about a created breakpoint.  */
@@ -884,41 +873,18 @@ mi_breakpoint_created (struct breakpoint *b)
   SWITCH_THRU_ALL_UIS ()
     {
       struct mi_interp *mi = as_mi_interp (top_level_interpreter ());
-      struct ui_out *mi_uiout;
-      struct cleanup *old_chain;
 
       if (mi == NULL)
 	continue;
 
-      mi_uiout = interp_ui_out (top_level_interpreter ());
-
-      old_chain = make_cleanup_restore_target_terminal ();
-      target_terminal_ours_for_output ();
+      target_terminal::scoped_restore_terminal_state term_state;
+      target_terminal::ours_for_output ();
 
       fprintf_unfiltered (mi->event_channel,
 			  "breakpoint-created");
-      /* We want the output from gdb_breakpoint_query to go to
-	 mi->event_channel.  One approach would be to just call
-	 gdb_breakpoint_query, and then use mi_out_put to send the current
-	 content of mi_outout into mi->event_channel.  However, that will
-	 break if anything is output to mi_uiout prior to calling the
-	 breakpoint_created notifications.  So, we use
-	 ui_out_redirect.  */
-      mi_uiout->redirect (mi->event_channel);
-      TRY
-	{
-	  gdb_breakpoint_query (mi_uiout, b->number, NULL);
-	}
-      CATCH (e, RETURN_MASK_ERROR)
-	{
-	}
-      END_CATCH
-
-      mi_uiout->redirect (NULL);
+      mi_print_breakpoint_for_event (mi, b);
 
       gdb_flush (mi->event_channel);
-
-      do_cleanups (old_chain);
     }
 }
 
@@ -936,20 +902,17 @@ mi_breakpoint_deleted (struct breakpoint *b)
   SWITCH_THRU_ALL_UIS ()
     {
       struct mi_interp *mi = as_mi_interp (top_level_interpreter ());
-      struct cleanup *old_chain;
 
       if (mi == NULL)
 	continue;
 
-      old_chain = make_cleanup_restore_target_terminal ();
-      target_terminal_ours_for_output ();
+      target_terminal::scoped_restore_terminal_state term_state;
+      target_terminal::ours_for_output ();
 
       fprintf_unfiltered (mi->event_channel, "breakpoint-deleted,id=\"%d\"",
 			  b->number);
 
       gdb_flush (mi->event_channel);
-
-      do_cleanups (old_chain);
     }
 }
 
@@ -967,37 +930,17 @@ mi_breakpoint_modified (struct breakpoint *b)
   SWITCH_THRU_ALL_UIS ()
     {
       struct mi_interp *mi = as_mi_interp (top_level_interpreter ());
-      struct cleanup *old_chain;
 
       if (mi == NULL)
 	continue;
 
-      old_chain = make_cleanup_restore_target_terminal ();
-      target_terminal_ours_for_output ();
+      target_terminal::scoped_restore_terminal_state term_state;
+      target_terminal::ours_for_output ();
       fprintf_unfiltered (mi->event_channel,
 			  "breakpoint-modified");
-      /* We want the output from gdb_breakpoint_query to go to
-	 mi->event_channel.  One approach would be to just call
-	 gdb_breakpoint_query, and then use mi_out_put to send the current
-	 content of mi_outout into mi->event_channel.  However, that will
-	 break if anything is output to mi_uiout prior to calling the
-	 breakpoint_created notifications.  So, we use
-	 ui_out_redirect.  */
-      mi->mi_uiout->redirect (mi->event_channel);
-      TRY
-	{
-	  gdb_breakpoint_query (mi->mi_uiout, b->number, NULL);
-	}
-      CATCH (e, RETURN_MASK_ERROR)
-	{
-	}
-      END_CATCH
-
-      mi->mi_uiout->redirect (NULL);
+      mi_print_breakpoint_for_event (mi, b);
 
       gdb_flush (mi->event_channel);
-
-      do_cleanups (old_chain);
     }
 }
 
@@ -1105,17 +1048,37 @@ mi_on_resume (ptid_t ptid)
   SWITCH_THRU_ALL_UIS ()
     {
       struct mi_interp *mi = as_mi_interp (top_level_interpreter ());
-      struct cleanup *old_chain;
 
       if (mi == NULL)
 	continue;
 
-      old_chain = make_cleanup_restore_target_terminal ();
-      target_terminal_ours_for_output ();
+      target_terminal::scoped_restore_terminal_state term_state;
+      target_terminal::ours_for_output ();
 
       mi_on_resume_1 (mi, ptid);
+    }
+}
 
-      do_cleanups (old_chain);
+/* See mi-interp.h.  */
+
+void
+mi_output_solib_attribs (ui_out *uiout, struct so_list *solib)
+{
+  struct gdbarch *gdbarch = target_gdbarch ();
+
+  uiout->field_string ("id", solib->so_original_name);
+  uiout->field_string ("target-name", solib->so_original_name);
+  uiout->field_string ("host-name", solib->so_name);
+  uiout->field_int ("symbols-loaded", solib->symbols_loaded);
+  if (!gdbarch_has_global_solist (target_gdbarch ()))
+      uiout->field_fmt ("thread-group", "i%d", current_inferior ()->num);
+
+  ui_out_emit_list list_emitter (uiout, "ranges");
+  ui_out_emit_tuple tuple_emitter (uiout, NULL);
+  if (solib->addr_high != 0)
+    {
+      uiout->field_core_addr ("from", gdbarch, solib->addr_low);
+      uiout->field_core_addr ("to", gdbarch, solib->addr_high);
     }
 }
 
@@ -1126,34 +1089,24 @@ mi_solib_loaded (struct so_list *solib)
     {
       struct mi_interp *mi = as_mi_interp (top_level_interpreter ());
       struct ui_out *uiout;
-      struct cleanup *old_chain;
 
       if (mi == NULL)
 	continue;
 
       uiout = interp_ui_out (top_level_interpreter ());
 
-      old_chain = make_cleanup_restore_target_terminal ();
-      target_terminal_ours_for_output ();
+      target_terminal::scoped_restore_terminal_state term_state;
+      target_terminal::ours_for_output ();
 
       fprintf_unfiltered (mi->event_channel, "library-loaded");
 
       uiout->redirect (mi->event_channel);
 
-      uiout->field_string ("id", solib->so_original_name);
-      uiout->field_string ("target-name", solib->so_original_name);
-      uiout->field_string ("host-name", solib->so_name);
-      uiout->field_int ("symbols-loaded", solib->symbols_loaded);
-      if (!gdbarch_has_global_solist (target_gdbarch ()))
-	{
-	  uiout->field_fmt ("thread-group", "i%d", current_inferior ()->num);
-	}
+      mi_output_solib_attribs (uiout, solib);
 
       uiout->redirect (NULL);
 
       gdb_flush (mi->event_channel);
-
-      do_cleanups (old_chain);
     }
 }
 
@@ -1164,15 +1117,14 @@ mi_solib_unloaded (struct so_list *solib)
     {
       struct mi_interp *mi = as_mi_interp (top_level_interpreter ());
       struct ui_out *uiout;
-      struct cleanup *old_chain;
 
       if (mi == NULL)
 	continue;
 
       uiout = interp_ui_out (top_level_interpreter ());
 
-      old_chain = make_cleanup_restore_target_terminal ();
-      target_terminal_ours_for_output ();
+      target_terminal::scoped_restore_terminal_state term_state;
+      target_terminal::ours_for_output ();
 
       fprintf_unfiltered (mi->event_channel, "library-unloaded");
 
@@ -1189,8 +1141,6 @@ mi_solib_unloaded (struct so_list *solib)
       uiout->redirect (NULL);
 
       gdb_flush (mi->event_channel);
-
-      do_cleanups (old_chain);
     }
 }
 
@@ -1206,15 +1156,14 @@ mi_command_param_changed (const char *param, const char *value)
     {
       struct mi_interp *mi = as_mi_interp (top_level_interpreter ());
       struct ui_out *mi_uiout;
-      struct cleanup *old_chain;
 
       if (mi == NULL)
 	continue;
 
       mi_uiout = interp_ui_out (top_level_interpreter ());
 
-      old_chain = make_cleanup_restore_target_terminal ();
-      target_terminal_ours_for_output ();
+      target_terminal::scoped_restore_terminal_state term_state;
+      target_terminal::ours_for_output ();
 
       fprintf_unfiltered (mi->event_channel, "cmd-param-changed");
 
@@ -1226,8 +1175,6 @@ mi_command_param_changed (const char *param, const char *value)
       mi_uiout->redirect (NULL);
 
       gdb_flush (mi->event_channel);
-
-      do_cleanups (old_chain);
     }
 }
 
@@ -1245,15 +1192,14 @@ mi_memory_changed (struct inferior *inferior, CORE_ADDR memaddr,
       struct mi_interp *mi = as_mi_interp (top_level_interpreter ());
       struct ui_out *mi_uiout;
       struct obj_section *sec;
-      struct cleanup *old_chain;
 
       if (mi == NULL)
 	continue;
 
       mi_uiout = interp_ui_out (top_level_interpreter ());
 
-      old_chain = make_cleanup_restore_target_terminal ();
-      target_terminal_ours_for_output ();
+      target_terminal::scoped_restore_terminal_state term_state;
+      target_terminal::ours_for_output ();
 
       fprintf_unfiltered (mi->event_channel, "memory-changed");
 
@@ -1278,8 +1224,6 @@ mi_memory_changed (struct inferior *inferior, CORE_ADDR memaddr,
       mi_uiout->redirect (NULL);
 
       gdb_flush (mi->event_channel);
-
-      do_cleanups (old_chain);
     }
 }
 
@@ -1301,7 +1245,6 @@ mi_user_selected_context_changed (user_selected_what selection)
     {
       struct mi_interp *mi = as_mi_interp (top_level_interpreter ());
       struct ui_out *mi_uiout;
-      struct cleanup *old_chain;
 
       if (mi == NULL)
 	continue;
@@ -1309,11 +1252,10 @@ mi_user_selected_context_changed (user_selected_what selection)
       mi_uiout = interp_ui_out (top_level_interpreter ());
 
       mi_uiout->redirect (mi->event_channel);
+      ui_out_redirect_pop redirect_popper (mi_uiout);
 
-      old_chain = make_cleanup_ui_out_redirect_pop (mi_uiout);
-
-      make_cleanup_restore_target_terminal ();
-      target_terminal_ours_for_output ();
+      target_terminal::scoped_restore_terminal_state term_state;
+      target_terminal::ours_for_output ();
 
       if (selection & USER_SELECTED_INFERIOR)
 	print_selected_inferior (mi->cli_uiout);
@@ -1336,7 +1278,6 @@ mi_user_selected_context_changed (user_selected_what selection)
 	}
 
       gdb_flush (mi->event_channel);
-      do_cleanups (old_chain);
     }
 }
 
@@ -1348,93 +1289,61 @@ report_initial_inferior (struct inferior *inf, void *closure)
      and top_level_interpreter_data is set, we cannot call
      it here.  */
   struct mi_interp *mi = (struct mi_interp *) closure;
-  struct cleanup *old_chain;
 
-  old_chain = make_cleanup_restore_target_terminal ();
-  target_terminal_ours_for_output ();
+  target_terminal::scoped_restore_terminal_state term_state;
+  target_terminal::ours_for_output ();
 
   fprintf_unfiltered (mi->event_channel,
 		      "thread-group-added,id=\"i%d\"",
 		      inf->num);
   gdb_flush (mi->event_channel);
 
-  do_cleanups (old_chain);
   return 0;
 }
 
-static struct ui_out *
-mi_ui_out (struct interp *interp)
+ui_out *
+mi_interp::interp_ui_out ()
 {
-  struct mi_interp *mi = (struct mi_interp *) interp_data (interp);
-
-  return mi->mi_uiout;
+  return this->mi_uiout;
 }
 
 /* Do MI-specific logging actions; save raw_stdout, and change all
    the consoles to use the supplied ui-file(s).  */
 
-static int
-mi_set_logging (struct interp *interp, int start_log,
-		struct ui_file *out, struct ui_file *logfile)
+void
+mi_interp::set_logging (ui_file_up logfile, bool logging_redirect)
 {
-  struct mi_interp *mi = (struct mi_interp *) interp_data (interp);
+  struct mi_interp *mi = this;
 
-  if (!mi)
-    return 0;
-
-  if (start_log)
+  if (logfile != NULL)
     {
-      /* The tee created already is based on gdb_stdout, which for MI
-	 is a console and so we end up in an infinite loop of console
-	 writing to ui_file writing to console etc.  So discard the
-	 existing tee (it hasn't been used yet, and MI won't ever use
-	 it), and create one based on raw_stdout instead.  */
-      if (logfile)
-	{
-	  ui_file_delete (out);
-	  out = tee_file_new (mi->raw_stdout, 0, logfile, 0);
-	}
-
       mi->saved_raw_stdout = mi->raw_stdout;
-      mi->raw_stdout = out;
+      mi->raw_stdout = make_logging_output (mi->raw_stdout,
+					    std::move (logfile),
+					    logging_redirect);
+
     }
   else
     {
+      delete mi->raw_stdout;
       mi->raw_stdout = mi->saved_raw_stdout;
       mi->saved_raw_stdout = NULL;
     }
   
-  mi_console_set_raw (mi->out, mi->raw_stdout);
-  mi_console_set_raw (mi->err, mi->raw_stdout);
-  mi_console_set_raw (mi->log, mi->raw_stdout);
-  mi_console_set_raw (mi->targ, mi->raw_stdout);
-  mi_console_set_raw (mi->event_channel, mi->raw_stdout);
-
-  return 1;
+  mi->out->set_raw (mi->raw_stdout);
+  mi->err->set_raw (mi->raw_stdout);
+  mi->log->set_raw (mi->raw_stdout);
+  mi->targ->set_raw (mi->raw_stdout);
+  mi->event_channel->set_raw (mi->raw_stdout);
 }
-
-/* The MI interpreter's vtable.  */
-
-static const struct interp_procs mi_interp_procs =
-{
-  mi_interpreter_init,		/* init_proc */
-  mi_interpreter_resume,	/* resume_proc */
-  mi_interpreter_suspend,	/* suspend_proc */
-  mi_interpreter_exec,		/* exec_proc */
-  mi_ui_out, 			/* ui_out_proc */
-  mi_set_logging,		/* set_logging_proc */
-  mi_interpreter_pre_command_loop /* pre_command_loop_proc */
-};
 
 /* Factory for MI interpreters.  */
 
 static struct interp *
 mi_interp_factory (const char *name)
 {
-  return interp_new (name, &mi_interp_procs, NULL);
+  return new mi_interp (name);
 }
-
-extern initialize_file_ftype _initialize_mi_interp; /* -Wmissing-prototypes */
 
 void
 _initialize_mi_interp (void)

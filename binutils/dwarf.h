@@ -1,5 +1,5 @@
 /* dwarf.h - DWARF support header file
-   Copyright (C) 2005-2016 Free Software Foundation, Inc.
+   Copyright (C) 2005-2017 Free Software Foundation, Inc.
 
    This file is part of GNU Binutils.
 
@@ -18,6 +18,8 @@
    Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
    MA 02110-1301, USA.  */
 
+#include "dwarf2.h" /* for enum dwarf_unit_type */
+
 typedef unsigned HOST_WIDEST_INT  dwarf_vma;
 typedef HOST_WIDEST_INT           dwarf_signed_vma;
 typedef unsigned HOST_WIDEST_INT  dwarf_size_type;
@@ -34,6 +36,7 @@ typedef struct
   int            li_line_base;
   unsigned char  li_line_range;
   unsigned char  li_opcode_base;
+  unsigned int   li_offset_size;
 }
 DWARF2_Internal_LineInfo;
 
@@ -54,6 +57,7 @@ typedef struct
   unsigned short cu_version;
   dwarf_vma	 cu_abbrev_offset;
   unsigned char  cu_pointer_size;
+  enum dwarf_unit_type cu_unit_type;
 }
 DWARF2_Internal_CompUnit;
 
@@ -83,15 +87,19 @@ enum dwarf_section_display_enum
   macinfo,
   macro,
   str,
+  line_str,
   loc,
+  loclists,
   pubtypes,
   gnu_pubtypes,
   ranges,
+  rnglists,
   static_func,
   static_vars,
   types,
   weaknames,
   gdb_index,
+  debug_names,
   trace_info,
   trace_abbrev,
   trace_aranges,
@@ -162,9 +170,12 @@ typedef struct
   dwarf_vma	 ranges_base;
   /* This is an array of offsets to the location list table.  */
   dwarf_vma *    loc_offsets;
+  /* This is an array of offsets to the location view table.  */
+  dwarf_vma *    loc_views;
   int *          have_frame_base;
   unsigned int   num_loc_offsets;
   unsigned int   max_loc_offsets;
+  unsigned int   num_loc_views;
   /* List of .debug_ranges offsets seen in this .debug_info.  */
   dwarf_vma *    range_lists;
   unsigned int   num_range_lists;

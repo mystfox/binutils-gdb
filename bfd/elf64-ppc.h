@@ -1,5 +1,5 @@
 /* PowerPC64-specific support for 64-bit ELF.
-   Copyright (C) 2002-2016 Free Software Foundation, Inc.
+   Copyright (C) 2002-2017 Free Software Foundation, Inc.
 
    This file is part of BFD, the Binary File Descriptor library.
 
@@ -47,6 +47,9 @@ struct ppc64_elf_params
 
   /* Set if individual PLT call stubs should be aligned.  */
   int plt_stub_align;
+
+  /* Set if PLT call stubs for localentry:0 functions should omit r2 save.  */
+  int plt_localentry0;
 
   /* Whether to canonicalize .opd so that there are no overlapping
      .opd entries.  */

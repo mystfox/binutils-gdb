@@ -1,4 +1,4 @@
-/* Copyright (C) 1992-2016 Free Software Foundation, Inc.
+/* Copyright (C) 1992-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -1008,7 +1008,6 @@ print_ada_task_info (struct ui_out *uiout,
   struct ada_tasks_inferior_data *data;
   int taskno, nb_tasks;
   int taskno_arg = 0;
-  struct cleanup *old_chain;
   int nb_columns;
 
   if (ada_build_task_list () == 0)
@@ -1047,8 +1046,7 @@ print_ada_task_info (struct ui_out *uiout,
     nb_tasks = VEC_length (ada_task_info_s, data->task_list);
 
   nb_columns = uiout->is_mi_like_p () ? 8 : 7;
-  old_chain = make_cleanup_ui_out_table_begin_end (uiout, nb_columns,
-						   nb_tasks, "tasks");
+  ui_out_emit_table table_emitter (uiout, nb_columns, nb_tasks, "tasks");
   uiout->table_header (1, ui_left, "current", "");
   uiout->table_header (3, ui_right, "id", "ID");
   uiout->table_header (9, ui_right, "task-id", "TID");
@@ -1073,7 +1071,6 @@ print_ada_task_info (struct ui_out *uiout,
       const struct ada_task_info *const task_info =
 	VEC_index (ada_task_info_s, data->task_list, taskno - 1);
       int parent_id;
-      struct cleanup *chain2;
 
       gdb_assert (task_info != NULL);
 
@@ -1083,7 +1080,7 @@ print_ada_task_info (struct ui_out *uiout,
       if (taskno_arg && taskno != taskno_arg)
         continue;
 
-      chain2 = make_cleanup_ui_out_tuple_begin_end (uiout, NULL);
+      ui_out_emit_tuple tuple_emitter (uiout, NULL);
 
       /* Print a star if this task is the current task (or the task
          currently selected).  */
@@ -1143,10 +1140,7 @@ print_ada_task_info (struct ui_out *uiout,
 						   : _("<no name>"));
 
       uiout->text ("\n");
-      do_cleanups (chain2);
     }
-
-  do_cleanups (old_chain);
 }
 
 /* Print a detailed description of the Ada task whose ID is TASKNO_STR
@@ -1271,7 +1265,7 @@ display_current_task_id (void)
    that task.  Print an error message if the task switch failed.  */
 
 static void
-task_command_1 (char *taskno_str, int from_tty, struct inferior *inf)
+task_command_1 (const char *taskno_str, int from_tty, struct inferior *inf)
 {
   const int taskno = value_as_long (parse_and_eval (taskno_str));
   struct ada_task_info *task_info;
@@ -1320,7 +1314,7 @@ task_command_1 (char *taskno_str, int from_tty, struct inferior *inf)
    Otherwise, switch to the task indicated by TASKNO_STR.  */
 
 static void
-task_command (char *taskno_str, int from_tty)
+task_command (const char *taskno_str, int from_tty)
 {
   struct ui_out *uiout = current_uiout;
 
@@ -1427,9 +1421,6 @@ ada_tasks_new_objfile_observer (struct objfile *objfile)
     if (objfile == NULL || inf->pspace == objfile->pspace)
       ada_tasks_invalidate_inferior_data (inf);
 }
-
-/* Provide a prototype to silence -Wmissing-prototypes.  */
-extern initialize_file_ftype _initialize_tasks;
 
 void
 _initialize_tasks (void)

@@ -1,6 +1,6 @@
 /* Ada Ravenscar thread support.
 
-   Copyright (C) 2004-2016 Free Software Foundation, Inc.
+   Copyright (C) 2004-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -54,8 +54,8 @@ static const char ravenscar_runtime_initializer[] =
 
 static void ravenscar_update_thread_list (struct target_ops *ops);
 static ptid_t ravenscar_running_thread (void);
-static char *ravenscar_extra_thread_info (struct target_ops *self,
-					  struct thread_info *tp);
+static const char *ravenscar_extra_thread_info (struct target_ops *self,
+						struct thread_info *tp);
 static int ravenscar_thread_alive (struct target_ops *ops, ptid_t ptid);
 static void ravenscar_fetch_registers (struct target_ops *ops,
                                        struct regcache *regcache, int regnum);
@@ -241,7 +241,7 @@ ravenscar_running_thread (void)
     return ptid_build (ptid_get_pid (base_ptid), 0, tid);
 }
 
-static char *
+static const char *
 ravenscar_extra_thread_info (struct target_ops *self, struct thread_info *tp)
 {
   return "Ravenscar task";
@@ -254,7 +254,7 @@ ravenscar_thread_alive (struct target_ops *ops, ptid_t ptid)
   return 1;
 }
 
-static char *
+static const char *
 ravenscar_pid_to_str (struct target_ops *ops, ptid_t ptid)
 {
   static char buf[30];
@@ -268,14 +268,15 @@ ravenscar_fetch_registers (struct target_ops *ops,
                            struct regcache *regcache, int regnum)
 {
   struct target_ops *beneath = find_target_beneath (ops);
+  ptid_t ptid = regcache_get_ptid (regcache);
 
   if (!ravenscar_runtime_initialized ()
-      || ptid_equal (inferior_ptid, base_magic_null_ptid)
-      || ptid_equal (inferior_ptid, ravenscar_running_thread ()))
+      || ptid_equal (ptid, base_magic_null_ptid)
+      || ptid_equal (ptid, ravenscar_running_thread ()))
     beneath->to_fetch_registers (beneath, regcache, regnum);
   else
     {
-      struct gdbarch *gdbarch = get_regcache_arch (regcache);
+      struct gdbarch *gdbarch = regcache->arch ();
       struct ravenscar_arch_ops *arch_ops
 	= gdbarch_ravenscar_ops (gdbarch);
 
@@ -288,14 +289,15 @@ ravenscar_store_registers (struct target_ops *ops,
                            struct regcache *regcache, int regnum)
 {
   struct target_ops *beneath = find_target_beneath (ops);
+  ptid_t ptid = regcache_get_ptid (regcache);
 
   if (!ravenscar_runtime_initialized ()
-      || ptid_equal (inferior_ptid, base_magic_null_ptid)
-      || ptid_equal (inferior_ptid, ravenscar_running_thread ()))
+      || ptid_equal (ptid, base_magic_null_ptid)
+      || ptid_equal (ptid, ravenscar_running_thread ()))
     beneath->to_store_registers (beneath, regcache, regnum);
   else
     {
-      struct gdbarch *gdbarch = get_regcache_arch (regcache);
+      struct gdbarch *gdbarch = regcache->arch ();
       struct ravenscar_arch_ops *arch_ops
 	= gdbarch_ravenscar_ops (gdbarch);
 
@@ -308,14 +310,15 @@ ravenscar_prepare_to_store (struct target_ops *self,
 			    struct regcache *regcache)
 {
   struct target_ops *beneath = find_target_beneath (self);
+  ptid_t ptid = regcache_get_ptid (regcache);
 
   if (!ravenscar_runtime_initialized ()
-      || ptid_equal (inferior_ptid, base_magic_null_ptid)
-      || ptid_equal (inferior_ptid, ravenscar_running_thread ()))
+      || ptid_equal (ptid, base_magic_null_ptid)
+      || ptid_equal (ptid, ravenscar_running_thread ()))
     beneath->to_prepare_to_store (beneath, regcache);
   else
     {
-      struct gdbarch *gdbarch = get_regcache_arch (regcache);
+      struct gdbarch *gdbarch = regcache->arch ();
       struct ravenscar_arch_ops *arch_ops
 	= gdbarch_ravenscar_ops (gdbarch);
 
@@ -388,7 +391,7 @@ static struct cmd_list_element *show_ravenscar_list;
 /* Implement the "set ravenscar" prefix command.  */
 
 static void
-set_ravenscar_command (char *arg, int from_tty)
+set_ravenscar_command (const char *arg, int from_tty)
 {
   printf_unfiltered (_(\
 "\"set ravenscar\" must be followed by the name of a setting.\n"));
@@ -398,7 +401,7 @@ set_ravenscar_command (char *arg, int from_tty)
 /* Implement the "show ravenscar" prefix command.  */
 
 static void
-show_ravenscar_command (char *args, int from_tty)
+show_ravenscar_command (const char *args, int from_tty)
 {
   cmd_show_list (show_ravenscar_list, from_tty, "");
 }
@@ -417,9 +420,6 @@ Support for Ravenscar task/thread switching is enabled\n"));
     fprintf_filtered (file, _("\
 Support for Ravenscar task/thread switching is disabled\n"));
 }
-
-/* Provide a prototype to silence -Wmissing-prototypes.  */
-extern void _initialize_ravenscar (void);
 
 /* Module startup initialization function, automagically called by
    init.c.  */

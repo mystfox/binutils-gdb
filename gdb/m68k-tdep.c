@@ -1,6 +1,6 @@
 /* Target-dependent code for the Motorola 68000 series.
 
-   Copyright (C) 1990-2016 Free Software Foundation, Inc.
+   Copyright (C) 1990-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -32,6 +32,7 @@
 #include "osabi.h"
 #include "dis-asm.h"
 #include "target-descriptions.h"
+#include "floatformat.h"
 
 #include "m68k-tdep.h"
 
@@ -72,7 +73,7 @@ m68k_ps_type (struct gdbarch *gdbarch)
     {
       struct type *type;
 
-      type = arch_flags_type (gdbarch, "builtin_type_m68k_ps", 4);
+      type = arch_flags_type (gdbarch, "builtin_type_m68k_ps", 32);
       append_flags_type_flag (type, 0, "C");
       append_flags_type_flag (type, 1, "V");
       append_flags_type_flag (type, 2, "Z");
@@ -188,6 +189,8 @@ m68k_convert_register_p (struct gdbarch *gdbarch,
   if (!gdbarch_tdep (gdbarch)->fpregs_present)
     return 0;
   return (regnum >= M68K_FP0_REGNUM && regnum <= M68K_FP0_REGNUM + 7
+	  /* We only support floating-point values.  */
+	  && TYPE_CODE (type) == TYPE_CODE_FLT
 	  && type != register_type (gdbarch, M68K_FP0_REGNUM));
 }
 
@@ -199,23 +202,15 @@ m68k_register_to_value (struct frame_info *frame, int regnum,
 			struct type *type, gdb_byte *to,
 			int *optimizedp, int *unavailablep)
 {
+  struct gdbarch *gdbarch = get_frame_arch (frame);
   gdb_byte from[M68K_MAX_REGISTER_SIZE];
-  struct type *fpreg_type = register_type (get_frame_arch (frame),
-					   M68K_FP0_REGNUM);
+  struct type *fpreg_type = register_type (gdbarch, M68K_FP0_REGNUM);
 
-  /* We only support floating-point values.  */
-  if (TYPE_CODE (type) != TYPE_CODE_FLT)
-    {
-      warning (_("Cannot convert floating-point register value "
-	       "to non-floating-point type."));
-      *optimizedp = *unavailablep = 0;
-      return 0;
-    }
+  gdb_assert (TYPE_CODE (type) == TYPE_CODE_FLT);
 
   /* Convert to TYPE.  */
-
-  /* Convert to TYPE.  */
-  if (!get_frame_register_bytes (frame, regnum, 0, TYPE_LENGTH (type),
+  if (!get_frame_register_bytes (frame, regnum, 0,
+				 register_size (gdbarch, regnum),
 				 from, optimizedp, unavailablep))
     return 0;
 
@@ -309,7 +304,7 @@ m68k_svr4_extract_return_value (struct type *type, struct regcache *regcache,
 				gdb_byte *valbuf)
 {
   gdb_byte buf[M68K_MAX_REGISTER_SIZE];
-  struct gdbarch *gdbarch = get_regcache_arch (regcache);
+  struct gdbarch *gdbarch = regcache->arch ();
   struct gdbarch_tdep *tdep = gdbarch_tdep (gdbarch);
 
   if (tdep->float_return && TYPE_CODE (type) == TYPE_CODE_FLT)
@@ -349,7 +344,7 @@ static void
 m68k_svr4_store_return_value (struct type *type, struct regcache *regcache,
 			      const gdb_byte *valbuf)
 {
-  struct gdbarch *gdbarch = get_regcache_arch (regcache);
+  struct gdbarch *gdbarch = regcache->arch ();
   struct gdbarch_tdep *tdep = gdbarch_tdep (gdbarch);
 
   if (tdep->float_return && TYPE_CODE (type) == TYPE_CODE_FLT)
@@ -1240,10 +1235,6 @@ m68k_gdbarch_init (struct gdbarch_info info, struct gdbarch_list *arches)
   set_gdbarch_return_in_first_hidden_param_p (gdbarch,
 					      m68k_return_in_first_hidden_param_p);
 
-
-  /* Disassembler.  */
-  set_gdbarch_print_insn (gdbarch, print_insn_m68k);
-
 #if defined JB_PC && defined JB_ELEMENT_SIZE
   tdep->jb_pc = JB_PC;
   tdep->jb_elt_size = JB_ELEMENT_SIZE;
@@ -1288,8 +1279,6 @@ m68k_dump_tdep (struct gdbarch *gdbarch, struct ui_file *file)
   if (tdep == NULL)
     return;
 }
-
-extern initialize_file_ftype _initialize_m68k_tdep; /* -Wmissing-prototypes */
 
 void
 _initialize_m68k_tdep (void)

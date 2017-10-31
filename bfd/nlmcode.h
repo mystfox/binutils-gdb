@@ -1,5 +1,5 @@
 /* NLM (NetWare Loadable Module) executable support for BFD.
-   Copyright (C) 1993-2016 Free Software Foundation, Inc.
+   Copyright (C) 1993-2017 Free Software Foundation, Inc.
 
    Written by Fred Fish @ Cygnus Support, using ELF support as the
    template.
@@ -351,7 +351,9 @@ nlm_swap_auxiliary_headers_in (bfd *abfd)
 	      bfd_byte *contents;
 	      bfd_byte *p, *pend;
 
-	      BFD_ASSERT (hdrLength == 0 && hdr == NULL);
+	      /* See PR 21840 for a reproducer.  */
+	      if (hdrLength != 0 || hdr != NULL)
+		return FALSE;
 
 	      pos = bfd_tell (abfd);
 	      if (bfd_seek (abfd, dataOffset, SEEK_SET) != 0)

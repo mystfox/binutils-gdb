@@ -1,5 +1,5 @@
 /* 32-bit ELF support for TI C6X
-   Copyright (C) 2010-2016 Free Software Foundation, Inc.
+   Copyright (C) 2010-2017 Free Software Foundation, Inc.
    Contributed by Joseph Myers <joseph@codesourcery.com>
    		  Bernd Schmidt  <bernds@codesourcery.com>
 
@@ -42,10 +42,6 @@
 struct elf32_tic6x_link_hash_table
 {
   struct elf_link_hash_table elf;
-
-  /* Short-cuts to get to dynamic linker sections.  */
-  asection *sdynbss;
-  asection *srelbss;
 
   /* C6X specific command line arguments.  */
   struct elf32_tic6x_params params;
@@ -1660,14 +1656,6 @@ elf32_tic6x_create_dynamic_sections (bfd *dynobj, struct bfd_link_info *info)
       || ! bfd_set_section_alignment (dynobj, htab->elf.splt, 5))
     return FALSE;
 
-  htab->sdynbss = bfd_get_linker_section (dynobj, ".dynbss");
-  if (!bfd_link_pic (info))
-    htab->srelbss = bfd_get_linker_section (dynobj, ".rela.bss");
-
-  if (!htab->sdynbss
-      || (!bfd_link_pic (info) && !htab->srelbss))
-    abort ();
-
   return TRUE;
 }
 
@@ -1872,13 +1860,15 @@ elf32_tic6x_finish_dynamic_symbol (bfd * output_bfd,
   if (h->needs_copy)
     {
       Elf_Internal_Rela rel;
+      asection *s;
 
       /* This symbol needs a copy reloc.  Set it up.  */
 
       if (h->dynindx == -1
 	  || (h->root.type != bfd_link_hash_defined
 	      && h->root.type != bfd_link_hash_defweak)
-	  || htab->srelbss == NULL)
+	  || htab->elf.srelbss == NULL
+	  || htab->elf.sreldynrelro == NULL)
 	abort ();
 
       rel.r_offset = (h->root.u.def.value
@@ -1886,8 +1876,12 @@ elf32_tic6x_finish_dynamic_symbol (bfd * output_bfd,
 		      + h->root.u.def.section->output_offset);
       rel.r_info = ELF32_R_INFO (h->dynindx, R_C6000_COPY);
       rel.r_addend = 0;
+      if (h->root.u.def.section == htab->elf.sdynrelro)
+	s = htab->elf.sreldynrelro;
+      else
+	s = htab->elf.srelbss;
 
-      elf32_tic6x_install_rela (output_bfd, htab->srelbss, &rel);
+      elf32_tic6x_install_rela (output_bfd, s, &rel);
     }
 
   /* Mark _DYNAMIC and _GLOBAL_OFFSET_TABLE_ as absolute.  */
@@ -1977,90 +1971,6 @@ elf32_tic6x_fake_sections (bfd *abfd ATTRIBUTE_UNUSED,
   return TRUE;
 }
 
-/* Update the got entry reference counts for the section being removed.  */
-
-static bfd_boolean
-elf32_tic6x_gc_sweep_hook (bfd *abfd,
-			   struct bfd_link_info *info,
-			   asection *sec,
-			   const Elf_Internal_Rela *relocs)
-{
-  struct elf32_tic6x_link_hash_table *htab;
-  Elf_Internal_Shdr *symtab_hdr;
-  struct elf_link_hash_entry **sym_hashes;
-  bfd_signed_vma *local_got_refcounts;
-  const Elf_Internal_Rela *rel, *relend;
-
-  if (bfd_link_relocatable (info))
-    return TRUE;
-
-  htab = elf32_tic6x_hash_table (info);
-  if (htab == NULL)
-    return FALSE;
-
-  elf_section_data (sec)->local_dynrel = NULL;
-
-  symtab_hdr = &elf_symtab_hdr (abfd);
-  sym_hashes = elf_sym_hashes (abfd);
-  local_got_refcounts = elf_local_got_refcounts (abfd);
-
-  relend = relocs + sec->reloc_count;
-  for (rel = relocs; rel < relend; rel++)
-    {
-      unsigned long r_symndx;
-      unsigned int r_type;
-      struct elf_link_hash_entry *h = NULL;
-
-      r_symndx = ELF32_R_SYM (rel->r_info);
-      if (r_symndx >= symtab_hdr->sh_info)
-	{
-	  struct elf32_tic6x_link_hash_entry *eh;
-	  struct elf_dyn_relocs **pp;
-	  struct elf_dyn_relocs *p;
-
-	  h = sym_hashes[r_symndx - symtab_hdr->sh_info];
-	  while (h->root.type == bfd_link_hash_indirect
-		 || h->root.type == bfd_link_hash_warning)
-	    h = (struct elf_link_hash_entry *) h->root.u.i.link;
-	  eh = (struct elf32_tic6x_link_hash_entry *) h;
-
-	  for (pp = &eh->dyn_relocs; (p = *pp) != NULL; pp = &p->next)
-	    if (p->sec == sec)
-	      {
-		/* Everything must go for SEC.  */
-		*pp = p->next;
-		break;
-	      }
-	}
-
-      r_type = ELF32_R_TYPE (rel->r_info);
-
-      switch (r_type)
-	{
-	case R_C6000_SBR_GOT_U15_W:
-	case R_C6000_SBR_GOT_L16_W:
-	case R_C6000_SBR_GOT_H16_W:
-	case R_C6000_EHTYPE:
-	  if (h != NULL)
-	    {
-	      if (h->got.refcount > 0)
-		h->got.refcount -= 1;
-	    }
-	  else if (local_got_refcounts != NULL)
-	    {
-	      if (local_got_refcounts[r_symndx] > 0)
-		local_got_refcounts[r_symndx] -= 1;
-	    }
-	  break;
-
-	default:
-	  break;
-	}
-    }
-
-  return TRUE;
-}
-
 /* Adjust a symbol defined by a dynamic object and referenced by a
    regular object.  The current definition is in some section of the
    dynamic object, but we're not including those sections.  We have to
@@ -2073,7 +1983,7 @@ elf32_tic6x_adjust_dynamic_symbol (struct bfd_link_info *info,
 {
   struct elf32_tic6x_link_hash_table *htab;
   bfd *dynobj;
-  asection *s;
+  asection *s, *srel;
 
   dynobj = elf_hash_table (info)->dynobj;
 
@@ -2158,13 +2068,21 @@ elf32_tic6x_adjust_dynamic_symbol (struct bfd_link_info *info,
   /* We must generate a R_C6000_COPY reloc to tell the dynamic linker to
      copy the initial value out of the dynamic object and into the
      runtime process image.  */
+  if ((h->root.u.def.section->flags & SEC_READONLY) != 0)
+    {
+      s = htab->elf.sdynrelro;
+      srel = htab->elf.sreldynrelro;
+    }
+  else
+    {
+      s = htab->elf.sdynbss;
+      srel = htab->elf.srelbss;
+    }
   if ((h->root.u.def.section->flags & SEC_ALLOC) != 0 && h->size != 0)
     {
-      htab->srelbss->size += sizeof (Elf32_External_Rela);
+      srel->size += sizeof (Elf32_External_Rela);
       h->needs_copy = 1;
     }
-
-  s = htab->sdynbss;
 
   return _bfd_elf_adjust_dynamic_copy (info, h, s);
 }
@@ -2630,7 +2548,7 @@ elf32_tic6x_relocate_section (bfd *output_bfd,
 	      if (h == NULL)
 		_bfd_error_handler
 		  /* xgettext:c-format */
-		  (_("%B, section %A: relocation %s with non-zero addend %d"
+		  (_("%B, section %A: relocation %s with non-zero addend %Ld"
 		     " against local symbol"),
 		   input_bfd,
 		   input_section,
@@ -2639,7 +2557,7 @@ elf32_tic6x_relocate_section (bfd *output_bfd,
 	      else
 		_bfd_error_handler
 		  /* xgettext:c-format */
-		  (_("%B, section %A: relocation %s with non-zero addend %d"
+		  (_("%B, section %A: relocation %s with non-zero addend %Ld"
 		     " against symbol `%s'"),
 		   input_bfd,
 		   input_section,
@@ -2799,7 +2717,7 @@ elf32_tic6x_check_relocs (bfd *abfd, struct bfd_link_info *info,
   for (rel = relocs; rel < rel_end; rel++)
     {
       unsigned int r_type;
-      unsigned long r_symndx;
+      unsigned int r_symndx;
       struct elf_link_hash_entry *h;
       Elf_Internal_Sym *isym;
 
@@ -2833,7 +2751,7 @@ elf32_tic6x_check_relocs (bfd *abfd, struct bfd_link_info *info,
 
 	  /* PR15323, ref flags aren't set for references in the same
 	     object.  */
-	  h->root.non_ir_ref = 1;
+	  h->root.non_ir_ref_regular = 1;
 	}
 
       switch (r_type)
@@ -3388,7 +3306,8 @@ elf32_tic6x_size_dynamic_sections (bfd *output_bfd, struct bfd_link_info *info)
       else if (s == htab->elf.splt
 	       || s == htab->elf.sgot
 	       || s == htab->elf.sgotplt
-	       || s == htab->sdynbss)
+	       || s == htab->elf.sdynbss
+	       || s == htab->elf.sdynrelro)
 	{
 	  /* Strip this section if we don't need it; see the
 	     comment below.  */
@@ -4381,11 +4300,11 @@ elf32_tic6x_write_section (bfd *output_bfd,
 #define elf_backend_can_refcount	1
 #define elf_backend_want_got_plt	1
 #define elf_backend_want_dynbss		1
+#define elf_backend_want_dynrelro	1
 #define elf_backend_plt_readonly	1
 #define elf_backend_rela_normal		1
 #define elf_backend_got_header_size     8
 #define elf_backend_fake_sections       elf32_tic6x_fake_sections
-#define elf_backend_gc_sweep_hook	elf32_tic6x_gc_sweep_hook
 #define elf_backend_gc_mark_extra_sections elf32_tic6x_gc_mark_extra_sections
 #define elf_backend_create_dynamic_sections \
   elf32_tic6x_create_dynamic_sections

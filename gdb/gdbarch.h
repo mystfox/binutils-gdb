@@ -3,7 +3,7 @@
 
 /* Dynamic architecture support for GDB, the GNU debugger.
 
-   Copyright (C) 1998-2016 Free Software Foundation, Inc.
+   Copyright (C) 1998-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -35,7 +35,9 @@
 #ifndef GDBARCH_H
 #define GDBARCH_H
 
+#include <vector>
 #include "frame.h"
+#include "dis-asm.h"
 
 struct floatformat;
 struct ui_file;
@@ -51,7 +53,6 @@ struct target_ops;
 struct obstack;
 struct bp_target_info;
 struct target_desc;
-struct objfile;
 struct symbol;
 struct displaced_step_closure;
 struct syscall;
@@ -60,7 +61,6 @@ struct axs_value;
 struct stap_parse_info;
 struct parser_state;
 struct ravenscar_arch_ops;
-struct elf_internal_linux_prpsinfo;
 struct mem_range;
 struct syscalls_info;
 struct thread_info;
@@ -126,11 +126,7 @@ extern const struct target_desc * gdbarch_target_desc (struct gdbarch *gdbarch);
 extern int gdbarch_bits_big_endian (struct gdbarch *gdbarch);
 extern void set_gdbarch_bits_big_endian (struct gdbarch *gdbarch, int bits_big_endian);
 
-/* Number of bits in a char or unsigned char for the target machine.
-   Just like CHAR_BIT in <limits.h> but describes the target machine.
-   v:TARGET_CHAR_BIT:int:char_bit::::8 * sizeof (char):8::0:
-  
-   Number of bits in a short or unsigned short for the target machine. */
+/* Number of bits in a short or unsigned short for the target machine. */
 
 extern int gdbarch_short_bit (struct gdbarch *gdbarch);
 extern void set_gdbarch_short_bit (struct gdbarch *gdbarch, int short_bit);
@@ -186,6 +182,17 @@ extern void set_gdbarch_long_double_bit (struct gdbarch *gdbarch, int long_doubl
 
 extern const struct floatformat ** gdbarch_long_double_format (struct gdbarch *gdbarch);
 extern void set_gdbarch_long_double_format (struct gdbarch *gdbarch, const struct floatformat ** long_double_format);
+
+/* The ABI default bit-size for "wchar_t".  wchar_t is a built-in type
+   starting with C++11. */
+
+extern int gdbarch_wchar_bit (struct gdbarch *gdbarch);
+extern void set_gdbarch_wchar_bit (struct gdbarch *gdbarch, int wchar_bit);
+
+/* One if `wchar_t' is signed, zero if unsigned. */
+
+extern int gdbarch_wchar_signed (struct gdbarch *gdbarch);
+extern void set_gdbarch_wchar_signed (struct gdbarch *gdbarch, int wchar_signed);
 
 /* Returns the floating-point format to be used for values of length LENGTH.
    NAME, if non-NULL, is the type name, which may be used to distinguish
@@ -688,8 +695,8 @@ extern void set_gdbarch_addr_bits_remove (struct gdbarch *gdbarch, gdbarch_addr_
 
 extern int gdbarch_software_single_step_p (struct gdbarch *gdbarch);
 
-typedef VEC (CORE_ADDR) * (gdbarch_software_single_step_ftype) (struct regcache *regcache);
-extern VEC (CORE_ADDR) * gdbarch_software_single_step (struct gdbarch *gdbarch, struct regcache *regcache);
+typedef std::vector<CORE_ADDR> (gdbarch_software_single_step_ftype) (struct regcache *regcache);
+extern std::vector<CORE_ADDR> gdbarch_software_single_step (struct gdbarch *gdbarch, struct regcache *regcache);
 extern void set_gdbarch_software_single_step (struct gdbarch *gdbarch, gdbarch_software_single_step_ftype *software_single_step);
 
 /* Return non-zero if the processor is executing a delay slot and a
@@ -815,6 +822,13 @@ typedef const char * (gdbarch_address_class_type_flags_to_name_ftype) (struct gd
 extern const char * gdbarch_address_class_type_flags_to_name (struct gdbarch *gdbarch, int type_flags);
 extern void set_gdbarch_address_class_type_flags_to_name (struct gdbarch *gdbarch, gdbarch_address_class_type_flags_to_name_ftype *address_class_type_flags_to_name);
 
+/* Execute vendor-specific DWARF Call Frame Instruction.  OP is the instruction.
+   FS are passed from the generic execute_cfa_program function. */
+
+typedef bool (gdbarch_execute_dwarf_cfa_vendor_op_ftype) (struct gdbarch *gdbarch, gdb_byte op, struct dwarf2_frame_state *fs);
+extern bool gdbarch_execute_dwarf_cfa_vendor_op (struct gdbarch *gdbarch, gdb_byte op, struct dwarf2_frame_state *fs);
+extern void set_gdbarch_execute_dwarf_cfa_vendor_op (struct gdbarch *gdbarch, gdbarch_execute_dwarf_cfa_vendor_op_ftype *execute_dwarf_cfa_vendor_op);
+
 /* Return the appropriate type_flags for the supplied address class.
    This function should return 1 if the address class was recognized and
    type_flags was set, zero otherwise. */
@@ -860,18 +874,6 @@ typedef char * (gdbarch_make_corefile_notes_ftype) (struct gdbarch *gdbarch, bfd
 extern char * gdbarch_make_corefile_notes (struct gdbarch *gdbarch, bfd *obfd, int *note_size);
 extern void set_gdbarch_make_corefile_notes (struct gdbarch *gdbarch, gdbarch_make_corefile_notes_ftype *make_corefile_notes);
 
-/* The elfcore writer hook to use to write Linux prpsinfo notes to core
-   files.  Most Linux architectures use the same prpsinfo32 or
-   prpsinfo64 layouts, and so won't need to provide this hook, as we
-   call the Linux generic routines in bfd to write prpsinfo notes by
-   default. */
-
-extern int gdbarch_elfcore_write_linux_prpsinfo_p (struct gdbarch *gdbarch);
-
-typedef char * (gdbarch_elfcore_write_linux_prpsinfo_ftype) (bfd *obfd, char *note_data, int *note_size, const struct elf_internal_linux_prpsinfo *info);
-extern char * gdbarch_elfcore_write_linux_prpsinfo (struct gdbarch *gdbarch, bfd *obfd, char *note_data, int *note_size, const struct elf_internal_linux_prpsinfo *info);
-extern void set_gdbarch_elfcore_write_linux_prpsinfo (struct gdbarch *gdbarch, gdbarch_elfcore_write_linux_prpsinfo_ftype *elfcore_write_linux_prpsinfo);
-
 /* Find core file memory regions */
 
 extern int gdbarch_find_memory_regions_p (struct gdbarch *gdbarch);
@@ -905,8 +907,8 @@ extern void set_gdbarch_core_xfer_shared_libraries_aix (struct gdbarch *gdbarch,
 
 extern int gdbarch_core_pid_to_str_p (struct gdbarch *gdbarch);
 
-typedef char * (gdbarch_core_pid_to_str_ftype) (struct gdbarch *gdbarch, ptid_t ptid);
-extern char * gdbarch_core_pid_to_str (struct gdbarch *gdbarch, ptid_t ptid);
+typedef const char * (gdbarch_core_pid_to_str_ftype) (struct gdbarch *gdbarch, ptid_t ptid);
+extern const char * gdbarch_core_pid_to_str (struct gdbarch *gdbarch, ptid_t ptid);
 extern void set_gdbarch_core_pid_to_str (struct gdbarch *gdbarch, gdbarch_core_pid_to_str_ftype *core_pid_to_str);
 
 /* How the core target extracts the name of a thread from a core file. */
@@ -916,6 +918,16 @@ extern int gdbarch_core_thread_name_p (struct gdbarch *gdbarch);
 typedef const char * (gdbarch_core_thread_name_ftype) (struct gdbarch *gdbarch, struct thread_info *thr);
 extern const char * gdbarch_core_thread_name (struct gdbarch *gdbarch, struct thread_info *thr);
 extern void set_gdbarch_core_thread_name (struct gdbarch *gdbarch, gdbarch_core_thread_name_ftype *core_thread_name);
+
+/* Read offset OFFSET of TARGET_OBJECT_SIGNAL_INFO signal information
+   from core file into buffer READBUF with length LEN.  Return the number
+   of bytes read (zero indicates EOF, a negative value indicates failure). */
+
+extern int gdbarch_core_xfer_siginfo_p (struct gdbarch *gdbarch);
+
+typedef LONGEST (gdbarch_core_xfer_siginfo_ftype) (struct gdbarch *gdbarch, gdb_byte *readbuf, ULONGEST offset, ULONGEST len);
+extern LONGEST gdbarch_core_xfer_siginfo (struct gdbarch *gdbarch, gdb_byte *readbuf, ULONGEST offset, ULONGEST len);
+extern void set_gdbarch_core_xfer_siginfo (struct gdbarch *gdbarch, gdbarch_core_xfer_siginfo_ftype *core_xfer_siginfo);
 
 /* BFD target to use when generating a core file. */
 
@@ -972,10 +984,6 @@ extern void set_gdbarch_max_insn_length (struct gdbarch *gdbarch, ULONGEST max_i
    If you do not provide this function, GDB assumes that the
    architecture does not support displaced stepping.
   
-   If your architecture doesn't need to adjust instructions before
-   single-stepping them, consider using simple_displaced_step_copy_insn
-   here.
-  
    If the instruction cannot execute out of line, return NULL.  The
    core falls back to stepping past the instruction in-line instead in
    that case. */
@@ -1022,21 +1030,6 @@ extern int gdbarch_displaced_step_fixup_p (struct gdbarch *gdbarch);
 typedef void (gdbarch_displaced_step_fixup_ftype) (struct gdbarch *gdbarch, struct displaced_step_closure *closure, CORE_ADDR from, CORE_ADDR to, struct regcache *regs);
 extern void gdbarch_displaced_step_fixup (struct gdbarch *gdbarch, struct displaced_step_closure *closure, CORE_ADDR from, CORE_ADDR to, struct regcache *regs);
 extern void set_gdbarch_displaced_step_fixup (struct gdbarch *gdbarch, gdbarch_displaced_step_fixup_ftype *displaced_step_fixup);
-
-/* Free a closure returned by gdbarch_displaced_step_copy_insn.
-  
-   If you provide gdbarch_displaced_step_copy_insn, you must provide
-   this function as well.
-  
-   If your architecture uses closures that don't need to be freed, then
-   you can use simple_displaced_step_free_closure here.
-  
-   For a general explanation of displaced stepping and how GDB uses it,
-   see the comments in infrun.c. */
-
-typedef void (gdbarch_displaced_step_free_closure_ftype) (struct gdbarch *gdbarch, struct displaced_step_closure *closure);
-extern void gdbarch_displaced_step_free_closure (struct gdbarch *gdbarch, struct displaced_step_closure *closure);
-extern void set_gdbarch_displaced_step_free_closure (struct gdbarch *gdbarch, gdbarch_displaced_step_free_closure_ftype *displaced_step_free_closure);
 
 /* Return the address of an appropriate place to put displaced
    instructions while we step over them.  There need only be one such
@@ -1545,6 +1538,14 @@ typedef int (gdbarch_addressable_memory_unit_size_ftype) (struct gdbarch *gdbarc
 extern int gdbarch_addressable_memory_unit_size (struct gdbarch *gdbarch);
 extern void set_gdbarch_addressable_memory_unit_size (struct gdbarch *gdbarch, gdbarch_addressable_memory_unit_size_ftype *addressable_memory_unit_size);
 
+/* Functions for allowing a target to modify its disassembler options. */
+
+extern char ** gdbarch_disassembler_options (struct gdbarch *gdbarch);
+extern void set_gdbarch_disassembler_options (struct gdbarch *gdbarch, char ** disassembler_options);
+
+extern const disasm_options_t * gdbarch_valid_disassembler_options (struct gdbarch *gdbarch);
+extern void set_gdbarch_valid_disassembler_options (struct gdbarch *gdbarch, const disasm_options_t * valid_disassembler_options);
+
 /* Definition for an unknown syscall, used basically in error-cases.  */
 #define UNKNOWN_SYSCALL (-1)
 
@@ -1628,7 +1629,21 @@ struct gdbarch_info
   bfd *abfd;
 
   /* Use default: NULL (ZERO).  */
-  void *tdep_info;
+  union
+    {
+      /* Architecture-specific information.  The generic form for targets
+	 that have extra requirements.  */
+      struct gdbarch_tdep_info *tdep_info;
+
+      /* Architecture-specific target description data.  Numerous targets
+	 need only this, so give them an easy way to hold it.  */
+      struct tdesc_arch_data *tdesc_data;
+
+      /* SPU file system ID.  This is a single integer, so using the
+	 generic form would only complicate code.  Other targets may
+	 reuse this member if suitable.  */
+      int *id;
+    };
 
   /* Use default: GDB_OSABI_UNINITIALIZED (-1).  */
   enum gdb_osabi osabi;

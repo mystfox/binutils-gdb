@@ -1,6 +1,6 @@
 /* Target-dependent code for the Sanyo Xstormy16a (LC590000) processor.
 
-   Copyright (C) 2001-2016 Free Software Foundation, Inc.
+   Copyright (C) 2001-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -30,11 +30,10 @@
 #include "dis-asm.h"
 #include "inferior.h"
 #include "arch-utils.h"
-#include "floatformat.h"
 #include "regcache.h"
-#include "doublest.h"
 #include "osabi.h"
 #include "objfiles.h"
+#include "common/byte-vector.h"
 
 enum gdb_regnum
 {
@@ -103,7 +102,7 @@ enum
 static const char *
 xstormy16_register_name (struct gdbarch *gdbarch, int regnum)
 {
-  static char *register_names[] = {
+  static const char *register_names[] = {
     "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",
     "r8", "r9", "r10", "r11", "r12", "r13",
     "psw", "sp", "pc"
@@ -276,21 +275,17 @@ xstormy16_push_dummy_call (struct gdbarch *gdbarch,
      wordaligned.  */
   for (j = nargs - 1; j >= i; j--)
     {
-      gdb_byte *val;
-      struct cleanup *back_to;
       const gdb_byte *bytes = value_contents (args[j]);
 
       typelen = TYPE_LENGTH (value_enclosing_type (args[j]));
       slacklen = typelen & 1;
-      val = (gdb_byte *) xmalloc (typelen + slacklen);
-      back_to = make_cleanup (xfree, val);
-      memcpy (val, bytes, typelen);
-      memset (val + typelen, 0, slacklen);
+      gdb::byte_vector val (typelen + slacklen);
+      memcpy (val.data (), bytes, typelen);
+      memset (val.data () + typelen, 0, slacklen);
 
       /* Now write this data to the stack.  The stack grows upwards.  */
-      write_memory (stack_dest, val, typelen + slacklen);
+      write_memory (stack_dest, val.data (), typelen + slacklen);
       stack_dest += typelen + slacklen;
-      do_cleanups (back_to);
     }
 
   store_unsigned_integer (buf, xstormy16_pc_size, byte_order, bp_addr);
@@ -809,6 +804,9 @@ xstormy16_gdbarch_init (struct gdbarch_info info, struct gdbarch_list *arches)
   set_gdbarch_long_bit (gdbarch, 4 * TARGET_CHAR_BIT);
   set_gdbarch_long_long_bit (gdbarch, 8 * TARGET_CHAR_BIT);
 
+  set_gdbarch_wchar_bit (gdbarch, 2 * TARGET_CHAR_BIT);
+  set_gdbarch_wchar_signed (gdbarch, 1);
+
   set_gdbarch_float_bit (gdbarch, 4 * TARGET_CHAR_BIT);
   set_gdbarch_double_bit (gdbarch, 8 * TARGET_CHAR_BIT);
   set_gdbarch_long_double_bit (gdbarch, 8 * TARGET_CHAR_BIT);
@@ -846,8 +844,6 @@ xstormy16_gdbarch_init (struct gdbarch_info info, struct gdbarch_list *arches)
 
   set_gdbarch_skip_trampoline_code (gdbarch, xstormy16_skip_trampoline_code);
 
-  set_gdbarch_print_insn (gdbarch, print_insn_xstormy16);
-
   gdbarch_init_osabi (info, gdbarch);
 
   dwarf2_append_unwinders (gdbarch);
@@ -859,9 +855,6 @@ xstormy16_gdbarch_init (struct gdbarch_info info, struct gdbarch_list *arches)
 /* Function: _initialize_xstormy16_tdep
    Initializer function for the Sanyo Xstormy16a module.
    Called by gdb at start-up.  */
-
-/* -Wmissing-prototypes */
-extern initialize_file_ftype _initialize_xstormy16_tdep;
 
 void
 _initialize_xstormy16_tdep (void)

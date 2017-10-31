@@ -2,7 +2,7 @@
 
 # script_test_15b.sh -- test for .bss placement.
 
-# Copyright (C) 2016 Free Software Foundation, Inc.
+# Copyright (C) 2016-2017 Free Software Foundation, Inc.
 # Written by Cary Coutant <ccoutant@gmail.com>.
 
 # This file is part of gold.
@@ -38,5 +38,5 @@ check()
     fi
 }
 
-check script_test_15b.stdout "LOAD.*0x001... 0x001... RW"
-check script_test_15b.stdout "01.*\\.bss .*\\.data .*\\.data.extra"
+check script_test_15b.stdout "LOAD.*0x0\+1... 0x0\+1... RW"
+check script_test_15b.stdout "01.*\.bss .*\.data .*\.data.extra"

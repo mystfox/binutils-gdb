@@ -1,5 +1,5 @@
 /* VAX series support for 32-bit ELF
-   Copyright (C) 1993-2016 Free Software Foundation, Inc.
+   Copyright (C) 1993-2017 Free Software Foundation, Inc.
    Contributed by Matt Thomas <matt@3am-software.com>.
 
    This file is part of BFD, the Binary File Descriptor library.
@@ -591,7 +591,7 @@ elf_vax_check_relocs (bfd *abfd, struct bfd_link_info *info, asection *sec,
 
 	  /* PR15323, ref flags aren't set for references in the same
 	     object.  */
-	  h->root.non_ir_ref = 1;
+	  h->root.non_ir_ref_regular = 1;
 	}
 
       switch (ELF32_R_TYPE (rel->r_info))
@@ -632,10 +632,9 @@ elf_vax_check_relocs (bfd *abfd, struct bfd_link_info *info, asection *sec,
 		  if (eh->got_addend != (bfd_vma) rel->r_addend)
 		    _bfd_error_handler
 		      /* xgettext:c-format */
-		      (_("%s: warning: GOT addend of %ld to `%s' does"
-			 " not match previous GOT addend of %ld"),
-			 bfd_get_filename (abfd), rel->r_addend,
-			 h->root.root.string,
+		      (_("%B: warning: GOT addend of %Ld to `%s' does"
+			 " not match previous GOT addend of %Ld"),
+			 abfd, rel->r_addend, h->root.root.string,
 			 eh->got_addend);
 
 		}
@@ -820,68 +819,6 @@ elf_vax_gc_mark_hook (asection *sec,
       }
 
   return _bfd_elf_gc_mark_hook (sec, info, rel, h, sym);
-}
-
-/* Update the got entry reference counts for the section being removed.  */
-
-static bfd_boolean
-elf_vax_gc_sweep_hook (bfd *abfd, struct bfd_link_info *info, asection *sec,
-		       const Elf_Internal_Rela *relocs)
-{
-  Elf_Internal_Shdr *symtab_hdr;
-  struct elf_link_hash_entry **sym_hashes;
-  const Elf_Internal_Rela *rel, *relend;
-  bfd *dynobj;
-
-  if (bfd_link_relocatable (info))
-    return TRUE;
-
-  dynobj = elf_hash_table (info)->dynobj;
-  if (dynobj == NULL)
-    return TRUE;
-
-  symtab_hdr = &elf_tdata (abfd)->symtab_hdr;
-  sym_hashes = elf_sym_hashes (abfd);
-
-  relend = relocs + sec->reloc_count;
-  for (rel = relocs; rel < relend; rel++)
-    {
-      unsigned long r_symndx;
-      struct elf_link_hash_entry *h = NULL;
-
-      r_symndx = ELF32_R_SYM (rel->r_info);
-      if (r_symndx >= symtab_hdr->sh_info)
-	{
-	  h = sym_hashes[r_symndx - symtab_hdr->sh_info];
-	  while (h->root.type == bfd_link_hash_indirect
-		 || h->root.type == bfd_link_hash_warning)
-	    h = (struct elf_link_hash_entry *) h->root.u.i.link;
-	}
-
-      switch (ELF32_R_TYPE (rel->r_info))
-	{
-	case R_VAX_GOT32:
-	  if (h != NULL && h->got.refcount > 0)
-	    --h->got.refcount;
-	  break;
-
-	case R_VAX_PLT32:
-	case R_VAX_PC8:
-	case R_VAX_PC16:
-	case R_VAX_PC32:
-	case R_VAX_8:
-	case R_VAX_16:
-	case R_VAX_32:
-	  if (h != NULL && h->plt.refcount > 0)
-	    --h->plt.refcount;
-	  break;
-
-	default:
-	  break;
-	}
-    }
-
-  return TRUE;
 }
 
 /* Adjust a symbol defined by a dynamic object and referenced by a
@@ -1509,10 +1446,9 @@ elf_vax_relocate_section (bfd *output_bfd,
 	  else if (rel->r_addend != 0)
 	    _bfd_error_handler
 	      /* xgettext:c-format */
-	      (_("%s: warning: PLT addend of %d to `%s' from %s section ignored"),
-		      bfd_get_filename (input_bfd), rel->r_addend,
-		      h->root.root.string,
-		      bfd_get_section_name (input_bfd, input_section));
+	      (_("%B: warning: PLT addend of %Ld to `%s'"
+		 " from %A section ignored"),
+	       input_bfd, rel->r_addend, h->root.root.string, input_section);
 	  rel->r_addend = 0;
 
 	  break;
@@ -1635,17 +1571,16 @@ elf_vax_relocate_section (bfd *output_bfd,
 		  if (h != NULL)
 		    _bfd_error_handler
 		      /* xgettext:c-format */
-		      (_("%s: warning: %s relocation against symbol `%s' from %s section"),
-		      bfd_get_filename (input_bfd), howto->name,
-		      h->root.root.string,
-		      bfd_get_section_name (input_bfd, input_section));
+		      (_("%B: warning: %s relocation against symbol `%s'"
+			 " from %A section"),
+		      input_bfd, howto->name, h->root.root.string,
+		      input_section);
 		  else
 		    _bfd_error_handler
 		      /* xgettext:c-format */
-		      (_("%s: warning: %s relocation to 0x%x from %s section"),
-		      bfd_get_filename (input_bfd), howto->name,
-		      outrel.r_addend,
-		      bfd_get_section_name (input_bfd, input_section));
+		      (_("%B: warning: %s relocation to %#Lx from %A section"),
+		      input_bfd, howto->name, outrel.r_addend,
+		      input_section);
 		}
 	      loc = sreloc->contents;
 	      loc += sreloc->reloc_count++ * sizeof (Elf32_External_Rela);
@@ -1997,7 +1932,6 @@ elf_vax_plt_sym_val (bfd_vma i, const asection *plt,
 					elf_vax_finish_dynamic_sections
 #define elf_backend_reloc_type_class	elf_vax_reloc_type_class
 #define elf_backend_gc_mark_hook	elf_vax_gc_mark_hook
-#define elf_backend_gc_sweep_hook	elf_vax_gc_sweep_hook
 #define elf_backend_plt_sym_val		elf_vax_plt_sym_val
 #define bfd_elf32_bfd_merge_private_bfd_data \
                                         elf32_vax_merge_private_bfd_data

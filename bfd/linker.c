@@ -1,5 +1,5 @@
 /* linker.c -- BFD linker routines
-   Copyright (C) 1993-2016 Free Software Foundation, Inc.
+   Copyright (C) 1993-2017 Free Software Foundation, Inc.
    Written by Steve Chamberlain and Ian Lance Taylor, Cygnus Support
 
    This file is part of BFD, the Binary File Descriptor library.
@@ -1403,10 +1403,11 @@ _bfd_generic_link_add_one_symbol (struct bfd_link_info *info,
     {
       row = COMMON_ROW;
       if (!bfd_link_relocatable (info)
-	  && strcmp (name, "__gnu_lto_slim") == 0)
+	  && name[0] == '_'
+	  && name[1] == '_'
+	  && strcmp (name + (name[2] == '_'), "__gnu_lto_slim") == 0)
 	_bfd_error_handler
-	  (_("%s: plugin needed to handle lto object"),
-	   bfd_get_filename (abfd));
+	  (_("%B: plugin needed to handle lto object"), abfd);
     }
   else
     row = DEF_ROW;
@@ -1736,7 +1737,8 @@ _bfd_generic_link_add_one_symbol (struct bfd_link_info *info,
 	     otherwise add a warning.  */
 	  if ((!info->lto_plugin_active
 	       && (h->u.undef.next != NULL || info->hash->undefs_tail == h))
-	      || h->non_ir_ref)
+	      || h->non_ir_ref_regular
+	      || h->non_ir_ref_dynamic)
 	    {
 	      (*info->callbacks->warning) (info, string, h->root.string,
 					   hash_entry_bfd (h), NULL, 0);
@@ -2091,7 +2093,7 @@ _bfd_generic_link_output_symbols (bfd *output_bfd,
 	      && bfd_hash_lookup (info->keep_hash, bfd_asymbol_name (sym),
 				  FALSE, FALSE) == NULL))
 	output = FALSE;
-      else if ((sym->flags & (BSF_GLOBAL | BSF_WEAK)) != 0)
+      else if ((sym->flags & (BSF_GLOBAL | BSF_WEAK | BSF_GNU_UNIQUE)) != 0)
 	{
 	  /* If this symbol is marked as occurring now, rather
 	     than at the end, output it now.  This is used for
@@ -3093,6 +3095,43 @@ bfd_generic_define_common_symbol (bfd *output_bfd,
   section->flags |= SEC_ALLOC;
   section->flags &= ~SEC_IS_COMMON;
   return TRUE;
+}
+
+/*
+FUNCTION
+	bfd_generic_define_start_stop
+
+SYNOPSIS
+	struct bfd_link_hash_entry *bfd_generic_define_start_stop
+	  (struct bfd_link_info *info,
+	   const char *symbol, asection *sec);
+
+DESCRIPTION
+	Define a __start, __stop, .startof. or .sizeof. symbol.
+	Return the symbol or NULL if no such undefined symbol exists.
+
+.#define bfd_define_start_stop(output_bfd, info, symbol, sec) \
+.       BFD_SEND (output_bfd, _bfd_define_start_stop, (info, symbol, sec))
+.
+*/
+
+struct bfd_link_hash_entry *
+bfd_generic_define_start_stop (struct bfd_link_info *info,
+			       const char *symbol, asection *sec)
+{
+  struct bfd_link_hash_entry *h;
+
+  h = bfd_link_hash_lookup (info->hash, symbol, FALSE, FALSE, TRUE);
+  if (h != NULL
+      && (h->type == bfd_link_hash_undefined
+	  || h->type == bfd_link_hash_undefweak))
+    {
+      h->type = bfd_link_hash_defined;
+      h->u.def.section = sec;
+      h->u.def.value = 0;
+      return h;
+    }
+  return NULL;
 }
 
 /*

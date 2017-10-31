@@ -1,6 +1,6 @@
 /* TUI support I/O functions.
 
-   Copyright (C) 1998-2016 Free Software Foundation, Inc.
+   Copyright (C) 1998-2017 Free Software Foundation, Inc.
 
    Contributed by Hewlett-Packard Company.
 
@@ -27,6 +27,10 @@ class cli_ui_out;
 
 /* Print the string in the curses command window.  */
 extern void tui_puts (const char *);
+
+/* Print LENGTH characters from the buffer pointed to by BUF to the
+   curses command window.  */
+extern void tui_write (const char *buf, size_t length);
 
 /* Setup the IO for curses or non-curses mode.  */
 extern void tui_setup_io (int mode);

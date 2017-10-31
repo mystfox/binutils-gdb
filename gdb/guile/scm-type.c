@@ -1,6 +1,6 @@
 /* Scheme interface to types.
 
-   Copyright (C) 2008-2016 Free Software Foundation, Inc.
+   Copyright (C) 2008-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -107,18 +107,10 @@ tyscm_type_name (struct type *type)
 {
   TRY
     {
-      struct cleanup *old_chain;
-      struct ui_file *stb;
+      string_file stb;
 
-      stb = mem_fileopen ();
-      old_chain = make_cleanup_ui_file_delete (stb);
-
-      LA_PRINT_TYPE (type, "", stb, -1, 0, &type_print_raw_options);
-
-      std::string name = ui_file_as_string (stb);
-      do_cleanups (old_chain);
-
-      return name;
+      LA_PRINT_TYPE (type, "", &stb, -1, 0, &type_print_raw_options);
+      return std::move (stb.string ());
     }
   CATCH (except, RETURN_MASK_ALL)
     {
@@ -339,6 +331,19 @@ tyscm_get_type_smob_arg_unsafe (SCM self, int arg_pos, const char *func_name)
   type_smob *t_smob = (type_smob *) SCM_SMOB_DATA (t_scm);
 
   return t_smob;
+}
+
+/* Return the type field of T_SCM, an object of type <gdb:type>.
+   This exists so that we don't have to export the struct's contents.  */
+
+struct type *
+tyscm_scm_to_type (SCM t_scm)
+{
+  type_smob *t_smob;
+
+  gdb_assert (tyscm_is_type (t_scm));
+  t_smob = (type_smob *) SCM_SMOB_DATA (t_scm);
+  return t_smob->type;
 }
 
 /* Helper function for save_objfile_types to make a deep copy of the type.  */
@@ -840,7 +845,7 @@ gdbscm_type_reference (SCM self)
 
   TRY
     {
-      type = lookup_reference_type (type);
+      type = lookup_lvalue_reference_type (type);
     }
   CATCH (except, RETURN_MASK_ALL)
     {

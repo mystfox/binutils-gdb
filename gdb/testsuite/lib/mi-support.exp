@@ -1,4 +1,4 @@
-# Copyright 1999-2016 Free Software Foundation, Inc.
+# Copyright 1999-2017 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -824,7 +824,7 @@ proc mi_gdb_test { args } {
 	}
 	 -re ".*$mi_gdb_prompt\[ \]*$" {
 	    if ![string match "" $message] then {
-		fail "$message"
+		fail "$message (unexpected output)"
 	    }
 	    set result 1
 	}

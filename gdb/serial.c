@@ -1,6 +1,6 @@
 /* Generic serial interface routines
 
-   Copyright (C) 1992-2016 Free Software Foundation, Inc.
+   Copyright (C) 1992-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -22,8 +22,6 @@
 #include "serial.h"
 #include "gdbcmd.h"
 #include "cli/cli-utils.h"
-
-extern void _initialize_serial (void);
 
 /* Is serial being debugged?  */
 
@@ -209,16 +207,12 @@ serial_open (const char *name)
   const struct serial_ops *ops;
   const char *open_name = name;
 
-  if (strcmp (name, "pc") == 0)
-    ops = serial_interface_lookup ("pc");
-  else if (startswith (name, "lpt"))
-    ops = serial_interface_lookup ("parallel");
-  else if (startswith (name, "|"))
+  if (startswith (name, "|"))
     {
       ops = serial_interface_lookup ("pipe");
       /* Discard ``|'' and any space before the command itself.  */
       ++open_name;
-      open_name = skip_spaces_const (open_name);
+      open_name = skip_spaces (open_name);
     }
   /* Check for a colon, suggesting an IP address/port pair.
      Do this *after* checking for all the interesting prefixes.  We
@@ -255,9 +249,12 @@ serial_open_ops_1 (const struct serial_ops *ops, const char *open_name)
 
   if (serial_logfile != NULL)
     {
-      serial_logfp = gdb_fopen (serial_logfile, "w");
-      if (serial_logfp == NULL)
+      stdio_file_up file (new stdio_file ());
+
+      if (!file->open (serial_logfile, "w"))
 	perror_with_name (serial_logfile);
+
+      serial_logfp = file.release ();
     }
 
   return scb;
@@ -319,7 +316,7 @@ do_serial_close (struct serial *scb, int really_close)
       serial_current_type = 0;
 
       /* XXX - What if serial_logfp == gdb_stdout or gdb_stderr?  */
-      ui_file_delete (serial_logfp);
+      delete serial_logfp;
       serial_logfp = NULL;
     }
 
@@ -630,7 +627,7 @@ static struct cmd_list_element *serial_set_cmdlist;
 static struct cmd_list_element *serial_show_cmdlist;
 
 static void
-serial_set_cmd (char *args, int from_tty)
+serial_set_cmd (const char *args, int from_tty)
 {
   printf_unfiltered ("\"set serial\" must be followed "
 		     "by the name of a command.\n");
@@ -638,7 +635,7 @@ serial_set_cmd (char *args, int from_tty)
 }
 
 static void
-serial_show_cmd (char *args, int from_tty)
+serial_show_cmd (const char *args, int from_tty)
 {
   cmd_show_list (serial_show_cmdlist, from_tty, "");
 }

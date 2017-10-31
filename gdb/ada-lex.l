@@ -1,5 +1,5 @@
 /* FLEX lexer for Ada expressions, for GDB.
-   Copyright (C) 1994-2016 Free Software Foundation, Inc.
+   Copyright (C) 1994-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -40,6 +40,14 @@ EXP	(e[+-]{NUM10})
 POSEXP  (e"+"?{NUM10})
 
 %{
+
+#include "common/diagnostics.h"
+
+/* Some old versions of flex generate code that uses the "register" keyword,
+   which clang warns about.  This was observed for example with flex 2.5.35,
+   as shipped with macOS 10.12.  */
+DIAGNOSTIC_PUSH
+DIAGNOSTIC_IGNORE_DEPRECATED_REGISTER
 
 #define NUMERAL_WIDTH 256
 #define LONGEST_SIGN ((ULONGEST) 1 << (sizeof(LONGEST) * HOST_CHAR_BIT - 1))
@@ -395,16 +403,12 @@ processInt (struct parser_state *par_state, const char *base0,
 static int
 processReal (struct parser_state *par_state, const char *num0)
 {
-  sscanf (num0, "%" DOUBLEST_SCAN_FORMAT, &yylval.typed_val_float.dval);
+  yylval.typed_val_float.type = type_long_double (par_state);
 
-  yylval.typed_val_float.type = type_float (par_state);
-  if (sizeof(DOUBLEST) >= gdbarch_double_bit (parse_gdbarch (par_state))
-			    / TARGET_CHAR_BIT)
-    yylval.typed_val_float.type = type_double (par_state);
-  if (sizeof(DOUBLEST) >= gdbarch_long_double_bit (parse_gdbarch (par_state))
-			    / TARGET_CHAR_BIT)
-    yylval.typed_val_float.type = type_long_double (par_state);
-
+  bool parsed = parse_float (num0, strlen (num0),
+			     yylval.typed_val_float.type,
+			     yylval.typed_val_float.val);
+  gdb_assert (parsed);
   return FLOAT;
 }
 
@@ -648,3 +652,5 @@ dummy_function ada_flex_use[] =
 { 
   (dummy_function) yyunput
 };
+
+DIAGNOSTIC_POP

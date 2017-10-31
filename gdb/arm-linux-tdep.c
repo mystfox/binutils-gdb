@@ -1,6 +1,6 @@
 /* GNU/Linux on ARM target support.
 
-   Copyright (C) 1999-2016 Free Software Foundation, Inc.
+   Copyright (C) 1999-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -21,11 +21,9 @@
 #include "target.h"
 #include "value.h"
 #include "gdbtypes.h"
-#include "floatformat.h"
 #include "gdbcore.h"
 #include "frame.h"
 #include "regcache.h"
-#include "doublest.h"
 #include "solib-svr4.h"
 #include "osabi.h"
 #include "regset.h"
@@ -480,7 +478,7 @@ arm_linux_supply_gregset (const struct regset *regset,
 			  struct regcache *regcache,
 			  int regnum, const void *gregs_buf, size_t len)
 {
-  struct gdbarch *gdbarch = get_regcache_arch (regcache);
+  struct gdbarch *gdbarch = regcache->arch ();
   enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
   const gdb_byte *gregs = (const gdb_byte *) gregs_buf;
   int regno;
@@ -792,7 +790,7 @@ arm_linux_sigreturn_next_pc (struct regcache *regcache,
   ULONGEST sp;
   unsigned long sp_data;
   CORE_ADDR next_pc = 0;
-  struct gdbarch *gdbarch = get_regcache_arch (regcache);
+  struct gdbarch *gdbarch = regcache->arch ();
   enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
   int pc_offset = 0;
   int is_sigreturn = 0;
@@ -884,7 +882,7 @@ arm_linux_get_next_pcs_syscall_next_pc (struct arm_get_next_pcs *self)
     }
   else
     {
-      struct gdbarch *gdbarch = get_regcache_arch (self->regcache);
+      struct gdbarch *gdbarch = self->regcache->arch ();
       enum bfd_endian byte_order_for_code = 
 	gdbarch_byte_order_for_code (gdbarch);
       unsigned long this_instr = 
@@ -921,22 +919,16 @@ arm_linux_get_next_pcs_syscall_next_pc (struct arm_get_next_pcs *self)
 
 /* Insert a single step breakpoint at the next executed instruction.  */
 
-static VEC (CORE_ADDR) *
+static std::vector<CORE_ADDR>
 arm_linux_software_single_step (struct regcache *regcache)
 {
-  struct gdbarch *gdbarch = get_regcache_arch (regcache);
+  struct gdbarch *gdbarch = regcache->arch ();
   struct arm_get_next_pcs next_pcs_ctx;
-  CORE_ADDR pc;
-  int i;
-  VEC (CORE_ADDR) *next_pcs = NULL;
-  struct cleanup *old_chain;
 
   /* If the target does have hardware single step, GDB doesn't have
      to bother software single step.  */
   if (target_can_do_single_step () == 1)
-    return NULL;
-
-  old_chain = make_cleanup (VEC_cleanup (CORE_ADDR), &next_pcs);
+    return {};
 
   arm_get_next_pcs_ctor (&next_pcs_ctx,
 			 &arm_linux_get_next_pcs_ops,
@@ -945,15 +937,10 @@ arm_linux_software_single_step (struct regcache *regcache)
 			 1,
 			 regcache);
 
-  next_pcs = arm_get_next_pcs (&next_pcs_ctx);
+  std::vector<CORE_ADDR> next_pcs = arm_get_next_pcs (&next_pcs_ctx);
 
-  for (i = 0; VEC_iterate (CORE_ADDR, next_pcs, i, pc); i++)
-    {
-      pc = gdbarch_addr_bits_remove (gdbarch, pc);
-      VEC_replace (CORE_ADDR, next_pcs, i, pc);
-    }
-
-  discard_cleanups (old_chain);
+  for (CORE_ADDR &pc_ref : next_pcs)
+    pc_ref = gdbarch_addr_bits_remove (gdbarch, pc_ref);
 
   return next_pcs;
 }
@@ -963,7 +950,7 @@ arm_linux_software_single_step (struct regcache *regcache)
 static void
 arm_linux_cleanup_svc (struct gdbarch *gdbarch,
 		       struct regcache *regs,
-		       struct displaced_step_closure *dsc)
+		       arm_displaced_step_closure *dsc)
 {
   ULONGEST apparent_pc;
   int within_scratch;
@@ -991,7 +978,7 @@ arm_linux_cleanup_svc (struct gdbarch *gdbarch,
 
 static int
 arm_linux_copy_svc (struct gdbarch *gdbarch, struct regcache *regs,
-		    struct displaced_step_closure *dsc)
+		    arm_displaced_step_closure *dsc)
 {
   CORE_ADDR return_to = 0;
 
@@ -1082,7 +1069,7 @@ arm_linux_copy_svc (struct gdbarch *gdbarch, struct regcache *regs,
 static void
 cleanup_kernel_helper_return (struct gdbarch *gdbarch,
 			      struct regcache *regs,
-			      struct displaced_step_closure *dsc)
+			      arm_displaced_step_closure *dsc)
 {
   displaced_write_reg (regs, dsc, ARM_LR_REGNUM, dsc->tmp[0], CANNOT_WRITE_PC);
   displaced_write_reg (regs, dsc, ARM_PC_REGNUM, dsc->tmp[0], BRANCH_WRITE_PC);
@@ -1091,7 +1078,7 @@ cleanup_kernel_helper_return (struct gdbarch *gdbarch,
 static void
 arm_catch_kernel_helper_return (struct gdbarch *gdbarch, CORE_ADDR from,
 				CORE_ADDR to, struct regcache *regs,
-				struct displaced_step_closure *dsc)
+				arm_displaced_step_closure *dsc)
 {
   enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
 
@@ -1125,7 +1112,7 @@ arm_linux_displaced_step_copy_insn (struct gdbarch *gdbarch,
 				    CORE_ADDR from, CORE_ADDR to,
 				    struct regcache *regs)
 {
-  struct displaced_step_closure *dsc = XNEW (struct displaced_step_closure);
+  arm_displaced_step_closure *dsc = new arm_displaced_step_closure;
 
   /* Detect when we enter an (inaccessible by GDB) Linux kernel helper, and
      stop at the return location.  */
@@ -1222,7 +1209,7 @@ arm_stap_parse_special_token (struct gdbarch *gdbarch,
 	       regname, p->saved_arg);
 
       ++tmp;
-      tmp = skip_spaces_const (tmp);
+      tmp = skip_spaces (tmp);
       if (*tmp == '#' || *tmp == '$')
 	++tmp;
 
@@ -1823,8 +1810,6 @@ arm_linux_init_abi (struct gdbarch_info info,
   set_gdbarch_displaced_step_copy_insn (gdbarch,
 					arm_linux_displaced_step_copy_insn);
   set_gdbarch_displaced_step_fixup (gdbarch, arm_displaced_step_fixup);
-  set_gdbarch_displaced_step_free_closure (gdbarch,
-					   simple_displaced_step_free_closure);
   set_gdbarch_displaced_step_location (gdbarch, linux_displaced_step_location);
 
   /* Reversible debugging, process record.  */
@@ -2008,9 +1993,6 @@ arm_linux_init_abi (struct gdbarch_info info,
   arm_linux_record_tdep.arg6 = ARM_A1_REGNUM + 5;
   arm_linux_record_tdep.arg7 = ARM_A1_REGNUM + 6;
 }
-
-/* Provide a prototype to silence -Wmissing-prototypes.  */
-extern initialize_file_ftype _initialize_arm_linux_tdep;
 
 void
 _initialize_arm_linux_tdep (void)

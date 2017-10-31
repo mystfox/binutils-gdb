@@ -1,6 +1,6 @@
 /* MI Command Set - output generating routines.
 
-   Copyright (C) 2000-2016 Free Software Foundation, Inc.
+   Copyright (C) 2000-2017 Free Software Foundation, Inc.
 
    Contributed by Cygnus Solutions (a Red Hat company).
 
@@ -170,15 +170,13 @@ mi_ui_out::do_flush ()
   gdb_flush (m_streams.back ());
 }
 
-int
+void
 mi_ui_out::do_redirect (ui_file *outstream)
 {
   if (outstream != NULL)
     m_streams.push_back (outstream);
   else
     m_streams.pop_back ();
-
-  return 0;
 }
 
 void
@@ -238,23 +236,31 @@ mi_ui_out::close (ui_out_type type)
   m_suppress_field_separator = false;
 }
 
+string_file *
+mi_ui_out::main_stream ()
+{
+  gdb_assert (m_streams.size () == 1);
+
+  return (string_file *) m_streams.back ();
+}
+
 /* Clear the buffer.  */
 
 void
 mi_ui_out::rewind ()
 {
-  ui_file_rewind (m_streams.back ());
+  main_stream ()->clear ();
 }
 
 /* Dump the buffer onto the specified stream.  */
 
 void
-mi_ui_out::put (ui_file *stream)
+mi_ui_out::put (ui_file *where)
 {
-  ui_file *outstream = m_streams.back ();
+  string_file *mi_stream = main_stream ();
 
-  ui_file_put (outstream, ui_file_write_for_put, stream);
-  ui_file_rewind (outstream);
+  where->write (mi_stream->data (), mi_stream->size ());
+  mi_stream->clear ();
 }
 
 /* Return the current MI version.  */
@@ -267,13 +273,12 @@ mi_ui_out::version ()
 
 /* Constructor for an `mi_out_data' object.  */
 
-mi_ui_out::mi_ui_out (int mi_version, ui_file *stream)
+mi_ui_out::mi_ui_out (int mi_version)
 : m_suppress_field_separator (false),
   m_suppress_output (false),
   m_mi_version (mi_version)
 {
-  gdb_assert (stream != NULL);
-
+  string_file *stream = new string_file ();
   m_streams.push_back (stream);
 }
 
@@ -286,9 +291,7 @@ mi_ui_out::~mi_ui_out ()
 mi_ui_out *
 mi_out_new (int mi_version)
 {
-  ui_file *stream = mem_fileopen ();
-
-  return new mi_ui_out (mi_version, stream);
+  return new mi_ui_out (mi_version);
 }
 
 /* Helper function to return the given UIOUT as an mi_ui_out.  It is an error

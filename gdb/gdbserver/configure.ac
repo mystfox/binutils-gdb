@@ -1,5 +1,5 @@
 dnl Autoconf configure script for GDB server.
-dnl Copyright (C) 2000-2016 Free Software Foundation, Inc.
+dnl Copyright (C) 2000-2017 Free Software Foundation, Inc.
 dnl
 dnl This file is part of GDB.
 dnl
@@ -56,11 +56,28 @@ else
 fi
 GDB_AC_LIBMCHECK(${libmcheck_default})
 
+if $development; then
+  AC_DEFINE(GDB_SELF_TEST, 1,
+            [Define if self-testing features should be enabled])
+fi
+
 ACX_NONCANONICAL_TARGET
 ACX_NONCANONICAL_HOST
 
 # Dependency checking.
 ZW_CREATE_DEPDIR
+
+# Create sub-directories for objects and dependencies.
+CONFIG_SRC_SUBDIR="arch"
+AC_SUBST(CONFIG_SRC_SUBDIR)
+
+AC_CONFIG_COMMANDS([gdbdepdir],[
+  for subdir in ${CONFIG_SRC_SUBDIR}
+  do
+      $SHELL $ac_aux_dir/mkinstalldirs $subdir/$DEPDIR
+  done],
+  [ac_aux_dir=$ac_aux_dir DEPDIR=$DEPDIR CONFIG_SRC_SUBDIR="$CONFIG_SRC_SUBDIR"])
+
 ZW_PROG_COMPILER_DEPENDENCIES([CC])
 
 gnulib_extra_configure_args=
@@ -162,6 +179,13 @@ libiberty_INIT
 AC_CHECK_DECLS([strerror, perror, vasprintf, vsnprintf])
 
 AC_CHECK_MEMBERS([struct stat.st_blocks, struct stat.st_blksize])
+
+# See if <sys/user.h> supports the %fs_base and %gs_bas amd64 segment registers.
+# Older amd64 Linux's don't have the fs_base and gs_base members of
+# `struct user_regs_struct'.
+AC_CHECK_MEMBERS([struct user_regs_struct.fs_base, struct user_regs_struct.gs_base],
+		 [], [], [#include <sys/user.h>])
+
 
 AC_CHECK_TYPES(socklen_t, [], [],
 [#include <sys/types.h>

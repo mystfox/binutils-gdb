@@ -1,6 +1,6 @@
 /* Definitions for values of C expressions, for GDB.
 
-   Copyright (C) 1986-2016 Free Software Foundation, Inc.
+   Copyright (C) 1986-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -581,12 +581,11 @@ extern int value_contents_eq (const struct value *val1, LONGEST offset1,
 
 /* Read LENGTH addressable memory units starting at MEMADDR into BUFFER,
    which is (or will be copied to) VAL's contents buffer offset by
-   EMBEDDED_OFFSET (that is, to &VAL->contents[EMBEDDED_OFFSET]).
-   Marks value contents ranges as unavailable if the corresponding
-   memory is likewise unavailable.  STACK indicates whether the memory
-   is known to be stack memory.  */
+   BIT_OFFSET bits.  Marks value contents ranges as unavailable if
+   the corresponding memory is likewise unavailable.  STACK indicates
+   whether the memory is known to be stack memory.  */
 
-extern void read_value_memory (struct value *val, LONGEST embedded_offset,
+extern void read_value_memory (struct value *val, LONGEST bit_offset,
 			       int stack, CORE_ADDR memaddr,
 			       gdb_byte *buffer, size_t length);
 
@@ -714,6 +713,42 @@ extern struct value *value_mark (void);
 
 extern void value_free_to_mark (const struct value *mark);
 
+/* A helper class that uses value_mark at construction time and calls
+   value_free_to_mark in the destructor.  This is used to clear out
+   temporary values created during the lifetime of this object.  */
+class scoped_value_mark
+{
+ public:
+
+  scoped_value_mark ()
+    : m_value (value_mark ())
+  {
+  }
+
+  ~scoped_value_mark ()
+  {
+    free_to_mark ();
+  }
+
+  scoped_value_mark (scoped_value_mark &&other) = default;
+
+  DISABLE_COPY_AND_ASSIGN (scoped_value_mark);
+
+  /* Free the values currently on the value stack.  */
+  void free_to_mark ()
+  {
+    if (m_value != NULL)
+      {
+	value_free_to_mark (m_value);
+	m_value = NULL;
+      }
+  }
+
+ private:
+
+  const struct value *m_value;
+};
+
 extern struct value *value_cstring (const char *ptr, ssize_t len,
 				    struct type *char_type);
 extern struct value *value_string (const char *ptr, ssize_t len,
@@ -743,7 +778,7 @@ extern struct value *value_ind (struct value *arg1);
 
 extern struct value *value_addr (struct value *arg1);
 
-extern struct value *value_ref (struct value *arg1);
+extern struct value *value_ref (struct value *arg1, enum type_code refcode);
 
 extern struct value *value_assign (struct value *toval,
 				   struct value *fromval);
@@ -896,7 +931,8 @@ extern struct internalvar *lookup_only_internalvar (const char *name);
 
 extern struct internalvar *create_internalvar (const char *name);
 
-extern VEC (char_ptr) *complete_internalvar (const char *name);
+extern void complete_internalvar (completion_tracker &tracker,
+				  const char *name);
 
 /* An internalvar can be dynamically computed by supplying a vector of
    function pointers to perform various operations.  */
@@ -986,6 +1022,21 @@ extern void value_incref (struct value *val);
 
 extern void value_free (struct value *val);
 
+/* A free policy class to interface std::unique_ptr with
+   value_free.  */
+
+struct value_deleter
+{
+  void operator() (struct value *value) const
+  {
+    value_free (value);
+  }
+};
+
+/* A unique pointer to a struct value.  */
+
+typedef std::unique_ptr<struct value, value_deleter> gdb_value_up;
+
 extern void free_all_values (void);
 
 extern void free_value_chain (struct value *v);
@@ -1013,9 +1064,6 @@ extern void print_longest (struct ui_file *stream, int format,
 
 extern void print_floating (const gdb_byte *valaddr, struct type *type,
 			    struct ui_file *stream);
-
-extern void print_decimal_floating (const gdb_byte *valaddr, struct type *type,
-				    struct ui_file *stream);
 
 extern void value_print (struct value *val, struct ui_file *stream,
 			 const struct value_print_options *options);

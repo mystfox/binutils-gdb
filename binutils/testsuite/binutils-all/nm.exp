@@ -1,4 +1,4 @@
-#   Copyright (C) 1993-2016 Free Software Foundation, Inc.
+#   Copyright (C) 1993-2017 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -175,7 +175,8 @@ if {   [is_elf_format]
     || [istarget *-*-tpf*]
     || [istarget *-*-uclinux*]
     || [istarget ia64-*-*vms*]
-    || [istarget *-*-vxworks*] } {
+    || [istarget *-*-vxworks*]
+    || [istarget wasm32-*-*] } {
     set nm_1_src "nm-elf-1.s"
 } else {
     set nm_1_src "nm-1.s"

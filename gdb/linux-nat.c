@@ -1,6 +1,6 @@
 /* GNU/Linux native-dependent code common to multiple platforms.
 
-   Copyright (C) 2001-2016 Free Software Foundation, Inc.
+   Copyright (C) 2001-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -196,6 +196,9 @@ static struct target_ops linux_ops_saved;
 
 /* The method to call, if any, when a new thread is attached.  */
 static void (*linux_nat_new_thread) (struct lwp_info *);
+
+/* The method to call, if any, when a thread is destroyed.  */
+static void (*linux_nat_delete_thread) (struct arch_lwp_info *);
 
 /* The method to call, if any, when a new fork is attached.  */
 static linux_nat_new_fork_ftype *linux_nat_new_fork;
@@ -477,7 +480,6 @@ linux_child_follow_fork (struct target_ops *ops, int follow_child,
     {
       struct lwp_info *child_lp = NULL;
       int status = W_STOPCODE (0);
-      struct cleanup *old_chain;
       int has_vforked;
       ptid_t parent_ptid, child_ptid;
       int parent_pid, child_pid;
@@ -490,16 +492,15 @@ linux_child_follow_fork (struct target_ops *ops, int follow_child,
       child_pid = ptid_get_lwp (child_ptid);
 
       /* We're already attached to the parent, by default.  */
-      old_chain = save_inferior_ptid ();
-      inferior_ptid = child_ptid;
-      child_lp = add_lwp (inferior_ptid);
+      child_lp = add_lwp (child_ptid);
       child_lp->stopped = 1;
       child_lp->last_resume_kind = resume_stop;
 
       /* Detach new forked process?  */
       if (detach_fork)
 	{
-	  make_cleanup (delete_lwp_cleanup, child_lp);
+	  struct cleanup *old_chain = make_cleanup (delete_lwp_cleanup,
+						    child_lp);
 
 	  if (linux_nat_prepare_to_resume != NULL)
 	    linux_nat_prepare_to_resume (child_lp);
@@ -512,8 +513,11 @@ linux_child_follow_fork (struct target_ops *ops, int follow_child,
 	     To work around this, single step the child process
 	     once before detaching to clear the flags.  */
 
+	  /* Note that we consult the parent's architecture instead of
+	     the child's because there's no inferior for the child at
+	     this point.  */
 	  if (!gdbarch_software_single_step_p (target_thread_architecture
-						   (child_lp->ptid)))
+					       (parent_ptid)))
 	    {
 	      linux_disable_event_reporting (child_pid);
 	      if (ptrace (PTRACE_SINGLESTEP, child_pid, 0, 0) < 0)
@@ -533,16 +537,17 @@ linux_child_follow_fork (struct target_ops *ops, int follow_child,
 	      ptrace (PTRACE_DETACH, child_pid, 0, signo);
 	    }
 
-	  /* Resets value of inferior_ptid to parent ptid.  */
 	  do_cleanups (old_chain);
 	}
       else
 	{
+	  scoped_restore save_inferior_ptid
+	    = make_scoped_restore (&inferior_ptid);
+	  inferior_ptid = child_ptid;
+
 	  /* Let the thread_db layer learn about this new process.  */
 	  check_for_thread_db ();
 	}
-
-      do_cleanups (old_chain);
 
       if (has_vforked)
 	{
@@ -837,7 +842,12 @@ static int check_ptrace_stopped_lwp_gone (struct lwp_info *lp);
 static void
 lwp_free (struct lwp_info *lp)
 {
-  xfree (lp->arch_private);
+  /* Let the arch specific bits release arch_lwp_info.  */
+  if (linux_nat_delete_thread != NULL)
+    linux_nat_delete_thread (lp->arch_private);
+  else
+    gdb_assert (lp->arch_private == NULL);
+
   xfree (lp);
 }
 
@@ -1045,7 +1055,7 @@ exit_lwp (struct lwp_info *lp)
    Returns a wait status for that LWP, to cache.  */
 
 static int
-linux_nat_post_attach_wait (ptid_t ptid, int first, int *signalled)
+linux_nat_post_attach_wait (ptid_t ptid, int *signalled)
 {
   pid_t new_pid, pid = ptid_get_lwp (ptid);
   int status;
@@ -1105,8 +1115,8 @@ linux_nat_post_attach_wait (ptid_t ptid, int first, int *signalled)
 
 static void
 linux_nat_create_inferior (struct target_ops *ops, 
-			   char *exec_file, char *allargs, char **env,
-			   int from_tty)
+			   const char *exec_file, const std::string &allargs,
+			   char **env, int from_tty)
 {
   struct cleanup *restore_personality
     = maybe_disable_address_space_randomization (disable_randomization);
@@ -1245,14 +1255,14 @@ linux_nat_attach (struct target_ops *ops, const char *args, int from_tty)
   /* Add the initial process as the first LWP to the list.  */
   lp = add_initial_lwp (ptid);
 
-  status = linux_nat_post_attach_wait (lp->ptid, 1, &lp->signalled);
+  status = linux_nat_post_attach_wait (lp->ptid, &lp->signalled);
   if (!WIFSTOPPED (status))
     {
       if (WIFEXITED (status))
 	{
 	  int exit_code = WEXITSTATUS (status);
 
-	  target_terminal_ours ();
+	  target_terminal::ours ();
 	  target_mourn_inferior (inferior_ptid);
 	  if (exit_code == 0)
 	    error (_("Unable to attach: program exited normally."));
@@ -1264,7 +1274,7 @@ linux_nat_attach (struct target_ops *ops, const char *args, int from_tty)
 	{
 	  enum gdb_signal signo;
 
-	  target_terminal_ours ();
+	  target_terminal::ours ();
 	  target_mourn_inferior (inferior_ptid);
 
 	  signo = gdb_signal_from_host (WTERMSIG (status));
@@ -1549,7 +1559,6 @@ linux_nat_detach (struct target_ops *ops, const char *args, int from_tty)
 
       inf_ptrace_detach_success (ops);
     }
-  delete_lwp (main_lwp->ptid);
 }
 
 /* Resume execution of the inferior process.  If STEP is nonzero,
@@ -2459,12 +2468,10 @@ maybe_clear_ignore_sigint (struct lwp_info *lp)
 static int
 check_stopped_by_watchpoint (struct lwp_info *lp)
 {
-  struct cleanup *old_chain;
-
   if (linux_ops->to_stopped_by_watchpoint == NULL)
     return 0;
 
-  old_chain = save_inferior_ptid ();
+  scoped_restore save_inferior_ptid = make_scoped_restore (&inferior_ptid);
   inferior_ptid = lp->ptid;
 
   if (linux_ops->to_stopped_by_watchpoint (linux_ops))
@@ -2478,8 +2485,6 @@ check_stopped_by_watchpoint (struct lwp_info *lp)
       else
 	lp->stopped_data_address_p = 0;
     }
-
-  do_cleanups (old_chain);
 
   return lp->stop_reason == TARGET_STOPPED_BY_WATCHPOINT;
 }
@@ -2745,7 +2750,7 @@ save_stop_reason (struct lwp_info *lp)
     return;
 
   regcache = get_thread_regcache (lp->ptid);
-  gdbarch = get_regcache_arch (regcache);
+  gdbarch = regcache->arch ();
 
   pc = regcache_read_pc (regcache);
   sw_bp_pc = pc - gdbarch_decr_pc_after_break (gdbarch);
@@ -3455,7 +3460,7 @@ linux_nat_wait_1 (struct target_ops *ops,
       && !USE_SIGTRAP_SIGINFO)
     {
       struct regcache *regcache = get_thread_regcache (lp->ptid);
-      struct gdbarch *gdbarch = get_regcache_arch (regcache);
+      struct gdbarch *gdbarch = regcache->arch ();
       int decr_pc = gdbarch_decr_pc_after_break (gdbarch);
 
       if (decr_pc != 0)
@@ -3558,7 +3563,7 @@ resume_stopped_resumed_lwps (struct lwp_info *lp, void *data)
   else
     {
       struct regcache *regcache = get_thread_regcache (lp->ptid);
-      struct gdbarch *gdbarch = get_regcache_arch (regcache);
+      struct gdbarch *gdbarch = regcache->arch ();
 
       TRY
 	{
@@ -3890,7 +3895,6 @@ linux_nat_xfer_partial (struct target_ops *ops, enum target_object object,
 			const gdb_byte *writebuf,
 			ULONGEST offset, ULONGEST len, ULONGEST *xfered_len)
 {
-  struct cleanup *old_chain;
   enum target_xfer_status xfer;
 
   if (object == TARGET_OBJECT_SIGNAL_INFO)
@@ -3903,15 +3907,9 @@ linux_nat_xfer_partial (struct target_ops *ops, enum target_object object,
   if (object == TARGET_OBJECT_MEMORY && ptid_equal (inferior_ptid, null_ptid))
     return TARGET_XFER_EOF;
 
-  old_chain = save_inferior_ptid ();
-
-  if (ptid_lwp_p (inferior_ptid))
-    inferior_ptid = pid_to_ptid (ptid_get_lwp (inferior_ptid));
-
   xfer = linux_ops->to_xfer_partial (ops, object, annex, readbuf, writebuf,
 				     offset, len, xfered_len);
 
-  do_cleanups (old_chain);
   return xfer;
 }
 
@@ -3947,7 +3945,7 @@ linux_nat_update_thread_list (struct target_ops *ops)
     }
 }
 
-static char *
+static const char *
 linux_nat_pid_to_str (struct target_ops *ops, ptid_t ptid)
 {
   static char buf[64];
@@ -3978,10 +3976,9 @@ linux_child_pid_to_exec_file (struct target_ops *self, int pid)
   return linux_proc_pid_to_exec_file (pid);
 }
 
-/* Implement the to_xfer_partial interface for memory reads using the /proc
-   filesystem.  Because we can use a single read() call for /proc, this
-   can be much more efficient than banging away at PTRACE_PEEKTEXT,
-   but it doesn't support writes.  */
+/* Implement the to_xfer_partial target method using /proc/<pid>/mem.
+   Because we can use a single read/write call, this can be much more
+   efficient than banging away at PTRACE_PEEKTEXT.  */
 
 static enum target_xfer_status
 linux_proc_xfer_partial (struct target_ops *ops, enum target_object object,
@@ -3993,7 +3990,7 @@ linux_proc_xfer_partial (struct target_ops *ops, enum target_object object,
   int fd;
   char filename[64];
 
-  if (object != TARGET_OBJECT_MEMORY || !readbuf)
+  if (object != TARGET_OBJECT_MEMORY)
     return TARGET_XFER_EOF;
 
   /* Don't bother for one word.  */
@@ -4002,28 +3999,29 @@ linux_proc_xfer_partial (struct target_ops *ops, enum target_object object,
 
   /* We could keep this file open and cache it - possibly one per
      thread.  That requires some juggling, but is even faster.  */
-  xsnprintf (filename, sizeof filename, "/proc/%d/mem",
-	     ptid_get_pid (inferior_ptid));
-  fd = gdb_open_cloexec (filename, O_RDONLY | O_LARGEFILE, 0);
+  xsnprintf (filename, sizeof filename, "/proc/%ld/mem",
+	     ptid_get_lwp (inferior_ptid));
+  fd = gdb_open_cloexec (filename, ((readbuf ? O_RDONLY : O_WRONLY)
+				    | O_LARGEFILE), 0);
   if (fd == -1)
     return TARGET_XFER_EOF;
 
-  /* If pread64 is available, use it.  It's faster if the kernel
-     supports it (only one syscall), and it's 64-bit safe even on
-     32-bit platforms (for instance, SPARC debugging a SPARC64
-     application).  */
+  /* Use pread64/pwrite64 if available, since they save a syscall and can
+     handle 64-bit offsets even on 32-bit platforms (for instance, SPARC
+     debugging a SPARC64 application).  */
 #ifdef HAVE_PREAD64
-  if (pread64 (fd, readbuf, len, offset) != len)
+  ret = (readbuf ? pread64 (fd, readbuf, len, offset)
+	 : pwrite64 (fd, writebuf, len, offset));
 #else
-  if (lseek (fd, offset, SEEK_SET) == -1 || read (fd, readbuf, len) != len)
+  ret = lseek (fd, offset, SEEK_SET);
+  if (ret != -1)
+    ret = (readbuf ? read (fd, readbuf, len)
+	   : write (fd, writebuf, len));
 #endif
-    ret = 0;
-  else
-    ret = len;
 
   close (fd);
 
-  if (ret == 0)
+  if (ret == -1 || ret == 0)
     return TARGET_XFER_EOF;
   else
     {
@@ -4095,7 +4093,7 @@ linux_proc_xfer_spu (struct target_ops *ops, enum target_object object,
   char buf[128];
   int fd = 0;
   int ret = -1;
-  int pid = ptid_get_pid (inferior_ptid);
+  int pid = ptid_get_lwp (inferior_ptid);
 
   if (!annex)
     {
@@ -4195,20 +4193,17 @@ void
 linux_proc_pending_signals (int pid, sigset_t *pending,
 			    sigset_t *blocked, sigset_t *ignored)
 {
-  FILE *procfile;
   char buffer[PATH_MAX], fname[PATH_MAX];
-  struct cleanup *cleanup;
 
   sigemptyset (pending);
   sigemptyset (blocked);
   sigemptyset (ignored);
   xsnprintf (fname, sizeof fname, "/proc/%d/status", pid);
-  procfile = gdb_fopen_cloexec (fname, "r");
+  gdb_file_up procfile = gdb_fopen_cloexec (fname, "r");
   if (procfile == NULL)
     error (_("Could not open %s"), fname);
-  cleanup = make_cleanup_fclose (procfile);
 
-  while (fgets (buffer, PATH_MAX, procfile) != NULL)
+  while (fgets (buffer, PATH_MAX, procfile.get ()) != NULL)
     {
       /* Normal queued signals are on the SigPnd line in the status
 	 file.  However, 2.6 kernels also have a "shared" pending
@@ -4227,8 +4222,6 @@ linux_proc_pending_signals (int pid, sigset_t *pending,
       else if (startswith (buffer, "SigIgn:\t"))
 	add_line_to_sigset (buffer + 8, ignored);
     }
-
-  do_cleanups (cleanup);
 }
 
 static enum target_xfer_status
@@ -4309,7 +4302,7 @@ linux_child_static_tracepoint_markers_by_strid (struct target_ops *self,
   int pid = ptid_get_pid (inferior_ptid);
   VEC(static_tracepoint_marker_p) *markers = NULL;
   struct static_tracepoint_marker *marker = NULL;
-  char *p = s;
+  const char *p = s;
   ptid_t ptid = ptid_build (pid, 0, 0);
 
   /* Pause all */
@@ -4417,9 +4410,8 @@ linux_nat_is_async_p (struct target_ops *ops)
 static int
 linux_nat_can_async_p (struct target_ops *ops)
 {
-  /* NOTE: palves 2008-03-21: We're only async when the user requests
-     it explicitly with the "set target-async" command.
-     Someday, linux will always be async.  */
+  /* We're always async, unless the user explicitly prevented it with the
+     "maint set target-async" command.  */
   return target_async_permitted;
 }
 
@@ -4477,13 +4469,13 @@ linux_nat_terminal_inferior (struct target_ops *self)
   set_sigint_trap ();
 }
 
-/* target_terminal_ours implementation.
+/* target_terminal::ours implementation.
 
    This is a wrapper around child_terminal_ours to add async support (and
-   implement the target_terminal_ours vs target_terminal_ours_for_output
+   implement the target_terminal::ours vs target_terminal::ours_for_output
    distinction).  child_terminal_ours is currently no different than
    child_terminal_ours_for_output.
-   We leave target_terminal_ours_for_output alone, leaving it to
+   We leave target_terminal::ours_for_output alone, leaving it to
    child_terminal_ours_for_output.  */
 
 static void
@@ -4889,6 +4881,17 @@ linux_nat_set_new_thread (struct target_ops *t,
   linux_nat_new_thread = new_thread;
 }
 
+/* Register a method to call whenever a new thread is attached.  */
+void
+linux_nat_set_delete_thread (struct target_ops *t,
+			     void (*delete_thread) (struct arch_lwp_info *))
+{
+  /* Save the pointer.  We only support a single registered instance
+     of the GNU/Linux native target, so we do not need to map this to
+     T.  */
+  linux_nat_delete_thread = delete_thread;
+}
+
 /* See declaration in linux-nat.h.  */
 
 void
@@ -4970,9 +4973,6 @@ current_lwp_ptid (void)
   gdb_assert (ptid_lwp_p (inferior_ptid));
   return inferior_ptid;
 }
-
-/* Provide a prototype to silence -Wmissing-prototypes.  */
-extern initialize_file_ftype _initialize_linux_nat;
 
 void
 _initialize_linux_nat (void)

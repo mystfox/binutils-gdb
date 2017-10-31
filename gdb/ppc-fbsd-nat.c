@@ -1,6 +1,6 @@
 /* Native-dependent code for PowerPC's running FreeBSD, for GDB.
 
-   Copyright (C) 2013-2016 Free Software Foundation, Inc.
+   Copyright (C) 2013-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -120,20 +120,19 @@ ppcfbsd_fetch_inferior_registers (struct target_ops *ops,
 				  struct regcache *regcache, int regno)
 {
   gdb_gregset_t regs;
+  pid_t pid = ptid_get_lwp (regcache_get_ptid (regcache));
 
-  if (ptrace (PT_GETREGS, ptid_get_lwp (inferior_ptid),
-	      (PTRACE_TYPE_ARG3) &regs, 0) == -1)
+  if (ptrace (PT_GETREGS, pid, (PTRACE_TYPE_ARG3) &regs, 0) == -1)
     perror_with_name (_("Couldn't get registers"));
 
   supply_gregset (regcache, &regs);
 
-  if (regno == -1 || getfpregs_supplies (get_regcache_arch (regcache), regno))
+  if (regno == -1 || getfpregs_supplies (regcache->arch (), regno))
     {
       const struct regset *fpregset = ppc_fbsd_fpregset ();
       gdb_fpregset_t fpregs;
 
-      if (ptrace (PT_GETFPREGS, ptid_get_lwp (inferior_ptid),
-		  (PTRACE_TYPE_ARG3) &fpregs, 0) == -1)
+      if (ptrace (PT_GETFPREGS, pid, (PTRACE_TYPE_ARG3) &fpregs, 0) == -1)
 	perror_with_name (_("Couldn't get FP registers"));
 
       ppc_supply_fpregset (fpregset, regcache, regno, &fpregs, sizeof fpregs);
@@ -148,29 +147,26 @@ ppcfbsd_store_inferior_registers (struct target_ops *ops,
 				  struct regcache *regcache, int regno)
 {
   gdb_gregset_t regs;
+  pid_t pid = ptid_get_lwp (regcache_get_ptid (regcache));
 
-  if (ptrace (PT_GETREGS, ptid_get_lwp (inferior_ptid),
-	      (PTRACE_TYPE_ARG3) &regs, 0) == -1)
+  if (ptrace (PT_GETREGS, pid, (PTRACE_TYPE_ARG3) &regs, 0) == -1)
     perror_with_name (_("Couldn't get registers"));
 
   fill_gregset (regcache, &regs, regno);
 
-  if (ptrace (PT_SETREGS, ptid_get_lwp (inferior_ptid),
-	      (PTRACE_TYPE_ARG3) &regs, 0) == -1)
+  if (ptrace (PT_SETREGS, pid, (PTRACE_TYPE_ARG3) &regs, 0) == -1)
     perror_with_name (_("Couldn't write registers"));
 
-  if (regno == -1 || getfpregs_supplies (get_regcache_arch (regcache), regno))
+  if (regno == -1 || getfpregs_supplies (regcache->arch (), regno))
     {
       gdb_fpregset_t fpregs;
 
-      if (ptrace (PT_GETFPREGS, ptid_get_lwp (inferior_ptid),
-		  (PTRACE_TYPE_ARG3) &fpregs, 0) == -1)
+      if (ptrace (PT_GETFPREGS, pid, (PTRACE_TYPE_ARG3) &fpregs, 0) == -1)
 	perror_with_name (_("Couldn't get FP registers"));
 
       fill_fpregset (regcache, &fpregs, regno);
 
-      if (ptrace (PT_SETFPREGS, ptid_get_lwp (inferior_ptid),
-		  (PTRACE_TYPE_ARG3) &fpregs, 0) == -1)
+      if (ptrace (PT_SETFPREGS, pid, (PTRACE_TYPE_ARG3) &fpregs, 0) == -1)
 	perror_with_name (_("Couldn't set FP registers"));
     }
 }
@@ -182,7 +178,7 @@ ppcfbsd_store_inferior_registers (struct target_ops *ops,
 static int
 ppcfbsd_supply_pcb (struct regcache *regcache, struct pcb *pcb)
 {
-  struct gdbarch *gdbarch = get_regcache_arch (regcache);
+  struct gdbarch *gdbarch = regcache->arch ();
   struct gdbarch_tdep *tdep = gdbarch_tdep (gdbarch);
   int i, regnum;
 
@@ -198,10 +194,6 @@ ppcfbsd_supply_pcb (struct regcache *regcache, struct pcb *pcb)
 
   return 1;
 }
-
-/* Provide a prototype to silence -Wmissing-prototypes.  */
-
-void _initialize_ppcfbsd_nat (void);
 
 void
 _initialize_ppcfbsd_nat (void)

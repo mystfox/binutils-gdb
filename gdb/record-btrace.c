@@ -1,6 +1,6 @@
 /* Branch trace support for GDB, the GNU debugger.
 
-   Copyright (C) 2013-2016 Free Software Foundation, Inc.
+   Copyright (C) 2013-2017 Free Software Foundation, Inc.
 
    Contributed by Intel Corp. <markus.t.metzger@intel.com>
 
@@ -116,6 +116,8 @@ require_btrace_thread (void)
   tp = find_thread_ptid (inferior_ptid);
   if (tp == NULL)
     error (_("No thread."));
+
+  validate_registers_access ();
 
   btrace_fetch (tp);
 
@@ -417,6 +419,8 @@ record_btrace_info (struct target_ops *self)
   if (tp == NULL)
     error (_("No thread."));
 
+  validate_registers_access ();
+
   btinfo = &tp->btrace;
 
   conf = btrace_conf (btinfo);
@@ -439,28 +443,12 @@ record_btrace_info (struct target_ops *self)
       calls = btrace_call_number (&call);
 
       btrace_insn_end (&insn, btinfo);
-
       insns = btrace_insn_number (&insn);
-      if (insns != 0)
-	{
-	  /* The last instruction does not really belong to the trace.  */
-	  insns -= 1;
-	}
-      else
-	{
-	  unsigned int steps;
 
-	  /* Skip gaps at the end.  */
-	  do
-	    {
-	      steps = btrace_insn_prev (&insn, 1);
-	      if (steps == 0)
-		break;
-
-	      insns = btrace_insn_number (&insn);
-	    }
-	  while (insns == 0);
-	}
+      /* If the last instruction is not a gap, it is the current instruction
+	 that is not actually part of the record.  */
+      if (btrace_insn_get (&insn) != NULL)
+	insns -= 1;
 
       gaps = btinfo->ngaps;
     }
@@ -480,63 +468,11 @@ static void
 btrace_ui_out_decode_error (struct ui_out *uiout, int errcode,
 			    enum btrace_format format)
 {
-  const char *errstr;
-  int is_error;
-
-  errstr = _("unknown");
-  is_error = 1;
-
-  switch (format)
-    {
-    default:
-      break;
-
-    case BTRACE_FORMAT_BTS:
-      switch (errcode)
-	{
-	default:
-	  break;
-
-	case BDE_BTS_OVERFLOW:
-	  errstr = _("instruction overflow");
-	  break;
-
-	case BDE_BTS_INSN_SIZE:
-	  errstr = _("unknown instruction");
-	  break;
-	}
-      break;
-
-#if defined (HAVE_LIBIPT)
-    case BTRACE_FORMAT_PT:
-      switch (errcode)
-	{
-	case BDE_PT_USER_QUIT:
-	  is_error = 0;
-	  errstr = _("trace decode cancelled");
-	  break;
-
-	case BDE_PT_DISABLED:
-	  is_error = 0;
-	  errstr = _("disabled");
-	  break;
-
-	case BDE_PT_OVERFLOW:
-	  is_error = 0;
-	  errstr = _("overflow");
-	  break;
-
-	default:
-	  if (errcode < 0)
-	    errstr = pt_errstr (pt_errcode (errcode));
-	  break;
-	}
-      break;
-#endif /* defined (HAVE_LIBIPT)  */
-    }
+  const char *errstr = btrace_decode_error (format, errcode);
 
   uiout->text (_("["));
-  if (is_error)
+  /* ERRCODE > 0 indicates notifications on BTRACE_FORMAT_PT.  */
+  if (!(format == BTRACE_FORMAT_PT && errcode > 0))
     {
       uiout->text (_("decode error ("));
       uiout->field_int ("errcode", errcode);
@@ -694,31 +630,29 @@ static void
 btrace_insn_history (struct ui_out *uiout,
 		     const struct btrace_thread_info *btinfo,
 		     const struct btrace_insn_iterator *begin,
-		     const struct btrace_insn_iterator *end, int flags)
+		     const struct btrace_insn_iterator *end,
+		     gdb_disassembly_flags flags)
 {
-  struct ui_file *stb;
   struct cleanup *cleanups, *ui_item_chain;
-  struct disassemble_info di;
   struct gdbarch *gdbarch;
   struct btrace_insn_iterator it;
   struct btrace_line_range last_lines;
 
-  DEBUG ("itrace (0x%x): [%u; %u)", flags, btrace_insn_number (begin),
-	 btrace_insn_number (end));
+  DEBUG ("itrace (0x%x): [%u; %u)", (unsigned) flags,
+	 btrace_insn_number (begin), btrace_insn_number (end));
 
   flags |= DISASSEMBLY_SPECULATIVE;
 
   gdbarch = target_gdbarch ();
-  stb = mem_fileopen ();
-  cleanups = make_cleanup_ui_file_delete (stb);
-  di = gdb_disassemble_info (gdbarch, stb);
   last_lines = btrace_mk_line_range (NULL, 0, 0);
 
-  make_cleanup_ui_out_list_begin_end (uiout, "asm_insns");
+  cleanups = make_cleanup_ui_out_list_begin_end (uiout, "asm_insns");
 
   /* UI_ITEM_CHAIN is a cleanup chain for the last source line and the
      instructions corresponding to that line.  */
   ui_item_chain = NULL;
+
+  gdb_pretty_print_disassembler disasm (gdbarch);
 
   for (it = *begin; btrace_insn_cmp (&it, end) != 0; btrace_insn_next (&it, 1))
     {
@@ -736,7 +670,11 @@ btrace_insn_history (struct ui_out *uiout,
 	  /* We have trace so we must have a configuration.  */
 	  gdb_assert (conf != NULL);
 
-	  btrace_ui_out_decode_error (uiout, it.function->errcode,
+	  uiout->field_fmt ("insn-number", "%u",
+			    btrace_insn_number (&it));
+	  uiout->text ("\t");
+
+	  btrace_ui_out_decode_error (uiout, btrace_insn_get_error (&it),
 				      conf->format);
 	}
       else
@@ -773,7 +711,7 @@ btrace_insn_history (struct ui_out *uiout,
 	  if ((insn->flags & BTRACE_INSN_FLAG_SPECULATIVE) != 0)
 	    dinsn.is_speculative = 1;
 
-	  gdb_pretty_print_insn (gdbarch, uiout, &di, &dinsn, flags, stb);
+	  disasm.pretty_print_insn (uiout, &dinsn, flags);
 	}
     }
 
@@ -783,18 +721,17 @@ btrace_insn_history (struct ui_out *uiout,
 /* The to_insn_history method of target record-btrace.  */
 
 static void
-record_btrace_insn_history (struct target_ops *self, int size, int flags)
+record_btrace_insn_history (struct target_ops *self, int size,
+			    gdb_disassembly_flags flags)
 {
   struct btrace_thread_info *btinfo;
   struct btrace_insn_history *history;
   struct btrace_insn_iterator begin, end;
-  struct cleanup *uiout_cleanup;
   struct ui_out *uiout;
   unsigned int context, covered;
 
   uiout = current_uiout;
-  uiout_cleanup = make_cleanup_ui_out_tuple_begin_end (uiout,
-						       "insn history");
+  ui_out_emit_tuple tuple_emitter (uiout, "insn history");
   context = abs (size);
   if (context == 0)
     error (_("Bad record instruction-history-size."));
@@ -805,7 +742,7 @@ record_btrace_insn_history (struct target_ops *self, int size, int flags)
     {
       struct btrace_insn_iterator *replay;
 
-      DEBUG ("insn-history (0x%x): %d", flags, size);
+      DEBUG ("insn-history (0x%x): %d", (unsigned) flags, size);
 
       /* If we're replaying, we start at the replay position.  Otherwise, we
 	 start at the tail of the trace.  */
@@ -837,7 +774,7 @@ record_btrace_insn_history (struct target_ops *self, int size, int flags)
       begin = history->begin;
       end = history->end;
 
-      DEBUG ("insn-history (0x%x): %d, prev: [%u; %u)", flags, size,
+      DEBUG ("insn-history (0x%x): %d, prev: [%u; %u)", (unsigned) flags, size,
 	     btrace_insn_number (&begin), btrace_insn_number (&end));
 
       if (size < 0)
@@ -863,30 +800,28 @@ record_btrace_insn_history (struct target_ops *self, int size, int flags)
     }
 
   btrace_set_insn_history (btinfo, &begin, &end);
-  do_cleanups (uiout_cleanup);
 }
 
 /* The to_insn_history_range method of target record-btrace.  */
 
 static void
 record_btrace_insn_history_range (struct target_ops *self,
-				  ULONGEST from, ULONGEST to, int flags)
+				  ULONGEST from, ULONGEST to,
+				  gdb_disassembly_flags flags)
 {
   struct btrace_thread_info *btinfo;
   struct btrace_insn_history *history;
   struct btrace_insn_iterator begin, end;
-  struct cleanup *uiout_cleanup;
   struct ui_out *uiout;
   unsigned int low, high;
   int found;
 
   uiout = current_uiout;
-  uiout_cleanup = make_cleanup_ui_out_tuple_begin_end (uiout,
-						       "insn history");
+  ui_out_emit_tuple tuple_emitter (uiout, "insn history");
   low = from;
   high = to;
 
-  DEBUG ("insn-history (0x%x): [%u; %u)", flags, low, high);
+  DEBUG ("insn-history (0x%x): [%u; %u)", (unsigned) flags, low, high);
 
   /* Check for wrap-arounds.  */
   if (low != from || high != to)
@@ -915,15 +850,14 @@ record_btrace_insn_history_range (struct target_ops *self,
 
   btrace_insn_history (uiout, btinfo, &begin, &end, flags);
   btrace_set_insn_history (btinfo, &begin, &end);
-
-  do_cleanups (uiout_cleanup);
 }
 
 /* The to_insn_history_from method of target record-btrace.  */
 
 static void
 record_btrace_insn_history_from (struct target_ops *self,
-				 ULONGEST from, int size, int flags)
+				 ULONGEST from, int size,
+				 gdb_disassembly_flags flags)
 {
   ULONGEST begin, end, context;
 
@@ -961,7 +895,7 @@ btrace_call_history_insn_range (struct ui_out *uiout,
 {
   unsigned int begin, end, size;
 
-  size = VEC_length (btrace_insn_s, bfun->insn);
+  size = bfun->insn.size ();
   gdb_assert (size > 0);
 
   begin = bfun->insn_offset;
@@ -981,10 +915,8 @@ static void
 btrace_compute_src_line_range (const struct btrace_function *bfun,
 			       int *pbegin, int *pend)
 {
-  struct btrace_insn *insn;
   struct symtab *symtab;
   struct symbol *sym;
-  unsigned int idx;
   int begin, end;
 
   begin = INT_MAX;
@@ -996,11 +928,11 @@ btrace_compute_src_line_range (const struct btrace_function *bfun,
 
   symtab = symbol_symtab (sym);
 
-  for (idx = 0; VEC_iterate (btrace_insn_s, bfun->insn, idx, insn); ++idx)
+  for (const btrace_insn &insn : bfun->insn)
     {
       struct symtab_and_line sal;
 
-      sal = find_pc_line (insn->pc, 0);
+      sal = find_pc_line (insn.pc, 0);
       if (sal.symtab != symtab || sal.line == 0)
 	continue;
 
@@ -1148,14 +1080,12 @@ record_btrace_call_history (struct target_ops *self, int size, int int_flags)
   struct btrace_thread_info *btinfo;
   struct btrace_call_history *history;
   struct btrace_call_iterator begin, end;
-  struct cleanup *uiout_cleanup;
   struct ui_out *uiout;
   unsigned int context, covered;
   record_print_flags flags = (enum record_print_flag) int_flags;
 
   uiout = current_uiout;
-  uiout_cleanup = make_cleanup_ui_out_tuple_begin_end (uiout,
-						       "insn history");
+  ui_out_emit_tuple tuple_emitter (uiout, "insn history");
   context = abs (size);
   if (context == 0)
     error (_("Bad record function-call-history-size."));
@@ -1173,8 +1103,8 @@ record_btrace_call_history (struct target_ops *self, int size, int int_flags)
       replay = btinfo->replay;
       if (replay != NULL)
 	{
-	  begin.function = replay->function;
 	  begin.btinfo = btinfo;
+	  begin.index = replay->call_index;
 	}
       else
 	btrace_call_end (&begin, btinfo);
@@ -1227,7 +1157,6 @@ record_btrace_call_history (struct target_ops *self, int size, int int_flags)
     }
 
   btrace_set_call_history (btinfo, &begin, &end);
-  do_cleanups (uiout_cleanup);
 }
 
 /* The to_call_history_range method of target record-btrace.  */
@@ -1240,15 +1169,13 @@ record_btrace_call_history_range (struct target_ops *self,
   struct btrace_thread_info *btinfo;
   struct btrace_call_history *history;
   struct btrace_call_iterator begin, end;
-  struct cleanup *uiout_cleanup;
   struct ui_out *uiout;
   unsigned int low, high;
   int found;
   record_print_flags flags = (enum record_print_flag) int_flags;
 
   uiout = current_uiout;
-  uiout_cleanup = make_cleanup_ui_out_tuple_begin_end (uiout,
-						       "func history");
+  ui_out_emit_tuple tuple_emitter (uiout, "func history");
   low = from;
   high = to;
 
@@ -1281,8 +1208,6 @@ record_btrace_call_history_range (struct target_ops *self,
 
   btrace_call_history (uiout, btinfo, &begin, &end, flags);
   btrace_set_call_history (btinfo, &begin, &end);
-
-  do_cleanups (uiout_cleanup);
 }
 
 /* The to_call_history_from method of target record-btrace.  */
@@ -1319,6 +1244,23 @@ record_btrace_call_history_from (struct target_ops *self,
     }
 
   record_btrace_call_history_range (self, begin, end, flags);
+}
+
+/* The to_record_method method of target record-btrace.  */
+
+static enum record_method
+record_btrace_record_method (struct target_ops *self, ptid_t ptid)
+{
+  const struct btrace_config *config;
+  struct thread_info * const tp = find_thread_ptid (ptid);
+
+  if (tp == NULL)
+    error (_("No thread."));
+
+  if (tp->btrace.target == NULL)
+    return RECORD_METHOD_NONE;
+
+  return RECORD_METHOD_BTRACE;
 }
 
 /* The to_record_is_replaying method of target record-btrace.  */
@@ -1471,7 +1413,7 @@ record_btrace_fetch_registers (struct target_ops *ops,
   struct btrace_insn_iterator *replay;
   struct thread_info *tp;
 
-  tp = find_thread_ptid (inferior_ptid);
+  tp = find_thread_ptid (regcache_get_ptid (regcache));
   gdb_assert (tp != NULL);
 
   replay = tp->btrace.replay;
@@ -1481,7 +1423,7 @@ record_btrace_fetch_registers (struct target_ops *ops,
       struct gdbarch *gdbarch;
       int pcreg;
 
-      gdbarch = get_regcache_arch (regcache);
+      gdbarch = regcache->arch ();
       pcreg = gdbarch_pc_regnum (gdbarch);
       if (pcreg < 0)
 	return;
@@ -1512,7 +1454,7 @@ record_btrace_store_registers (struct target_ops *ops,
   struct target_ops *t;
 
   if (!record_btrace_generating_corefile
-      && record_btrace_is_replaying (ops, inferior_ptid))
+      && record_btrace_is_replaying (ops, regcache_get_ptid (regcache)))
     error (_("Cannot write registers while replaying."));
 
   gdb_assert (may_write_registers != 0);
@@ -1530,7 +1472,7 @@ record_btrace_prepare_to_store (struct target_ops *ops,
   struct target_ops *t;
 
   if (!record_btrace_generating_corefile
-      && record_btrace_is_replaying (ops, inferior_ptid))
+      && record_btrace_is_replaying (ops, regcache_get_ptid (regcache)))
     return;
 
   t = ops->beneath;
@@ -1630,7 +1572,7 @@ record_btrace_frame_unwind_stop_reason (struct frame_info *this_frame,
   bfun = cache->bfun;
   gdb_assert (bfun != NULL);
 
-  if (bfun->up == NULL)
+  if (bfun->up == 0)
     return UNWIND_UNAVAILABLE;
 
   return UNWIND_NO_REASON;
@@ -1644,6 +1586,7 @@ record_btrace_frame_this_id (struct frame_info *this_frame, void **this_cache,
 {
   const struct btrace_frame_cache *cache;
   const struct btrace_function *bfun;
+  struct btrace_call_iterator it;
   CORE_ADDR code, special;
 
   cache = (const struct btrace_frame_cache *) *this_cache;
@@ -1651,8 +1594,8 @@ record_btrace_frame_this_id (struct frame_info *this_frame, void **this_cache,
   bfun = cache->bfun;
   gdb_assert (bfun != NULL);
 
-  while (bfun->segment.prev != NULL)
-    bfun = bfun->segment.prev;
+  while (btrace_find_call_by_number (&it, &cache->tp->btrace, bfun->prev) != 0)
+    bfun = btrace_call_get (&it);
 
   code = get_frame_func (this_frame);
   special = bfun->number;
@@ -1674,7 +1617,7 @@ record_btrace_frame_prev_register (struct frame_info *this_frame,
 {
   const struct btrace_frame_cache *cache;
   const struct btrace_function *bfun, *caller;
-  const struct btrace_insn *insn;
+  struct btrace_call_iterator it;
   struct gdbarch *gdbarch;
   CORE_ADDR pc;
   int pcreg;
@@ -1689,21 +1632,17 @@ record_btrace_frame_prev_register (struct frame_info *this_frame,
   bfun = cache->bfun;
   gdb_assert (bfun != NULL);
 
-  caller = bfun->up;
-  if (caller == NULL)
+  if (btrace_find_call_by_number (&it, &cache->tp->btrace, bfun->up) == 0)
     throw_error (NOT_AVAILABLE_ERROR,
 		 _("No caller in btrace record history"));
 
+  caller = btrace_call_get (&it);
+
   if ((bfun->flags & BFUN_UP_LINKS_TO_RET) != 0)
-    {
-      insn = VEC_index (btrace_insn_s, caller->insn, 0);
-      pc = insn->pc;
-    }
+    pc = caller->insn.front ().pc;
   else
     {
-      insn = VEC_last (btrace_insn_s, caller->insn);
-      pc = insn->pc;
-
+      pc = caller->insn.back ().pc;
       pc += gdb_insn_length (gdbarch, pc);
     }
 
@@ -1738,15 +1677,21 @@ record_btrace_frame_sniffer (const struct frame_unwind *self,
 
       replay = tp->btrace.replay;
       if (replay != NULL)
-	bfun = replay->function;
+	bfun = &replay->btinfo->functions[replay->call_index];
     }
   else
     {
       const struct btrace_function *callee;
+      struct btrace_call_iterator it;
 
       callee = btrace_get_frame_function (next);
-      if (callee != NULL && (callee->flags & BFUN_UP_LINKS_TO_TAILCALL) == 0)
-	bfun = callee->up;
+      if (callee == NULL || (callee->flags & BFUN_UP_LINKS_TO_TAILCALL) != 0)
+	return 0;
+
+      if (btrace_find_call_by_number (&it, &tp->btrace, callee->up) == 0)
+	return 0;
+
+      bfun = btrace_call_get (&it);
     }
 
   if (bfun == NULL)
@@ -1773,7 +1718,9 @@ record_btrace_tailcall_frame_sniffer (const struct frame_unwind *self,
 {
   const struct btrace_function *bfun, *callee;
   struct btrace_frame_cache *cache;
+  struct btrace_call_iterator it;
   struct frame_info *next;
+  struct thread_info *tinfo;
 
   next = get_next_frame (this_frame);
   if (next == NULL)
@@ -1786,16 +1733,18 @@ record_btrace_tailcall_frame_sniffer (const struct frame_unwind *self,
   if ((callee->flags & BFUN_UP_LINKS_TO_TAILCALL) == 0)
     return 0;
 
-  bfun = callee->up;
-  if (bfun == NULL)
+  tinfo = find_thread_ptid (inferior_ptid);
+  if (btrace_find_call_by_number (&it, &tinfo->btrace, callee->up) == 0)
     return 0;
+
+  bfun = btrace_call_get (&it);
 
   DEBUG ("[frame] sniffed tailcall frame for %s on level %d",
 	 btrace_get_bfun_name (bfun), bfun->level);
 
   /* This is our frame.  Initialize the frame cache.  */
   cache = bfcache_new (this_frame);
-  cache->tp = find_thread_ptid (inferior_ptid);
+  cache->tp = tinfo;
   cache->bfun = bfun;
 
   *this_cache = cache;
@@ -1968,7 +1917,7 @@ record_btrace_start_replaying (struct thread_info *tp)
   replay = NULL;
 
   /* We can't start replaying without trace.  */
-  if (btinfo->begin == NULL)
+  if (btinfo->functions.empty ())
     return NULL;
 
   /* GDB stores the current frame_id when stepping in order to detects steps
@@ -2525,7 +2474,7 @@ record_btrace_wait (struct target_ops *ops, ptid_t ptid,
       *status = btrace_step_no_resumed ();
 
       DEBUG ("wait ended by %s: %s", target_pid_to_str (null_ptid),
-	     target_waitstatus_to_string (status));
+	     target_waitstatus_to_string (status).c_str ());
 
       do_cleanups (cleanups);
       return null_ptid;
@@ -2617,7 +2566,7 @@ record_btrace_wait (struct target_ops *ops, ptid_t ptid,
   DEBUG ("wait ended by thread %s (%s): %s",
 	 print_thread_id (eventing),
 	 target_pid_to_str (eventing->ptid),
-	 target_waitstatus_to_string (status));
+	 target_waitstatus_to_string (status).c_str ());
 
   do_cleanups (cleanups);
   return eventing->ptid;
@@ -2751,7 +2700,7 @@ record_btrace_set_replay (struct thread_info *tp,
 
   btinfo = &tp->btrace;
 
-  if (it == NULL || it->function == NULL)
+  if (it == NULL)
     record_btrace_stop_replaying (tp);
   else
     {
@@ -2827,7 +2776,9 @@ record_btrace_goto (struct target_ops *self, ULONGEST insn)
   tp = require_btrace_thread ();
 
   found = btrace_find_insn_by_number (&it, &tp->btrace, number);
-  if (found == 0)
+
+  /* Check if the instruction could not be found or is a gap.  */
+  if (found == 0 || btrace_insn_get (&it) == NULL)
     error (_("No such instruction."));
 
   record_btrace_set_replay (tp, &it);
@@ -2894,6 +2845,7 @@ init_record_btrace_ops (void)
   ops->to_call_history = record_btrace_call_history;
   ops->to_call_history_from = record_btrace_call_history_from;
   ops->to_call_history_range = record_btrace_call_history_range;
+  ops->to_record_method = record_btrace_record_method;
   ops->to_record_is_replaying = record_btrace_is_replaying;
   ops->to_record_will_replay = record_btrace_will_replay;
   ops->to_record_stop_replaying = record_btrace_stop_replaying_all;
@@ -2931,7 +2883,7 @@ init_record_btrace_ops (void)
 /* Start recording in BTS format.  */
 
 static void
-cmd_record_btrace_bts_start (char *args, int from_tty)
+cmd_record_btrace_bts_start (const char *args, int from_tty)
 {
   if (args != NULL && *args != 0)
     error (_("Invalid argument."));
@@ -2940,7 +2892,7 @@ cmd_record_btrace_bts_start (char *args, int from_tty)
 
   TRY
     {
-      execute_command ("target record-btrace", from_tty);
+      execute_command ((char *) "target record-btrace", from_tty);
     }
   CATCH (exception, RETURN_MASK_ALL)
     {
@@ -2953,7 +2905,7 @@ cmd_record_btrace_bts_start (char *args, int from_tty)
 /* Start recording in Intel Processor Trace format.  */
 
 static void
-cmd_record_btrace_pt_start (char *args, int from_tty)
+cmd_record_btrace_pt_start (const char *args, int from_tty)
 {
   if (args != NULL && *args != 0)
     error (_("Invalid argument."));
@@ -2962,7 +2914,7 @@ cmd_record_btrace_pt_start (char *args, int from_tty)
 
   TRY
     {
-      execute_command ("target record-btrace", from_tty);
+      execute_command ((char *) "target record-btrace", from_tty);
     }
   CATCH (exception, RETURN_MASK_ALL)
     {
@@ -2975,7 +2927,7 @@ cmd_record_btrace_pt_start (char *args, int from_tty)
 /* Alias for "target record".  */
 
 static void
-cmd_record_btrace_start (char *args, int from_tty)
+cmd_record_btrace_start (const char *args, int from_tty)
 {
   if (args != NULL && *args != 0)
     error (_("Invalid argument."));
@@ -2984,7 +2936,7 @@ cmd_record_btrace_start (char *args, int from_tty)
 
   TRY
     {
-      execute_command ("target record-btrace", from_tty);
+      execute_command ((char *) "target record-btrace", from_tty);
     }
   CATCH (exception, RETURN_MASK_ALL)
     {
@@ -2992,7 +2944,7 @@ cmd_record_btrace_start (char *args, int from_tty)
 
       TRY
 	{
-	  execute_command ("target record-btrace", from_tty);
+	  execute_command ((char *) "target record-btrace", from_tty);
 	}
       CATCH (exception, RETURN_MASK_ALL)
 	{
@@ -3007,7 +2959,7 @@ cmd_record_btrace_start (char *args, int from_tty)
 /* The "set record btrace" command.  */
 
 static void
-cmd_set_record_btrace (char *args, int from_tty)
+cmd_set_record_btrace (const char *args, int from_tty)
 {
   cmd_show_list (set_record_btrace_cmdlist, from_tty, "");
 }
@@ -3015,7 +2967,7 @@ cmd_set_record_btrace (char *args, int from_tty)
 /* The "show record btrace" command.  */
 
 static void
-cmd_show_record_btrace (char *args, int from_tty)
+cmd_show_record_btrace (const char *args, int from_tty)
 {
   cmd_show_list (show_record_btrace_cmdlist, from_tty, "");
 }
@@ -3033,7 +2985,7 @@ cmd_show_replay_memory_access (struct ui_file *file, int from_tty,
 /* The "set record btrace bts" command.  */
 
 static void
-cmd_set_record_btrace_bts (char *args, int from_tty)
+cmd_set_record_btrace_bts (const char *args, int from_tty)
 {
   printf_unfiltered (_("\"set record btrace bts\" must be followed "
 		       "by an appropriate subcommand.\n"));
@@ -3044,7 +2996,7 @@ cmd_set_record_btrace_bts (char *args, int from_tty)
 /* The "show record btrace bts" command.  */
 
 static void
-cmd_show_record_btrace_bts (char *args, int from_tty)
+cmd_show_record_btrace_bts (const char *args, int from_tty)
 {
   cmd_show_list (show_record_btrace_bts_cmdlist, from_tty, "");
 }
@@ -3052,7 +3004,7 @@ cmd_show_record_btrace_bts (char *args, int from_tty)
 /* The "set record btrace pt" command.  */
 
 static void
-cmd_set_record_btrace_pt (char *args, int from_tty)
+cmd_set_record_btrace_pt (const char *args, int from_tty)
 {
   printf_unfiltered (_("\"set record btrace pt\" must be followed "
 		       "by an appropriate subcommand.\n"));
@@ -3063,7 +3015,7 @@ cmd_set_record_btrace_pt (char *args, int from_tty)
 /* The "show record btrace pt" command.  */
 
 static void
-cmd_show_record_btrace_pt (char *args, int from_tty)
+cmd_show_record_btrace_pt (const char *args, int from_tty)
 {
   cmd_show_list (show_record_btrace_pt_cmdlist, from_tty, "");
 }
@@ -3089,8 +3041,6 @@ show_record_pt_buffer_size_value (struct ui_file *file, int from_tty,
   fprintf_filtered (file, _("The record/replay pt buffer size is %s.\n"),
 		    value);
 }
-
-void _initialize_record_btrace (void);
 
 /* Initialize btrace commands.  */
 

@@ -1,5 +1,5 @@
 /* Matsushita AM33/2.0 support for 32-bit GNU/Linux ELF
-   Copyright (C) 2003-2016 Free Software Foundation, Inc.
+   Copyright (C) 2003-2017 Free Software Foundation, Inc.
 
    This file is part of BFD, the Binary File Descriptor library.
 
@@ -101,5 +101,7 @@ elf32_am33lin_grok_psinfo (bfd *abfd, Elf_Internal_Note *note)
 
 #define elf_backend_grok_prstatus	elf32_am33lin_grok_prstatus
 #define elf_backend_grok_psinfo		elf32_am33lin_grok_psinfo
+
+#define elf_backend_linux_prpsinfo32_ugid16	TRUE
 
 #include "elf-m10300.c"

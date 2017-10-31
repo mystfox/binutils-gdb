@@ -1,6 +1,6 @@
 /* Output generating routines for GDB.
 
-   Copyright (C) 1999-2016 Free Software Foundation, Inc.
+   Copyright (C) 1999-2017 Free Software Foundation, Inc.
 
    Contributed by Cygnus Solutions.
    Written by Fernando Nasser for Cygnus.
@@ -66,10 +66,6 @@ enum ui_out_type
     ui_out_type_list
   };
 
-extern struct cleanup *make_cleanup_ui_out_table_begin_end (struct ui_out *ui_out,
-                                                            int nr_cols,
-							    int nr_rows,
-							    const char *tblid);
 /* Compatibility wrappers.  */
 
 extern struct cleanup *make_cleanup_ui_out_list_begin_end (struct ui_out *uiout,
@@ -108,7 +104,7 @@ class ui_out
   void field_core_addr (const char *fldname, struct gdbarch *gdbarch,
 			CORE_ADDR address);
   void field_string (const char *fldname, const char *string);
-  void field_stream (const char *fldname, ui_file *stream);
+  void field_stream (const char *fldname, string_file &stream);
   void field_skip (const char *fldname);
   void field_fmt (const char *fldname, const char *format, ...)
     ATTRIBUTE_PRINTF (3, 4);
@@ -121,7 +117,7 @@ class ui_out
   void flush ();
 
   /* Redirect the output of a ui_out object temporarily.  */
-  int redirect (ui_file *outstream);
+  void redirect (ui_file *outstream);
 
   ui_out_flags test_flags (ui_out_flags mask);
 
@@ -163,7 +159,7 @@ class ui_out
     ATTRIBUTE_PRINTF (2,0) = 0;
   virtual void do_wrap_hint (const char *identstring) = 0;
   virtual void do_flush () = 0;
-  virtual int do_redirect (struct ui_file * outstream) = 0;
+  virtual void do_redirect (struct ui_file *outstream) = 0;
 
   /* Set as not MI-like by default.  It is overridden in subclasses if
      necessary.  */
@@ -185,6 +181,86 @@ class ui_out
 
   int level () const;
   ui_out_level *current_level () const;
+};
+
+/* This is similar to make_cleanup_ui_out_tuple_begin_end and
+   make_cleanup_ui_out_list_begin_end, but written as an RAII template
+   class.  It takes the ui_out_type as a template parameter.  Normally
+   this is used via the typedefs ui_out_emit_tuple and
+   ui_out_emit_list.  */
+template<ui_out_type Type>
+class ui_out_emit_type
+{
+public:
+
+  ui_out_emit_type (struct ui_out *uiout, const char *id)
+    : m_uiout (uiout)
+  {
+    uiout->begin (Type, id);
+  }
+
+  ~ui_out_emit_type ()
+  {
+    m_uiout->end (Type);
+  }
+
+  DISABLE_COPY_AND_ASSIGN (ui_out_emit_type<Type>);
+
+private:
+
+  struct ui_out *m_uiout;
+};
+
+typedef ui_out_emit_type<ui_out_type_tuple> ui_out_emit_tuple;
+typedef ui_out_emit_type<ui_out_type_list> ui_out_emit_list;
+
+/* Start a new table on construction, and end the table on
+   destruction.  */
+class ui_out_emit_table
+{
+public:
+
+  ui_out_emit_table (struct ui_out *uiout, int nr_cols, int nr_rows,
+		     const char *tblid)
+    : m_uiout (uiout)
+  {
+    m_uiout->table_begin (nr_cols, nr_rows, tblid);
+  }
+
+  ~ui_out_emit_table ()
+  {
+    m_uiout->table_end ();
+  }
+
+  ui_out_emit_table (const ui_out_emit_table &) = delete;
+  ui_out_emit_table &operator= (const ui_out_emit_table &) = delete;
+
+private:
+
+  struct ui_out *m_uiout;
+};
+
+/* On destruction, pop the last redirection by calling the uiout's
+   redirect method with a NULL parameter.  */
+class ui_out_redirect_pop
+{
+public:
+
+  ui_out_redirect_pop (ui_out *uiout)
+    : m_uiout (uiout)
+  {
+  }
+
+  ~ui_out_redirect_pop ()
+  {
+    m_uiout->redirect (NULL);
+  }
+
+  ui_out_redirect_pop (const ui_out_redirect_pop &) = delete;
+  ui_out_redirect_pop &operator= (const ui_out_redirect_pop &) = delete;
+
+private:
+  struct ui_out *m_uiout;
 };
 
 #endif /* UI_OUT_H */

@@ -1,5 +1,5 @@
 /* AArch64-specific support for NN-bit ELF.
-   Copyright (C) 2009-2016 Free Software Foundation, Inc.
+   Copyright (C) 2009-2017 Free Software Foundation, Inc.
    Contributed by ARM Ltd.
 
    This file is part of BFD, the Binary File Descriptor library.
@@ -154,6 +154,7 @@
 #define HOWTO64(...)		HOWTO (__VA_ARGS__)
 #define HOWTO32(...)		EMPTY_HOWTO (0)
 #define LOG_FILE_ALIGN	3
+#define BFD_RELOC_AARCH64_TLSDESC_LD64_LO12_NC BFD_RELOC_AARCH64_TLSDESC_LD64_LO12
 #endif
 
 #if ARCH_SIZE == 32
@@ -162,6 +163,8 @@
 #define HOWTO64(...)		EMPTY_HOWTO (0)
 #define HOWTO32(...)		HOWTO (__VA_ARGS__)
 #define LOG_FILE_ALIGN	2
+#define BFD_RELOC_AARCH64_TLSDESC_LD32_LO12     BFD_RELOC_AARCH64_TLSDESC_LD32_LO12_NC
+#define R_AARCH64_P32_TLSDESC_ADD_LO12          R_AARCH64_P32_TLSDESC_ADD_LO12_NC
 #endif
 
 #define IS_AARCH64_TLS_RELOC(R_TYPE)				\
@@ -209,8 +212,8 @@
    || IS_AARCH64_TLSDESC_RELOC ((R_TYPE)))
 
 #define IS_AARCH64_TLS_RELAX_RELOC(R_TYPE)			\
-  ((R_TYPE) == BFD_RELOC_AARCH64_TLSDESC_ADD		\
-   || (R_TYPE) == BFD_RELOC_AARCH64_TLSDESC_ADD_LO12_NC		\
+  ((R_TYPE) == BFD_RELOC_AARCH64_TLSDESC_ADD			\
+   || (R_TYPE) == BFD_RELOC_AARCH64_TLSDESC_ADD_LO12		\
    || (R_TYPE) == BFD_RELOC_AARCH64_TLSDESC_ADR_PAGE21		\
    || (R_TYPE) == BFD_RELOC_AARCH64_TLSDESC_ADR_PREL21		\
    || (R_TYPE) == BFD_RELOC_AARCH64_TLSDESC_CALL		\
@@ -235,18 +238,18 @@
 #define IS_AARCH64_TLSDESC_RELOC(R_TYPE)			\
   ((R_TYPE) == BFD_RELOC_AARCH64_TLSDESC			\
    || (R_TYPE) == BFD_RELOC_AARCH64_TLSDESC_ADD			\
-   || (R_TYPE) == BFD_RELOC_AARCH64_TLSDESC_ADD_LO12_NC		\
+   || (R_TYPE) == BFD_RELOC_AARCH64_TLSDESC_ADD_LO12		\
    || (R_TYPE) == BFD_RELOC_AARCH64_TLSDESC_ADR_PAGE21		\
    || (R_TYPE) == BFD_RELOC_AARCH64_TLSDESC_ADR_PREL21		\
    || (R_TYPE) == BFD_RELOC_AARCH64_TLSDESC_CALL		\
    || (R_TYPE) == BFD_RELOC_AARCH64_TLSDESC_LD32_LO12_NC	\
-   || (R_TYPE) == BFD_RELOC_AARCH64_TLSDESC_LD64_LO12_NC	\
+   || (R_TYPE) == BFD_RELOC_AARCH64_TLSDESC_LD64_LO12		\
    || (R_TYPE) == BFD_RELOC_AARCH64_TLSDESC_LDR			\
    || (R_TYPE) == BFD_RELOC_AARCH64_TLSDESC_LD_PREL19		\
    || (R_TYPE) == BFD_RELOC_AARCH64_TLSDESC_OFF_G0_NC		\
    || (R_TYPE) == BFD_RELOC_AARCH64_TLSDESC_OFF_G1)
 
-#define ELIMINATE_COPY_RELOCS 0
+#define ELIMINATE_COPY_RELOCS 1
 
 /* Return size of a relocation entry.  HTAB is the bfd's
    elf_aarch64_link_hash_entry.  */
@@ -258,7 +261,7 @@
 #define PLT_SMALL_ENTRY_SIZE            (16)
 #define PLT_TLSDESC_ENTRY_SIZE          (32)
 
-/* Encoding of the nop instruction */
+/* Encoding of the nop instruction.  */
 #define INSN_NOP 0xd503201f
 
 #define aarch64_compute_jump_table_size(htab)		\
@@ -1569,7 +1572,7 @@ static reloc_howto_type elfNN_aarch64_howto_table[] =
 	 TRUE),			/* pcrel_offset */
 
   /* LD64: GOT offset G(S) & 0xff8.  */
-  HOWTO64 (AARCH64_R (TLSDESC_LD64_LO12_NC),	/* type */
+  HOWTO64 (AARCH64_R (TLSDESC_LD64_LO12),	/* type */
 	 3,			/* rightshift */
 	 2,			/* size (0 = byte, 1 = short, 2 = long) */
 	 12,			/* bitsize */
@@ -1577,7 +1580,7 @@ static reloc_howto_type elfNN_aarch64_howto_table[] =
 	 0,			/* bitpos */
 	 complain_overflow_dont,	/* complain_on_overflow */
 	 bfd_elf_generic_reloc,	/* special_function */
-	 AARCH64_R_STR (TLSDESC_LD64_LO12_NC),	/* name */
+	 AARCH64_R_STR (TLSDESC_LD64_LO12),	/* name */
 	 FALSE,			/* partial_inplace */
 	 0xff8,			/* src_mask */
 	 0xff8,			/* dst_mask */
@@ -1599,15 +1602,15 @@ static reloc_howto_type elfNN_aarch64_howto_table[] =
 	 FALSE),		/* pcrel_offset */
 
   /* ADD: GOT offset G(S) & 0xfff.  */
-  HOWTO (AARCH64_R (TLSDESC_ADD_LO12_NC),	/* type */
+  HOWTO (AARCH64_R (TLSDESC_ADD_LO12),	/* type */
 	 0,			/* rightshift */
 	 2,			/* size (0 = byte, 1 = short, 2 = long) */
 	 12,			/* bitsize */
 	 FALSE,			/* pc_relative */
 	 0,			/* bitpos */
-	 complain_overflow_dont,	/* complain_on_overflow */
+	 complain_overflow_dont,/* complain_on_overflow */
 	 bfd_elf_generic_reloc,	/* special_function */
-	 AARCH64_R_STR (TLSDESC_ADD_LO12_NC),	/* name */
+	 AARCH64_R_STR (TLSDESC_ADD_LO12),	/* name */
 	 FALSE,			/* partial_inplace */
 	 0xfff,			/* src_mask */
 	 0xfff,			/* dst_mask */
@@ -1867,7 +1870,7 @@ elfNN_aarch64_bfd_reloc_from_type (unsigned int r_type)
   /* Indexed by R_TYPE, values are offsets in the howto_table.  */
   static unsigned int offsets[R_AARCH64_end];
 
-  if (initialized_p == FALSE)
+  if (!initialized_p)
     {
       unsigned int i;
 
@@ -2296,10 +2299,6 @@ struct elf_aarch64_link_hash_table
   /* The number of bytes in the subsequent PLT etries.  */
   bfd_size_type plt_entry_size;
 
-  /* Short-cuts to get to dynamic linker sections.  */
-  asection *sdynbss;
-  asection *srelbss;
-
   /* Small local sym cache.  */
   struct sym_cache sym_cache;
 
@@ -2611,6 +2610,8 @@ elfNN_aarch64_link_hash_table_create (bfd *abfd)
   return &ret->root.root;
 }
 
+/* Perform relocation R_TYPE.  Returns TRUE upon success, FALSE otherwise.  */
+
 static bfd_boolean
 aarch64_relocate (unsigned int r_type, bfd *input_bfd, asection *input_section,
 		  bfd_vma offset, bfd_vma value)
@@ -2626,7 +2627,7 @@ aarch64_relocate (unsigned int r_type, bfd *input_bfd, asection *input_section,
   value = _bfd_aarch64_elf_resolve_relocation (r_type, place, value, 0, FALSE);
   return _bfd_aarch64_elf_put_addend (input_bfd,
 				      input_section->contents + offset, r_type,
-				      howto, value);
+				      howto, value) == bfd_reloc_ok;
 }
 
 static enum elf_aarch64_stub_type
@@ -2711,6 +2712,22 @@ elfNN_aarch64_stub_name (const asection *input_section,
 
   return stub_name;
 }
+
+/* Return TRUE if symbol H should be hashed in the `.gnu.hash' section.  For
+   executable PLT slots where the executable never takes the address of those
+   functions, the function symbols are not added to the hash table.  */
+
+static bfd_boolean
+elf_aarch64_hash_symbol (struct elf_link_hash_entry *h)
+{
+  if (h->plt.offset != (bfd_vma) -1
+      && !h->def_regular
+      && !h->pointer_equality_needed)
+    return FALSE;
+
+  return _bfd_elf_hash_symbol (h);
+}
+
 
 /* Look up an entry in the stub hash.  Stub entries are cached because
    creating the stub name takes a bit of time.  */
@@ -2834,7 +2851,7 @@ _bfd_aarch64_add_stub_entry_in_group (const char *stub_name,
   if (stub_entry == NULL)
     {
       /* xgettext:c-format */
-      _bfd_error_handler (_("%s: cannot create stub entry %s"),
+      _bfd_error_handler (_("%B: cannot create stub entry %s"),
 			  section->owner, stub_name);
       return NULL;
     }
@@ -2950,22 +2967,22 @@ aarch64_build_one_stub (struct bfd_hash_entry *gen_entry,
   switch (stub_entry->stub_type)
     {
     case aarch64_stub_adrp_branch:
-      if (aarch64_relocate (AARCH64_R (ADR_PREL_PG_HI21), stub_bfd, stub_sec,
-			    stub_entry->stub_offset, sym_value))
+      if (!aarch64_relocate (AARCH64_R (ADR_PREL_PG_HI21), stub_bfd, stub_sec,
+			     stub_entry->stub_offset, sym_value))
 	/* The stub would not have been relaxed if the offset was out
 	   of range.  */
 	BFD_FAIL ();
 
-      if (aarch64_relocate (AARCH64_R (ADD_ABS_LO12_NC), stub_bfd, stub_sec,
-			    stub_entry->stub_offset + 4, sym_value))
+      if (!aarch64_relocate (AARCH64_R (ADD_ABS_LO12_NC), stub_bfd, stub_sec,
+			     stub_entry->stub_offset + 4, sym_value))
 	BFD_FAIL ();
       break;
 
     case aarch64_stub_long_branch:
       /* We want the value relative to the address 12 bytes back from the
          value itself.  */
-      if (aarch64_relocate (AARCH64_R (PRELNN), stub_bfd, stub_sec,
-			    stub_entry->stub_offset + 16, sym_value + 12))
+      if (!aarch64_relocate (AARCH64_R (PRELNN), stub_bfd, stub_sec,
+			     stub_entry->stub_offset + 16, sym_value + 12))
 	BFD_FAIL ();
       break;
 
@@ -2986,8 +3003,8 @@ aarch64_build_one_stub (struct bfd_hash_entry *gen_entry,
       break;
 
     case aarch64_stub_erratum_843419_veneer:
-      if (aarch64_relocate (AARCH64_R (JUMP26), stub_bfd, stub_sec,
-			    stub_entry->stub_offset + 4, sym_value + 4))
+      if (!aarch64_relocate (AARCH64_R (JUMP26), stub_bfd, stub_sec,
+			     stub_entry->stub_offset + 4, sym_value + 4))
 	BFD_FAIL ();
       break;
 
@@ -3254,9 +3271,7 @@ group_sections (struct elf_aarch64_link_hash_table *htab,
    For scalar LD/ST instructions PAIR is FALSE, RT is returned and RT2
    is set equal to RT.
 
-   For LD/ST pair instructions PAIR is TRUE, RT and RT2 are returned.
-
- */
+   For LD/ST pair instructions PAIR is TRUE, RT and RT2 are returned.  */
 
 static bfd_boolean
 aarch64_mem_op_p (uint32_t insn, unsigned int *rt, unsigned int *rt2,
@@ -3268,7 +3283,7 @@ aarch64_mem_op_p (uint32_t insn, unsigned int *rt, unsigned int *rt2,
   uint32_t v = 0;
   uint32_t opc_v = 0;
 
-  /* Bail out quickly if INSN doesn't fall into the the load-store
+  /* Bail out quickly if INSN doesn't fall into the load-store
      encoding space.  */
   if (!AARCH64_LDST (insn))
     return FALSE;
@@ -4464,7 +4479,7 @@ aarch64_tls_transition_without_check (bfd_reloc_code_real_type r_type,
 	      : BFD_RELOC_AARCH64_TLSIE_LD_GOTTPREL_PREL19);
 
     case BFD_RELOC_AARCH64_TLSDESC_ADD:
-    case BFD_RELOC_AARCH64_TLSDESC_ADD_LO12_NC:
+    case BFD_RELOC_AARCH64_TLSDESC_ADD_LO12:
     case BFD_RELOC_AARCH64_TLSDESC_CALL:
       /* Instructions with these relocations will become NOPs.  */
       return BFD_RELOC_AARCH64_NONE;
@@ -4520,12 +4535,12 @@ aarch64_reloc_got_type (bfd_reloc_code_real_type r_type)
       return GOT_TLS_GD;
 
     case BFD_RELOC_AARCH64_TLSDESC_ADD:
-    case BFD_RELOC_AARCH64_TLSDESC_ADD_LO12_NC:
+    case BFD_RELOC_AARCH64_TLSDESC_ADD_LO12:
     case BFD_RELOC_AARCH64_TLSDESC_ADR_PAGE21:
     case BFD_RELOC_AARCH64_TLSDESC_ADR_PREL21:
     case BFD_RELOC_AARCH64_TLSDESC_CALL:
     case BFD_RELOC_AARCH64_TLSDESC_LD32_LO12_NC:
-    case BFD_RELOC_AARCH64_TLSDESC_LD64_LO12_NC:
+    case BFD_RELOC_AARCH64_TLSDESC_LD64_LO12:
     case BFD_RELOC_AARCH64_TLSDESC_LD_PREL19:
     case BFD_RELOC_AARCH64_TLSDESC_LDR:
     case BFD_RELOC_AARCH64_TLSDESC_OFF_G0_NC:
@@ -4894,6 +4909,18 @@ elfNN_aarch64_write_section (bfd *output_bfd  ATTRIBUTE_UNUSED,
   return FALSE;
 }
 
+/* Return TRUE if RELOC is a relocation against the base of GOT table.  */
+
+static bfd_boolean
+aarch64_relocation_aginst_gp_p (bfd_reloc_code_real_type reloc)
+{
+  return (reloc == BFD_RELOC_AARCH64_LD32_GOTPAGE_LO14
+	  || reloc == BFD_RELOC_AARCH64_LD64_GOTPAGE_LO15
+	  || reloc == BFD_RELOC_AARCH64_LD64_GOTOFF_LO15
+	  || reloc == BFD_RELOC_AARCH64_MOVW_GOTOFF_G0_NC
+	  || reloc == BFD_RELOC_AARCH64_MOVW_GOTOFF_G1);
+}
+
 /* Perform a relocation as part of a final link.  The input relocation type
    should be TLS relaxed.  */
 
@@ -4919,11 +4946,14 @@ elfNN_aarch64_final_link_relocate (reloc_howto_type *howto,
     = elfNN_aarch64_bfd_reloc_from_howto (howto);
   unsigned long r_symndx;
   bfd_byte *hit_data = contents + rel->r_offset;
-  bfd_vma place, off;
+  bfd_vma place, off, got_entry_addr = 0;
   bfd_signed_vma signed_addend;
   struct elf_aarch64_link_hash_table *globals;
   bfd_boolean weak_undef_p;
+  bfd_boolean relative_reloc;
   asection *base_got;
+  bfd_vma orig_value = value;
+  bfd_boolean resolved_to_zero;
 
   globals = elf_aarch64_hash_table (info);
 
@@ -4954,9 +4984,27 @@ elfNN_aarch64_final_link_relocate (reloc_howto_type *howto,
       const char *name;
       bfd_vma addend = 0;
 
-      if ((input_section->flags & SEC_ALLOC) == 0
-	  || h->plt.offset == (bfd_vma) -1)
-	abort ();
+      if ((input_section->flags & SEC_ALLOC) == 0)
+	{
+	  /* Dynamic relocs are not propagated for SEC_DEBUGGING
+	     sections because such sections are not SEC_ALLOC and
+	     thus ld.so will not process them.  */
+	  if ((input_section->flags & SEC_DEBUGGING) != 0)
+	    return bfd_reloc_ok;
+
+	  if (h->root.root.string)
+	    name = h->root.root.string;
+	  else
+	    name = bfd_elf_sym_name (input_bfd, symtab_hdr, sym, NULL);
+	  _bfd_error_handler
+	    /* xgettext:c-format */
+	    (_("%B(%A+%#Lx): unresolvable %s relocation against symbol `%s'"),
+	     input_bfd, input_section, rel->r_offset, howto->name, name);
+	  bfd_set_error (bfd_error_bad_value);
+	  return bfd_reloc_notsupported;
+	}
+      else if (h->plt.offset == (bfd_vma) -1)
+	goto bad_ifunc_reloc;
 
       /* STT_GNU_IFUNC symbol must go through PLT.  */
       plt = globals->root.splt ? globals->root.splt : globals->root.iplt;
@@ -4965,6 +5013,7 @@ elfNN_aarch64_final_link_relocate (reloc_howto_type *howto,
       switch (bfd_r_type)
 	{
 	default:
+bad_ifunc_reloc:
 	  if (h->root.root.string)
 	    name = h->root.root.string;
 	  else
@@ -4976,7 +5025,7 @@ elfNN_aarch64_final_link_relocate (reloc_howto_type *howto,
 	       "symbol `%s' isn't handled by %s"), input_bfd,
 	     howto->name, name, __FUNCTION__);
 	  bfd_set_error (bfd_error_bad_value);
-	  return FALSE;
+	  return bfd_reloc_notsupported;
 
 	case BFD_RELOC_AARCH64_NN:
 	  if (rel->r_addend != 0)
@@ -4989,10 +5038,10 @@ elfNN_aarch64_final_link_relocate (reloc_howto_type *howto,
 	      _bfd_error_handler
 		/* xgettext:c-format */
 		(_("%B: relocation %s against STT_GNU_IFUNC "
-		   "symbol `%s' has non-zero addend: %d"),
+		   "symbol `%s' has non-zero addend: %Ld"),
 		 input_bfd, howto->name, name, rel->r_addend);
 	      bfd_set_error (bfd_error_bad_value);
-	      return FALSE;
+	      return bfd_reloc_notsupported;
 	    }
 
 	  /* Generate dynamic relocation only when there is a
@@ -5117,21 +5166,9 @@ elfNN_aarch64_final_link_relocate (reloc_howto_type *howto,
 						     value, output_bfd,
 						     unresolved_reloc_p);
 
-	  switch (bfd_r_type)
-	    {
-	    case BFD_RELOC_AARCH64_LD32_GOTPAGE_LO14:
-	    case BFD_RELOC_AARCH64_LD64_GOTPAGE_LO15:
-	      addend = (globals->root.sgot->output_section->vma
-			+ globals->root.sgot->output_offset);
-	      break;
-	    case BFD_RELOC_AARCH64_MOVW_GOTOFF_G0_NC:
-	    case BFD_RELOC_AARCH64_MOVW_GOTOFF_G1:
-	    case BFD_RELOC_AARCH64_LD64_GOTOFF_LO15:
-	      value = (value - globals->root.sgot->output_section->vma
-		       - globals->root.sgot->output_offset);
-	    default:
-	      break;
-	    }
+	  if (aarch64_relocation_aginst_gp_p (bfd_r_type))
+	    addend = (globals->root.sgot->output_section->vma
+		      + globals->root.sgot->output_offset);
 
 	  value = _bfd_aarch64_elf_resolve_relocation (bfd_r_type, place, value,
 						       addend, weak_undef_p);
@@ -5141,6 +5178,9 @@ elfNN_aarch64_final_link_relocate (reloc_howto_type *howto,
 	  break;
 	}
     }
+
+  resolved_to_zero = (h != NULL
+		      && UNDEFWEAK_NO_DYNAMIC_RELOC (info, h));
 
   switch (bfd_r_type)
     {
@@ -5156,12 +5196,26 @@ elfNN_aarch64_final_link_relocate (reloc_howto_type *howto,
       /* When generating a shared object or relocatable executable, these
          relocations are copied into the output file to be resolved at
          run time.  */
-      if (((bfd_link_pic (info) == TRUE)
-	   || globals->root.is_relocatable_executable)
-	  && (input_section->flags & SEC_ALLOC)
-	  && (h == NULL
-	      || ELF_ST_VISIBILITY (h->other) == STV_DEFAULT
-	      || h->root.type != bfd_link_hash_undefweak))
+      if (((bfd_link_pic (info)
+	    || globals->root.is_relocatable_executable)
+	   && (input_section->flags & SEC_ALLOC)
+	   && (h == NULL
+	       || (ELF_ST_VISIBILITY (h->other) == STV_DEFAULT
+		   && !resolved_to_zero)
+	       || h->root.type != bfd_link_hash_undefweak))
+	  /* Or we are creating an executable, we may need to keep relocations
+	     for symbols satisfied by a dynamic library if we manage to avoid
+	     copy relocs for the symbol.  */
+	  || (ELIMINATE_COPY_RELOCS
+	      && !bfd_link_pic (info)
+	      && h != NULL
+	      && (input_section->flags & SEC_ALLOC)
+	      && h->dynindx != -1
+	      && !h->non_got_ref
+	      && ((h->def_dynamic
+		   && !h->def_regular)
+		  || h->root.type == bfd_link_hash_undefweak
+		  || h->root.type == bfd_link_hash_undefined)))
 	{
 	  Elf_Internal_Rela outrel;
 	  bfd_byte *loc;
@@ -5303,19 +5357,19 @@ elfNN_aarch64_final_link_relocate (reloc_howto_type *howto,
       if (bfd_link_pic (info)
 	  && (input_section->flags & SEC_ALLOC) != 0
 	  && (input_section->flags & SEC_READONLY) != 0
-	  && h != NULL
-	  && !h->def_regular)
+	  && !SYMBOL_REFERENCES_LOCAL (info, h))
 	{
 	  int howto_index = bfd_r_type - BFD_RELOC_AARCH64_RELOC_START;
 
 	  _bfd_error_handler
 	    /* xgettext:c-format */
-	    (_("%B: relocation %s against external symbol `%s' can not be used"
-	       " when making a shared object; recompile with -fPIC"),
+	    (_("%B: relocation %s against symbol `%s' which may bind "
+	       "externally can not be used when making a shared object; "
+	       "recompile with -fPIC"),
 	     input_bfd, elfNN_aarch64_howto_table[howto_index].name,
 	     h->root.root.string);
 	  bfd_set_error (bfd_error_bad_value);
-	  return FALSE;
+	  return bfd_reloc_notsupported;
 	}
       /* Fall through.  */
 
@@ -5351,17 +5405,39 @@ elfNN_aarch64_final_link_relocate (reloc_howto_type *howto,
     case BFD_RELOC_AARCH64_LD32_GOT_LO12_NC:
     case BFD_RELOC_AARCH64_LD64_GOTPAGE_LO15:
     case BFD_RELOC_AARCH64_LD64_GOT_LO12_NC:
+    case BFD_RELOC_AARCH64_LD64_GOTOFF_LO15:
+    case BFD_RELOC_AARCH64_MOVW_GOTOFF_G0_NC:
+    case BFD_RELOC_AARCH64_MOVW_GOTOFF_G1:
       if (globals->root.sgot == NULL)
 	BFD_ASSERT (h != NULL);
 
+      relative_reloc = FALSE;
       if (h != NULL)
 	{
 	  bfd_vma addend = 0;
+
+	  /* If a symbol is not dynamic and is not undefined weak, bind it
+	     locally and generate a RELATIVE relocation under PIC mode.
+
+	     NOTE: one symbol may be referenced by several relocations, we
+	     should only generate one RELATIVE relocation for that symbol.
+	     Therefore, check GOT offset mark first.  */
+	  if (h->dynindx == -1
+	      && !h->forced_local
+	      && h->root.type != bfd_link_hash_undefweak
+	      && bfd_link_pic (info)
+	      && !symbol_got_offset_mark_p (input_bfd, h, r_symndx))
+	    relative_reloc = TRUE;
+
 	  value = aarch64_calculate_got_entry_vma (h, globals, info, value,
 						   output_bfd,
 						   unresolved_reloc_p);
-	  if (bfd_r_type == BFD_RELOC_AARCH64_LD64_GOTPAGE_LO15
-	      || bfd_r_type == BFD_RELOC_AARCH64_LD32_GOTPAGE_LO14)
+	  /* Record the GOT entry address which will be used when generating
+	     RELATIVE relocation.  */
+	  if (relative_reloc)
+	    got_entry_addr = value;
+
+	  if (aarch64_relocation_aginst_gp_p (bfd_r_type))
 	    addend = (globals->root.sgot->output_section->vma
 		      + globals->root.sgot->output_offset);
 	  value = _bfd_aarch64_elf_resolve_relocation (bfd_r_type, place, value,
@@ -5386,32 +5462,20 @@ elfNN_aarch64_final_link_relocate (reloc_howto_type *howto,
 
 	off = symbol_got_offset (input_bfd, h, r_symndx);
 	base_got = globals->root.sgot;
-	bfd_vma got_entry_addr = (base_got->output_section->vma
-				  + base_got->output_offset + off);
+	got_entry_addr = (base_got->output_section->vma
+			  + base_got->output_offset + off);
 
 	if (!symbol_got_offset_mark_p (input_bfd, h, r_symndx))
 	  {
 	    bfd_put_64 (output_bfd, value, base_got->contents + off);
 
+	    /* For local symbol, we have done absolute relocation in static
+	       linking stage.  While for shared library, we need to update the
+	       content of GOT entry according to the shared object's runtime
+	       base address.  So, we need to generate a R_AARCH64_RELATIVE reloc
+	       for dynamic linker.  */
 	    if (bfd_link_pic (info))
-	      {
-		asection *s;
-		Elf_Internal_Rela outrel;
-
-		/* For local symbol, we have done absolute relocation in static
-		   linking stageh. While for share library, we need to update
-		   the content of GOT entry according to the share objects
-		   loading base address. So we need to generate a
-		   R_AARCH64_RELATIVE reloc for dynamic linker.  */
-		s = globals->root.srelgot;
-		if (s == NULL)
-		  abort ();
-
-		outrel.r_offset = got_entry_addr;
-		outrel.r_info = ELFNN_R_INFO (0, AARCH64_R (RELATIVE));
-		outrel.r_addend = value;
-		elf_append_rela (output_bfd, s, &outrel);
-	      }
+	      relative_reloc = TRUE;
 
 	    symbol_got_offset_mark (input_bfd, h, r_symndx);
 	  }
@@ -5420,81 +5484,27 @@ elfNN_aarch64_final_link_relocate (reloc_howto_type *howto,
 	   the direct data access into indirect data access through GOT.  */
 	value = got_entry_addr;
 
-	if (bfd_r_type == BFD_RELOC_AARCH64_LD64_GOTPAGE_LO15
-	    || bfd_r_type == BFD_RELOC_AARCH64_LD32_GOTPAGE_LO14)
+	if (aarch64_relocation_aginst_gp_p (bfd_r_type))
 	  addend = base_got->output_section->vma + base_got->output_offset;
 
 	value = _bfd_aarch64_elf_resolve_relocation (bfd_r_type, place, value,
 						     addend, weak_undef_p);
       }
 
-      break;
-
-    case BFD_RELOC_AARCH64_LD64_GOTOFF_LO15:
-    case BFD_RELOC_AARCH64_MOVW_GOTOFF_G0_NC:
-    case BFD_RELOC_AARCH64_MOVW_GOTOFF_G1:
-      if (h != NULL)
-	  value = aarch64_calculate_got_entry_vma (h, globals, info, value,
-						   output_bfd,
-						   unresolved_reloc_p);
-      else
+      if (relative_reloc)
 	{
-	  struct elf_aarch64_local_symbol *locals
-	    = elf_aarch64_locals (input_bfd);
+	  asection *s;
+	  Elf_Internal_Rela outrel;
 
-	  if (locals == NULL)
-	    {
-	      int howto_index = bfd_r_type - BFD_RELOC_AARCH64_RELOC_START;
-	      _bfd_error_handler
-		/* xgettext:c-format */
-		(_("%B: Local symbol descriptor table be NULL when applying "
-		   "relocation %s against local symbol"),
-		 input_bfd, elfNN_aarch64_howto_table[howto_index].name);
-	      abort ();
-	    }
-
-	  off = symbol_got_offset (input_bfd, h, r_symndx);
-	  base_got = globals->root.sgot;
-	  if (base_got == NULL)
+	  s = globals->root.srelgot;
+	  if (s == NULL)
 	    abort ();
 
-	  bfd_vma got_entry_addr = (base_got->output_section->vma
-				    + base_got->output_offset + off);
-
-	  if (!symbol_got_offset_mark_p (input_bfd, h, r_symndx))
-	    {
-	      bfd_put_64 (output_bfd, value, base_got->contents + off);
-
-	      if (bfd_link_pic (info))
-		{
-		  asection *s;
-		  Elf_Internal_Rela outrel;
-
-		  /* For local symbol, we have done absolute relocation in static
-		     linking stage.  While for share library, we need to update
-		     the content of GOT entry according to the share objects
-		     loading base address.  So we need to generate a
-		     R_AARCH64_RELATIVE reloc for dynamic linker.  */
-		  s = globals->root.srelgot;
-		  if (s == NULL)
-		    abort ();
-
-		  outrel.r_offset = got_entry_addr;
-		  outrel.r_info = ELFNN_R_INFO (0, AARCH64_R (RELATIVE));
-		  outrel.r_addend = value;
-		  elf_append_rela (output_bfd, s, &outrel);
-		}
-
-	      symbol_got_offset_mark (input_bfd, h, r_symndx);
-	    }
+	  outrel.r_offset = got_entry_addr;
+	  outrel.r_info = ELFNN_R_INFO (0, AARCH64_R (RELATIVE));
+	  outrel.r_addend = orig_value;
+	  elf_append_rela (output_bfd, s, &outrel);
 	}
-
-      /* Update the relocation value to GOT entry addr as we have transformed
-	 the direct data access into indirect data access through GOT.  */
-      value = symbol_got_offset (input_bfd, h, r_symndx);
-      value = _bfd_aarch64_elf_resolve_relocation (bfd_r_type, place, value,
-						   0, weak_undef_p);
-      *unresolved_reloc_p = FALSE;
       break;
 
     case BFD_RELOC_AARCH64_TLSGD_ADD_LO12_NC:
@@ -5567,11 +5577,11 @@ elfNN_aarch64_final_link_relocate (reloc_howto_type *howto,
       *unresolved_reloc_p = FALSE;
       break;
 
-    case BFD_RELOC_AARCH64_TLSDESC_ADD_LO12_NC:
+    case BFD_RELOC_AARCH64_TLSDESC_ADD_LO12:
     case BFD_RELOC_AARCH64_TLSDESC_ADR_PAGE21:
     case BFD_RELOC_AARCH64_TLSDESC_ADR_PREL21:
     case BFD_RELOC_AARCH64_TLSDESC_LD32_LO12_NC:
-    case BFD_RELOC_AARCH64_TLSDESC_LD64_LO12_NC:
+    case BFD_RELOC_AARCH64_TLSDESC_LD64_LO12:
     case BFD_RELOC_AARCH64_TLSDESC_LD_PREL19:
       if (globals->root.sgot == NULL)
 	return bfd_reloc_notsupported;
@@ -5618,6 +5628,35 @@ elfNN_aarch64_final_link_relocate (reloc_howto_type *howto,
 				      howto, value);
 }
 
+/* LP64 and ILP32 operates on x- and w-registers respectively.
+   Next definitions take into account the difference between
+   corresponding machine codes. R means x-register if the target
+   arch is LP64, and w-register if the target is ILP32.  */
+
+#if ARCH_SIZE == 64
+# define add_R0_R0	(0x91000000)
+# define add_R0_R0_R1	(0x8b000020)
+# define add_R0_R1	(0x91400020)
+# define ldr_R0		(0x58000000)
+# define ldr_R0_mask(i)	(i & 0xffffffe0)
+# define ldr_R0_x0	(0xf9400000)
+# define ldr_hw_R0	(0xf2a00000)
+# define movk_R0	(0xf2800000)
+# define movz_R0	(0xd2a00000)
+# define movz_hw_R0	(0xd2c00000)
+#else /*ARCH_SIZE == 32 */
+# define add_R0_R0	(0x11000000)
+# define add_R0_R0_R1	(0x0b000020)
+# define add_R0_R1	(0x11400020)
+# define ldr_R0		(0x18000000)
+# define ldr_R0_mask(i)	(i & 0xbfffffe0)
+# define ldr_R0_x0	(0xb9400000)
+# define ldr_hw_R0	(0x72a00000)
+# define movk_R0	(0x72800000)
+# define movz_R0	(0x52a00000)
+# define movz_hw_R0	(0x52c00000)
+#endif
+
 /* Handle TLS relaxations.  Relaxing is possible for symbols that use
    R_AARCH64_TLSDESC_ADR_{PAGE, LD64_LO12_NC, ADD_LO12_NC} during a static
    link.
@@ -5644,11 +5683,12 @@ elfNN_aarch64_tls_relax (struct elf_aarch64_link_hash_table *globals,
       if (is_local)
 	{
 	  /* GD->LE relaxation:
-	     adrp x0, :tlsgd:var     =>   movz x0, :tprel_g1:var
+	     adrp x0, :tlsgd:var     =>   movz R0, :tprel_g1:var
 	     or
-	     adrp x0, :tlsdesc:var   =>   movz x0, :tprel_g1:var
-	   */
-	  bfd_putl32 (0xd2a00000, contents + rel->r_offset);
+	     adrp x0, :tlsdesc:var   =>   movz R0, :tprel_g1:var
+
+	     Where R is x for LP64, and w for ILP32.  */
+	  bfd_putl32 (movz_R0, contents + rel->r_offset);
 	  return bfd_reloc_continue;
 	}
       else
@@ -5669,11 +5709,12 @@ elfNN_aarch64_tls_relax (struct elf_aarch64_link_hash_table *globals,
       if (is_local)
 	{
 	  /* Tiny TLSDESC->LE relaxation:
-	     ldr   x1, :tlsdesc:var      =>  movz  x0, #:tprel_g1:var
-	     adr   x0, :tlsdesc:var      =>  movk  x0, #:tprel_g0_nc:var
+	     ldr   x1, :tlsdesc:var      =>  movz  R0, #:tprel_g1:var
+	     adr   x0, :tlsdesc:var      =>  movk  R0, #:tprel_g0_nc:var
 	     .tlsdesccall var
 	     blr   x1                    =>  nop
-	   */
+
+	     Where R is x for LP64, and w for ILP32.  */
 	  BFD_ASSERT (ELFNN_R_TYPE (rel[1].r_info) == AARCH64_R (TLSDESC_ADR_PREL21));
 	  BFD_ASSERT (ELFNN_R_TYPE (rel[2].r_info) == AARCH64_R (TLSDESC_CALL));
 
@@ -5681,8 +5722,8 @@ elfNN_aarch64_tls_relax (struct elf_aarch64_link_hash_table *globals,
 					AARCH64_R (TLSLE_MOVW_TPREL_G0_NC));
 	  rel[2].r_info = ELFNN_R_INFO (STN_UNDEF, R_AARCH64_NONE);
 
-	  bfd_putl32 (0xd2a00000, contents + rel->r_offset);
-	  bfd_putl32 (0xf2800000, contents + rel->r_offset + 4);
+	  bfd_putl32 (movz_R0, contents + rel->r_offset);
+	  bfd_putl32 (movk_R0, contents + rel->r_offset + 4);
 	  bfd_putl32 (INSN_NOP, contents + rel->r_offset + 8);
 	  return bfd_reloc_continue;
 	}
@@ -5700,7 +5741,7 @@ elfNN_aarch64_tls_relax (struct elf_aarch64_link_hash_table *globals,
 	  rel[1].r_info = ELFNN_R_INFO (STN_UNDEF, R_AARCH64_NONE);
 	  rel[2].r_info = ELFNN_R_INFO (STN_UNDEF, R_AARCH64_NONE);
 
-	  bfd_putl32 (0x58000000, contents + rel->r_offset);
+	  bfd_putl32 (ldr_R0, contents + rel->r_offset);
 	  bfd_putl32 (INSN_NOP, contents + rel->r_offset + 4);
 	  bfd_putl32 (INSN_NOP, contents + rel->r_offset + 8);
 	  return bfd_reloc_continue;
@@ -5711,16 +5752,17 @@ elfNN_aarch64_tls_relax (struct elf_aarch64_link_hash_table *globals,
 	{
 	  /* Tiny GD->LE relaxation:
 	     adr x0, :tlsgd:var      =>   mrs  x1, tpidr_el0
-             bl   __tls_get_addr     =>   add  x0, x1, #:tprel_hi12:x, lsl #12
-             nop                     =>   add  x0, x0, #:tprel_lo12_nc:x
-	   */
+             bl   __tls_get_addr     =>   add  R0, R1, #:tprel_hi12:x, lsl #12
+             nop                     =>   add  R0, R0, #:tprel_lo12_nc:x
+
+	     Where R is x for LP64, and x for Ilp32.  */
 
 	  /* First kill the tls_get_addr reloc on the bl instruction.  */
 	  BFD_ASSERT (rel->r_offset + 4 == rel[1].r_offset);
 
 	  bfd_putl32 (0xd53bd041, contents + rel->r_offset + 0);
-	  bfd_putl32 (0x91400020, contents + rel->r_offset + 4);
-	  bfd_putl32 (0x91000000, contents + rel->r_offset + 8);
+	  bfd_putl32 (add_R0_R1, contents + rel->r_offset + 4);
+	  bfd_putl32 (add_R0_R0, contents + rel->r_offset + 8);
 
 	  rel[1].r_info = ELFNN_R_INFO (ELFNN_R_SYM (rel->r_info),
 					AARCH64_R (TLSLE_ADD_TPREL_LO12_NC));
@@ -5736,18 +5778,19 @@ elfNN_aarch64_tls_relax (struct elf_aarch64_link_hash_table *globals,
       else
 	{
 	  /* Tiny GD->IE relaxation:
-	     adr x0, :tlsgd:var	     =>   ldr  x0, :gottprel:var
+	     adr x0, :tlsgd:var	     =>   ldr  R0, :gottprel:var
 	     bl   __tls_get_addr     =>   mrs  x1, tpidr_el0
-	     nop                     =>   add  x0, x0, x1
-	   */
+	     nop                     =>   add  R0, R0, R1
+
+	     Where R is x for LP64, and w for Ilp32.  */
 
 	  /* First kill the tls_get_addr reloc on the bl instruction.  */
 	  BFD_ASSERT (rel->r_offset + 4 == rel[1].r_offset);
 	  rel[1].r_info = ELFNN_R_INFO (STN_UNDEF, R_AARCH64_NONE);
 
-	  bfd_putl32 (0x58000000, contents + rel->r_offset);
+	  bfd_putl32 (ldr_R0, contents + rel->r_offset);
 	  bfd_putl32 (0xd53bd041, contents + rel->r_offset + 4);
-	  bfd_putl32 (0x8b000020, contents + rel->r_offset + 8);
+	  bfd_putl32 (add_R0_R0_R1, contents + rel->r_offset + 8);
 	  return bfd_reloc_continue;
 	}
 
@@ -5770,11 +5813,11 @@ elfNN_aarch64_tls_relax (struct elf_aarch64_link_hash_table *globals,
 					AARCH64_R (TLSLE_MOVW_TPREL_G0_NC));
 	  rel[2].r_offset = rel->r_offset + 8;
 
-	  bfd_putl32 (0xd2c00000, contents + rel->r_offset + 0);
-	  bfd_putl32 (0xf2a00000, contents + rel->r_offset + 4);
-	  bfd_putl32 (0xf2800000, contents + rel->r_offset + 8);
+	  bfd_putl32 (movz_hw_R0, contents + rel->r_offset + 0);
+	  bfd_putl32 (ldr_hw_R0, contents + rel->r_offset + 4);
+	  bfd_putl32 (movk_R0, contents + rel->r_offset + 8);
 	  bfd_putl32 (0xd53bd041, contents + rel->r_offset + 12);
-	  bfd_putl32 (0x8b000020, contents + rel->r_offset + 16);
+	  bfd_putl32 (add_R0_R0_R1, contents + rel->r_offset + 16);
 	}
       else
 	{
@@ -5787,9 +5830,9 @@ elfNN_aarch64_tls_relax (struct elf_aarch64_link_hash_table *globals,
 	   */
 	  rel[2].r_info = ELFNN_R_INFO (STN_UNDEF, R_AARCH64_NONE);
 	  bfd_putl32 (0xd2a80000, contents + rel->r_offset + 0);
-	  bfd_putl32 (0x58000000, contents + rel->r_offset + 8);
+	  bfd_putl32 (ldr_R0, contents + rel->r_offset + 8);
 	  bfd_putl32 (0xd53bd041, contents + rel->r_offset + 12);
-	  bfd_putl32 (0x8b000020, contents + rel->r_offset + 16);
+	  bfd_putl32 (add_R0_R0_R1, contents + rel->r_offset + 16);
 	}
       return bfd_reloc_continue;
 
@@ -5805,18 +5848,19 @@ elfNN_aarch64_tls_relax (struct elf_aarch64_link_hash_table *globals,
 	{
 	  /* GD->LE relaxation:
 	     ldr xd, [x0, #:tlsdesc_lo12:var]   =>   movk x0, :tprel_g0_nc:var
-	   */
-	  bfd_putl32 (0xf2800000, contents + rel->r_offset);
+
+	     Where R is x for lp64 mode, and w for ILP32 mode.  */
+	  bfd_putl32 (movk_R0, contents + rel->r_offset);
 	  return bfd_reloc_continue;
 	}
       else
 	{
 	  /* GD->IE relaxation:
-	     ldr xd, [x0, #:tlsdesc_lo12:var] => ldr x0, [x0, #:gottprel_lo12:var]
-	   */
+	     ldr xd, [x0, #:tlsdesc_lo12:var] => ldr R0, [x0, #:gottprel_lo12:var]
+
+	     Where R is x for lp64 mode, and w for ILP32 mode.  */
 	  insn = bfd_getl32 (contents + rel->r_offset);
-	  insn &= 0xffffffe0;
-	  bfd_putl32 (insn, contents + rel->r_offset);
+	  bfd_putl32 (ldr_R0_mask (insn), contents + rel->r_offset);
 	  return bfd_reloc_continue;
 	}
 
@@ -5824,18 +5868,19 @@ elfNN_aarch64_tls_relax (struct elf_aarch64_link_hash_table *globals,
       if (is_local)
 	{
 	  /* GD->LE relaxation
-	     add  x0, #:tlsgd_lo12:var  => movk x0, :tprel_g0_nc:var
+	     add  x0, #:tlsgd_lo12:var  => movk R0, :tprel_g0_nc:var
 	     bl   __tls_get_addr        => mrs  x1, tpidr_el0
-	     nop                        => add  x0, x1, x0
-	   */
+	     nop                        => add  R0, R1, R0
+
+	     Where R is x for lp64 mode, and w for ILP32 mode.  */
 
 	  /* First kill the tls_get_addr reloc on the bl instruction.  */
 	  BFD_ASSERT (rel->r_offset + 4 == rel[1].r_offset);
 	  rel[1].r_info = ELFNN_R_INFO (STN_UNDEF, R_AARCH64_NONE);
 
-	  bfd_putl32 (0xf2800000, contents + rel->r_offset);
+	  bfd_putl32 (movk_R0, contents + rel->r_offset);
 	  bfd_putl32 (0xd53bd041, contents + rel->r_offset + 4);
-	  bfd_putl32 (0x8b000020, contents + rel->r_offset + 8);
+	  bfd_putl32 (add_R0_R0_R1, contents + rel->r_offset + 8);
 	  return bfd_reloc_continue;
 	}
       else
@@ -5856,19 +5901,14 @@ elfNN_aarch64_tls_relax (struct elf_aarch64_link_hash_table *globals,
 	  /* We choose to fixup the BL and NOP instructions using the
 	     offset from the second relocation to allow flexibility in
 	     scheduling instructions between the ADD and BL.  */
-#if ARCH_SIZE == 32
-	  bfd_putl32 (0xb9400000, contents + rel->r_offset);
-	  bfd_putl32 (0x0b000020, contents + rel[1].r_offset + 4);
-#else
-	  bfd_putl32 (0xf9400000, contents + rel->r_offset);
-	  bfd_putl32 (0x8b000020, contents + rel[1].r_offset + 4);
-#endif
+	  bfd_putl32 (ldr_R0_x0, contents + rel->r_offset);
 	  bfd_putl32 (0xd53bd041, contents + rel[1].r_offset);
+	  bfd_putl32 (add_R0_R0_R1, contents + rel[1].r_offset + 4);
 	  return bfd_reloc_continue;
 	}
 
     case BFD_RELOC_AARCH64_TLSDESC_ADD:
-    case BFD_RELOC_AARCH64_TLSDESC_ADD_LO12_NC:
+    case BFD_RELOC_AARCH64_TLSDESC_ADD_LO12:
     case BFD_RELOC_AARCH64_TLSDESC_CALL:
       /* GD->IE/LE relaxation:
          add x0, x0, #:tlsdesc_lo12:var   =>   nop
@@ -5881,70 +5921,76 @@ elfNN_aarch64_tls_relax (struct elf_aarch64_link_hash_table *globals,
       if (is_local)
 	{
 	  /* GD->LE relaxation:
-	     ldr xd, [gp, xn]   =>   movk x0, #:tprel_g0_nc:var
-	   */
-	  bfd_putl32 (0xf2800000, contents + rel->r_offset);
+	     ldr xd, [gp, xn]   =>   movk R0, #:tprel_g0_nc:var
+
+	     Where R is x for lp64 mode, and w for ILP32 mode.  */
+	  bfd_putl32 (movk_R0, contents + rel->r_offset);
 	  return bfd_reloc_continue;
 	}
       else
 	{
 	  /* GD->IE relaxation:
-	     ldr xd, [gp, xn]   =>   ldr x0, [gp, xn]
-	   */
+	     ldr xd, [gp, xn]   =>   ldr R0, [gp, xn]
+
+	     Where R is x for lp64 mode, and w for ILP32 mode.  */
 	  insn = bfd_getl32 (contents + rel->r_offset);
-	  insn &= 0xffffffe0;
-	  bfd_putl32 (insn, contents + rel->r_offset);
+	  bfd_putl32 (ldr_R0_mask (insn), contents + rel->r_offset);
 	  return bfd_reloc_ok;
 	}
 
     case BFD_RELOC_AARCH64_TLSDESC_OFF_G0_NC:
       /* GD->LE relaxation:
-	 movk xd, #:tlsdesc_off_g0_nc:var => movk x0, #:tprel_g1_nc:var, lsl #16
+	 movk xd, #:tlsdesc_off_g0_nc:var => movk R0, #:tprel_g1_nc:var, lsl #16
 	 GD->IE relaxation:
-	 movk xd, #:tlsdesc_off_g0_nc:var => movk xd, #:gottprel_g0_nc:var
-      */
+	 movk xd, #:tlsdesc_off_g0_nc:var => movk Rd, #:gottprel_g0_nc:var
+
+	 Where R is x for lp64 mode, and w for ILP32 mode.  */
       if (is_local)
-	bfd_putl32 (0xf2a00000, contents + rel->r_offset);
+	bfd_putl32 (ldr_hw_R0, contents + rel->r_offset);
       return bfd_reloc_continue;
 
     case BFD_RELOC_AARCH64_TLSDESC_OFF_G1:
       if (is_local)
 	{
 	  /* GD->LE relaxation:
-	     movz xd, #:tlsdesc_off_g1:var => movz x0, #:tprel_g2:var, lsl #32
-	  */
-	  bfd_putl32 (0xd2c00000, contents + rel->r_offset);
+	     movz xd, #:tlsdesc_off_g1:var => movz R0, #:tprel_g2:var, lsl #32
+
+	     Where R is x for lp64 mode, and w for ILP32 mode.  */
+	  bfd_putl32 (movz_hw_R0, contents + rel->r_offset);
 	  return bfd_reloc_continue;
 	}
       else
 	{
 	  /*  GD->IE relaxation:
-	      movz xd, #:tlsdesc_off_g1:var => movz xd, #:gottprel_g1:var, lsl #16
-	  */
+	      movz xd, #:tlsdesc_off_g1:var => movz Rd, #:gottprel_g1:var, lsl #16
+
+	     Where R is x for lp64 mode, and w for ILP32 mode.  */
 	  insn = bfd_getl32 (contents + rel->r_offset);
-	  bfd_putl32 (0xd2a00000 | (insn & 0x1f), contents + rel->r_offset);
+	  bfd_putl32 (movz_R0 | (insn & 0x1f), contents + rel->r_offset);
 	  return bfd_reloc_continue;
 	}
 
     case BFD_RELOC_AARCH64_TLSIE_ADR_GOTTPREL_PAGE21:
       /* IE->LE relaxation:
-         adrp xd, :gottprel:var   =>   movz xd, :tprel_g1:var
-       */
+         adrp xd, :gottprel:var   =>   movz Rd, :tprel_g1:var
+
+	 Where R is x for lp64 mode, and w for ILP32 mode.  */
       if (is_local)
 	{
 	  insn = bfd_getl32 (contents + rel->r_offset);
-	  bfd_putl32 (0xd2a00000 | (insn & 0x1f), contents + rel->r_offset);
+	  bfd_putl32 (movz_R0 | (insn & 0x1f), contents + rel->r_offset);
 	}
       return bfd_reloc_continue;
 
     case BFD_RELOC_AARCH64_TLSIE_LDNN_GOTTPREL_LO12_NC:
       /* IE->LE relaxation:
-         ldr  xd, [xm, #:gottprel_lo12:var]   =>   movk xd, :tprel_g0_nc:var
-       */
+         ldr  xd, [xm, #:gottprel_lo12:var]   =>   movk Rd, :tprel_g0_nc:var
+
+	 Where R is x for lp64 mode, and w for ILP32 mode.  */
       if (is_local)
 	{
 	  insn = bfd_getl32 (contents + rel->r_offset);
-	  bfd_putl32 (0xf2800000 | (insn & 0x1f), contents + rel->r_offset);
+	  bfd_putl32 (movk_R0 | (insn & 0x1f), contents + rel->r_offset);
 	}
       return bfd_reloc_continue;
 
@@ -5961,11 +6007,8 @@ elfNN_aarch64_tls_relax (struct elf_aarch64_link_hash_table *globals,
 	  /* No need of CALL26 relocation for tls_get_addr.  */
 	  rel[1].r_info = ELFNN_R_INFO (STN_UNDEF, R_AARCH64_NONE);
 	  bfd_putl32 (0xd53bd040, contents + rel->r_offset + 0);
-#if ARCH_SIZE == 64
-	  bfd_putl32 (0x91004000, contents + rel->r_offset + 4);
-#else
-	  bfd_putl32 (0x11002000, contents + rel->r_offset + 4);
-#endif
+	  bfd_putl32 (add_R0_R0 | (TCB_SIZE << 10),
+		      contents + rel->r_offset + 4);
 	  return bfd_reloc_ok;
 	}
       return bfd_reloc_continue;
@@ -5993,11 +6036,8 @@ elfNN_aarch64_tls_relax (struct elf_aarch64_link_hash_table *globals,
 	  BFD_ASSERT (ELFNN_R_TYPE (rel[1].r_info) == AARCH64_R (CALL26));
 	  /* No need of CALL26 relocation for tls_get_addr.  */
 	  rel[1].r_info = ELFNN_R_INFO (STN_UNDEF, R_AARCH64_NONE);
-#if ARCH_SIZE == 64
-	  bfd_putl32 (0x91004000, contents + rel->r_offset + 0);
-#else
-	  bfd_putl32 (0x11002000, contents + rel->r_offset + 0);
-#endif
+	  bfd_putl32 (add_R0_R0 | (TCB_SIZE << 10),
+		      contents + rel->r_offset + 0);
 	  bfd_putl32 (INSN_NOP, contents + rel->r_offset + 4);
 	  return bfd_reloc_ok;
 	}
@@ -6058,17 +6098,11 @@ elfNN_aarch64_relocate_section (bfd *output_bfd,
       r_symndx = ELFNN_R_SYM (rel->r_info);
       r_type = ELFNN_R_TYPE (rel->r_info);
 
-      bfd_reloc.howto = elfNN_aarch64_howto_from_type (r_type);
-      howto = bfd_reloc.howto;
+      howto = bfd_reloc.howto = elfNN_aarch64_howto_from_type (r_type);
 
       if (howto == NULL)
-	{
-	  /* xgettext:c-format */
-	  _bfd_error_handler
-	    (_("%B: unrecognized relocation (0x%x) in section `%A'"),
-	     input_bfd, input_section, r_type);
-	  return FALSE;
-	}
+	return _bfd_unrecognized_reloc (input_bfd, input_section, r_type);
+
       bfd_r_type = elfNN_aarch64_bfd_reloc_from_howto (howto);
 
       h = NULL;
@@ -6148,11 +6182,11 @@ elfNN_aarch64_relocate_section (bfd *output_bfd,
 	  _bfd_error_handler
 	    ((sym_type == STT_TLS
 	      /* xgettext:c-format */
-	      ? _("%B(%A+0x%lx): %s used with TLS symbol %s")
+	      ? _("%B(%A+%#Lx): %s used with TLS symbol %s")
 	      /* xgettext:c-format */
-	      : _("%B(%A+0x%lx): %s used with non-TLS symbol %s")),
+	      : _("%B(%A+%#Lx): %s used with non-TLS symbol %s")),
 	     input_bfd,
-	     input_section, (long) rel->r_offset, howto->name, name);
+	     input_section, rel->r_offset, howto->name, name);
 	}
 
       /* We relax only if we can see that there can be a valid transition
@@ -6345,7 +6379,7 @@ elfNN_aarch64_relocate_section (bfd *output_bfd,
 	    }
 	  break;
 
-	case BFD_RELOC_AARCH64_TLSDESC_ADD_LO12_NC:
+	case BFD_RELOC_AARCH64_TLSDESC_ADD_LO12:
 	case BFD_RELOC_AARCH64_TLSDESC_ADR_PAGE21:
 	case BFD_RELOC_AARCH64_TLSDESC_ADR_PREL21:
 	case BFD_RELOC_AARCH64_TLSDESC_LDNN_LO12_NC:
@@ -6420,8 +6454,8 @@ elfNN_aarch64_relocate_section (bfd *output_bfd,
 	{
 	  _bfd_error_handler
 	    /* xgettext:c-format */
-	    (_("%B(%A+0x%lx): unresolvable %s relocation against symbol `%s'"),
-	     input_bfd, input_section, (long) rel->r_offset, howto->name,
+	    (_("%B(%A+%#Lx): unresolvable %s relocation against symbol `%s'"),
+	     input_bfd, input_section, rel->r_offset, howto->name,
 	     h->root.root.string);
 	  return FALSE;
 	}
@@ -6659,171 +6693,29 @@ elfNN_aarch64_print_private_bfd_data (bfd *abfd, void *ptr)
   return TRUE;
 }
 
-/* Update the got entry reference counts for the section being removed.  */
+/* Return true if we need copy relocation against EH.  */
 
 static bfd_boolean
-elfNN_aarch64_gc_sweep_hook (bfd *abfd,
-			     struct bfd_link_info *info,
-			     asection *sec,
-			     const Elf_Internal_Rela * relocs)
+need_copy_relocation_p (struct elf_aarch64_link_hash_entry *eh)
 {
-  struct elf_aarch64_link_hash_table *htab;
-  Elf_Internal_Shdr *symtab_hdr;
-  struct elf_link_hash_entry **sym_hashes;
-  struct elf_aarch64_local_symbol *locals;
-  const Elf_Internal_Rela *rel, *relend;
+  struct elf_dyn_relocs *p;
+  asection *s;
 
-  if (bfd_link_relocatable (info))
-    return TRUE;
-
-  htab = elf_aarch64_hash_table (info);
-
-  if (htab == NULL)
-    return FALSE;
-
-  elf_section_data (sec)->local_dynrel = NULL;
-
-  symtab_hdr = &elf_symtab_hdr (abfd);
-  sym_hashes = elf_sym_hashes (abfd);
-
-  locals = elf_aarch64_locals (abfd);
-
-  relend = relocs + sec->reloc_count;
-  for (rel = relocs; rel < relend; rel++)
+  for (p = eh->dyn_relocs; p != NULL; p = p->next)
     {
-      unsigned long r_symndx;
-      unsigned int r_type;
-      struct elf_link_hash_entry *h = NULL;
+      /* If there is any pc-relative reference, we need to keep copy relocation
+	 to avoid propagating the relocation into runtime that current glibc
+	 does not support.  */
+      if (p->pc_count)
+	return TRUE;
 
-      r_symndx = ELFNN_R_SYM (rel->r_info);
-
-      if (r_symndx >= symtab_hdr->sh_info)
-	{
-
-	  h = sym_hashes[r_symndx - symtab_hdr->sh_info];
-	  while (h->root.type == bfd_link_hash_indirect
-		 || h->root.type == bfd_link_hash_warning)
-	    h = (struct elf_link_hash_entry *) h->root.u.i.link;
-        }
-      else
-	{
-	  Elf_Internal_Sym *isym;
-
-	  /* A local symbol.  */
-	  isym = bfd_sym_from_r_symndx (&htab->sym_cache,
-					abfd, r_symndx);
-
-	  /* Check relocation against local STT_GNU_IFUNC symbol.  */
-	  if (isym != NULL
-	      && ELF_ST_TYPE (isym->st_info) == STT_GNU_IFUNC)
-	    {
-	      h = elfNN_aarch64_get_local_sym_hash (htab, abfd, rel, FALSE);
-	      if (h == NULL)
-		abort ();
-	    }
-	}
-
-      if (h)
-	{
-	  struct elf_aarch64_link_hash_entry *eh;
-	  struct elf_dyn_relocs **pp;
-	  struct elf_dyn_relocs *p;
-
-	  eh = (struct elf_aarch64_link_hash_entry *) h;
-
-	  for (pp = &eh->dyn_relocs; (p = *pp) != NULL; pp = &p->next)
-	    if (p->sec == sec)
-	      {
-		/* Everything must go for SEC.  */
-		*pp = p->next;
-		break;
-	      }
-	}
-
-      r_type = ELFNN_R_TYPE (rel->r_info);
-      switch (aarch64_tls_transition (abfd,info, r_type, h ,r_symndx))
-	{
-	case BFD_RELOC_AARCH64_ADR_GOT_PAGE:
-	case BFD_RELOC_AARCH64_GOT_LD_PREL19:
-	case BFD_RELOC_AARCH64_LD32_GOTPAGE_LO14:
-	case BFD_RELOC_AARCH64_LD32_GOT_LO12_NC:
-	case BFD_RELOC_AARCH64_LD64_GOTOFF_LO15:
-	case BFD_RELOC_AARCH64_LD64_GOTPAGE_LO15:
-	case BFD_RELOC_AARCH64_LD64_GOT_LO12_NC:
-	case BFD_RELOC_AARCH64_MOVW_GOTOFF_G0_NC:
-	case BFD_RELOC_AARCH64_MOVW_GOTOFF_G1:
-	case BFD_RELOC_AARCH64_TLSDESC_ADD_LO12_NC:
-	case BFD_RELOC_AARCH64_TLSDESC_ADR_PAGE21:
-	case BFD_RELOC_AARCH64_TLSDESC_ADR_PREL21:
-	case BFD_RELOC_AARCH64_TLSDESC_LD32_LO12_NC:
-	case BFD_RELOC_AARCH64_TLSDESC_LD64_LO12_NC:
-	case BFD_RELOC_AARCH64_TLSDESC_LD_PREL19:
-	case BFD_RELOC_AARCH64_TLSDESC_OFF_G0_NC:
-	case BFD_RELOC_AARCH64_TLSDESC_OFF_G1:
-	case BFD_RELOC_AARCH64_TLSGD_ADD_LO12_NC:
-	case BFD_RELOC_AARCH64_TLSGD_ADR_PAGE21:
-	case BFD_RELOC_AARCH64_TLSGD_ADR_PREL21:
-	case BFD_RELOC_AARCH64_TLSGD_MOVW_G0_NC:
-	case BFD_RELOC_AARCH64_TLSGD_MOVW_G1:
-	case BFD_RELOC_AARCH64_TLSIE_ADR_GOTTPREL_PAGE21:
-	case BFD_RELOC_AARCH64_TLSIE_LD32_GOTTPREL_LO12_NC:
-	case BFD_RELOC_AARCH64_TLSIE_LD64_GOTTPREL_LO12_NC:
-	case BFD_RELOC_AARCH64_TLSIE_LD_GOTTPREL_PREL19:
-	case BFD_RELOC_AARCH64_TLSIE_MOVW_GOTTPREL_G0_NC:
-	case BFD_RELOC_AARCH64_TLSIE_MOVW_GOTTPREL_G1:
-	case BFD_RELOC_AARCH64_TLSLD_ADD_LO12_NC:
-	case BFD_RELOC_AARCH64_TLSLD_ADR_PAGE21:
-	case BFD_RELOC_AARCH64_TLSLD_ADR_PREL21:
-	  if (h != NULL)
-	    {
-	      if (h->got.refcount > 0)
-		h->got.refcount -= 1;
-
-	      if (h->type == STT_GNU_IFUNC)
-		{
-		  if (h->plt.refcount > 0)
-		    h->plt.refcount -= 1;
-		}
-	    }
-	  else if (locals != NULL)
-	    {
-	      if (locals[r_symndx].got_refcount > 0)
-		locals[r_symndx].got_refcount -= 1;
-	    }
-	  break;
-
-	case BFD_RELOC_AARCH64_CALL26:
-	case BFD_RELOC_AARCH64_JUMP26:
-	  /* If this is a local symbol then we resolve it
-	     directly without creating a PLT entry.  */
-	  if (h == NULL)
-	    continue;
-
-	  if (h->plt.refcount > 0)
-	    h->plt.refcount -= 1;
-	  break;
-
-	case BFD_RELOC_AARCH64_ADR_HI21_NC_PCREL:
-	case BFD_RELOC_AARCH64_ADR_HI21_PCREL:
-	case BFD_RELOC_AARCH64_ADR_LO21_PCREL:
-	case BFD_RELOC_AARCH64_MOVW_G0_NC:
-	case BFD_RELOC_AARCH64_MOVW_G1_NC:
-	case BFD_RELOC_AARCH64_MOVW_G2_NC:
-	case BFD_RELOC_AARCH64_MOVW_G3:
-	case BFD_RELOC_AARCH64_NN:
-	  if (h != NULL && bfd_link_executable (info))
-	    {
-	      if (h->plt.refcount > 0)
-		h->plt.refcount -= 1;
-	    }
-	  break;
-
-	default:
-	  break;
-	}
+      s = p->sec->output_section;
+      /* Need copy relocation if it's against read-only section.  */
+      if (s != NULL && (s->flags & SEC_READONLY) != 0)
+	return TRUE;
     }
 
-  return TRUE;
+  return FALSE;
 }
 
 /* Adjust a symbol defined by a dynamic object and referenced by a
@@ -6837,7 +6729,7 @@ elfNN_aarch64_adjust_dynamic_symbol (struct bfd_link_info *info,
 				     struct elf_link_hash_entry *h)
 {
   struct elf_aarch64_link_hash_table *htab;
-  asection *s;
+  asection *s, *srel;
 
   /* If this is a function, put it in the procedure linkage table.  We
      will fill in the contents of the procedure linkage table later,
@@ -6899,6 +6791,19 @@ elfNN_aarch64_adjust_dynamic_symbol (struct bfd_link_info *info,
       return TRUE;
     }
 
+  if (ELIMINATE_COPY_RELOCS)
+    {
+      struct elf_aarch64_link_hash_entry *eh;
+      /* If we didn't find any dynamic relocs in read-only sections, then
+	 we'll be keeping the dynamic relocs and avoiding the copy reloc.  */
+      eh = (struct elf_aarch64_link_hash_entry *) h;
+      if (!need_copy_relocation_p (eh))
+	{
+	  h->non_got_ref = 0;
+	  return TRUE;
+	}
+    }
+
   /* We must allocate the symbol in our .dynbss section, which will
      become part of the .bss section of the executable.  There will be
      an entry for this symbol in the .dynsym section.  The dynamic
@@ -6914,13 +6819,21 @@ elfNN_aarch64_adjust_dynamic_symbol (struct bfd_link_info *info,
   /* We must generate a R_AARCH64_COPY reloc to tell the dynamic linker
      to copy the initial value out of the dynamic object and into the
      runtime process image.  */
+  if ((h->root.u.def.section->flags & SEC_READONLY) != 0)
+    {
+      s = htab->root.sdynrelro;
+      srel = htab->root.sreldynrelro;
+    }
+  else
+    {
+      s = htab->root.sdynbss;
+      srel = htab->root.srelbss;
+    }
   if ((h->root.u.def.section->flags & SEC_ALLOC) != 0 && h->size != 0)
     {
-      htab->srelbss->size += RELOC_SIZE (htab);
+      srel->size += RELOC_SIZE (htab);
       h->needs_copy = 1;
     }
-
-  s = htab->sdynbss;
 
   return _bfd_elf_adjust_dynamic_copy (info, h, s);
 
@@ -7034,7 +6947,7 @@ elfNN_aarch64_check_relocs (bfd *abfd, struct bfd_link_info *info,
   for (rel = relocs; rel < rel_end; rel++)
     {
       struct elf_link_hash_entry *h;
-      unsigned long r_symndx;
+      unsigned int r_symndx;
       unsigned int r_type;
       bfd_reloc_code_real_type bfd_r_type;
       Elf_Internal_Sym *isym;
@@ -7084,7 +6997,7 @@ elfNN_aarch64_check_relocs (bfd *abfd, struct bfd_link_info *info,
 
 	  /* PR15323, ref flags aren't set for references in the same
 	     object.  */
-	  h->root.non_ir_ref = 1;
+	  h->root.non_ir_ref_regular = 1;
 	}
 
       /* Could be done earlier, if h were already available.  */
@@ -7138,13 +7051,48 @@ elfNN_aarch64_check_relocs (bfd *abfd, struct bfd_link_info *info,
 	      break;
 	    }
 
-	  /* It is referenced by a non-shared object. */
+	  /* It is referenced by a non-shared object.  */
 	  h->ref_regular = 1;
-	  h->root.non_ir_ref = 1;
+	  h->root.non_ir_ref_regular = 1;
 	}
 
       switch (bfd_r_type)
 	{
+	case BFD_RELOC_AARCH64_MOVW_G0_NC:
+	case BFD_RELOC_AARCH64_MOVW_G1_NC:
+	case BFD_RELOC_AARCH64_MOVW_G2_NC:
+	case BFD_RELOC_AARCH64_MOVW_G3:
+	  if (bfd_link_pic (info))
+	    {
+	      int howto_index = bfd_r_type - BFD_RELOC_AARCH64_RELOC_START;
+	      _bfd_error_handler
+		/* xgettext:c-format */
+		(_("%B: relocation %s against `%s' can not be used when making "
+		   "a shared object; recompile with -fPIC"),
+		 abfd, elfNN_aarch64_howto_table[howto_index].name,
+		 (h) ? h->root.root.string : "a local symbol");
+	      bfd_set_error (bfd_error_bad_value);
+	      return FALSE;
+	    }
+	  /* Fall through.  */
+
+	case BFD_RELOC_AARCH64_16_PCREL:
+	case BFD_RELOC_AARCH64_32_PCREL:
+	case BFD_RELOC_AARCH64_64_PCREL:
+	case BFD_RELOC_AARCH64_ADD_LO12:
+	case BFD_RELOC_AARCH64_ADR_HI21_NC_PCREL:
+	case BFD_RELOC_AARCH64_ADR_HI21_PCREL:
+	case BFD_RELOC_AARCH64_ADR_LO21_PCREL:
+	case BFD_RELOC_AARCH64_LDST128_LO12:
+	case BFD_RELOC_AARCH64_LDST16_LO12:
+	case BFD_RELOC_AARCH64_LDST32_LO12:
+	case BFD_RELOC_AARCH64_LDST64_LO12:
+	case BFD_RELOC_AARCH64_LDST8_LO12:
+	case BFD_RELOC_AARCH64_LD_LO19_PCREL:
+	  if (h == NULL || bfd_link_pic (info))
+	    break;
+	  /* Fall through.  */
+
 	case BFD_RELOC_AARCH64_NN:
 
 	  /* We don't need to handle relocs into sections not going into
@@ -7163,12 +7111,32 @@ elfNN_aarch64_check_relocs (bfd *abfd, struct bfd_link_info *info,
 
 	  /* No need to do anything if we're not creating a shared
 	     object.  */
-	  if (! bfd_link_pic (info))
+	  if (!(bfd_link_pic (info)
+		/* If on the other hand, we are creating an executable, we
+		   may need to keep relocations for symbols satisfied by a
+		   dynamic library if we manage to avoid copy relocs for the
+		   symbol.
+
+		   NOTE: Currently, there is no support of copy relocs
+		   elimination on pc-relative relocation types, because there is
+		   no dynamic relocation support for them in glibc.  We still
+		   record the dynamic symbol reference for them.  This is
+		   because one symbol may be referenced by both absolute
+		   relocation (for example, BFD_RELOC_AARCH64_NN) and
+		   pc-relative relocation.  We need full symbol reference
+		   information to make correct decision later in
+		   elfNN_aarch64_adjust_dynamic_symbol.  */
+		|| (ELIMINATE_COPY_RELOCS
+		    && !bfd_link_pic (info)
+		    && h != NULL
+		    && (h->root.type == bfd_link_hash_defweak
+			|| !h->def_regular))))
 	    break;
 
 	  {
 	    struct elf_dyn_relocs *p;
 	    struct elf_dyn_relocs **head;
+	    int howto_index = bfd_r_type - BFD_RELOC_AARCH64_RELOC_START;
 
 	    /* We must copy these reloc types into the output file.
 	       Create a reloc section in dynobj and make room for
@@ -7232,6 +7200,8 @@ elfNN_aarch64_check_relocs (bfd *abfd, struct bfd_link_info *info,
 
 	    p->count += 1;
 
+	    if (elfNN_aarch64_howto_table[howto_index].pc_relative)
+	      p->pc_count += 1;
 	  }
 	  break;
 
@@ -7246,11 +7216,11 @@ elfNN_aarch64_check_relocs (bfd *abfd, struct bfd_link_info *info,
 	case BFD_RELOC_AARCH64_LD64_GOT_LO12_NC:
 	case BFD_RELOC_AARCH64_MOVW_GOTOFF_G0_NC:
 	case BFD_RELOC_AARCH64_MOVW_GOTOFF_G1:
-	case BFD_RELOC_AARCH64_TLSDESC_ADD_LO12_NC:
+	case BFD_RELOC_AARCH64_TLSDESC_ADD_LO12:
 	case BFD_RELOC_AARCH64_TLSDESC_ADR_PAGE21:
 	case BFD_RELOC_AARCH64_TLSDESC_ADR_PREL21:
 	case BFD_RELOC_AARCH64_TLSDESC_LD32_LO12_NC:
-	case BFD_RELOC_AARCH64_TLSDESC_LD64_LO12_NC:
+	case BFD_RELOC_AARCH64_TLSDESC_LD64_LO12:
 	case BFD_RELOC_AARCH64_TLSDESC_LD_PREL19:
 	case BFD_RELOC_AARCH64_TLSDESC_OFF_G0_NC:
 	case BFD_RELOC_AARCH64_TLSDESC_OFF_G1:
@@ -7334,44 +7304,6 @@ elfNN_aarch64_check_relocs (bfd *abfd, struct bfd_link_info *info,
 	      return FALSE;
 	    break;
 	  }
-
-	case BFD_RELOC_AARCH64_MOVW_G0_NC:
-	case BFD_RELOC_AARCH64_MOVW_G1_NC:
-	case BFD_RELOC_AARCH64_MOVW_G2_NC:
-	case BFD_RELOC_AARCH64_MOVW_G3:
-	  if (bfd_link_pic (info))
-	    {
-	      int howto_index = bfd_r_type - BFD_RELOC_AARCH64_RELOC_START;
-	      _bfd_error_handler
-		/* xgettext:c-format */
-		(_("%B: relocation %s against `%s' can not be used when making "
-		   "a shared object; recompile with -fPIC"),
-		 abfd, elfNN_aarch64_howto_table[howto_index].name,
-		 (h) ? h->root.root.string : "a local symbol");
-	      bfd_set_error (bfd_error_bad_value);
-	      return FALSE;
-	    }
-	  /* Fall through.  */
-
-	case BFD_RELOC_AARCH64_ADR_HI21_NC_PCREL:
-	case BFD_RELOC_AARCH64_ADR_HI21_PCREL:
-	case BFD_RELOC_AARCH64_ADR_LO21_PCREL:
-	  if (h != NULL && bfd_link_executable (info))
-	    {
-	      /* If this reloc is in a read-only section, we might
-		 need a copy reloc.  We can't check reliably at this
-		 stage whether the section is read-only, as input
-		 sections have not yet been mapped to output sections.
-		 Tentatively set the flag for now, and correct in
-		 adjust_dynamic_symbol.  */
-	      h->non_got_ref = 1;
-	      h->plt.refcount += 1;
-	      h->pointer_equality_needed = 1;
-	    }
-	  /* FIXME:: RR need to handle these in shared libraries
-	     and essentially bomb out as these being non-PIC
-	     relocations in shared libraries.  */
-	  break;
 
 	case BFD_RELOC_AARCH64_CALL26:
 	case BFD_RELOC_AARCH64_JUMP26:
@@ -7548,8 +7480,39 @@ elfNN_aarch64_reloc_type_class (const struct bfd_link_info *info ATTRIBUTE_UNUSE
 				const asection *rel_sec ATTRIBUTE_UNUSED,
 				const Elf_Internal_Rela *rela)
 {
+  struct elf_aarch64_link_hash_table *htab = elf_aarch64_hash_table (info);
+
+  if (htab->root.dynsym != NULL
+      && htab->root.dynsym->contents != NULL)
+    {
+      /* Check relocation against STT_GNU_IFUNC symbol if there are
+	 dynamic symbols.  */
+      bfd *abfd = info->output_bfd;
+      const struct elf_backend_data *bed = get_elf_backend_data (abfd);
+      unsigned long r_symndx = ELFNN_R_SYM (rela->r_info);
+      if (r_symndx != STN_UNDEF)
+	{
+	  Elf_Internal_Sym sym;
+	  if (!bed->s->swap_symbol_in (abfd,
+				       (htab->root.dynsym->contents
+					+ r_symndx * bed->s->sizeof_sym),
+				       0, &sym))
+	    {
+	      /* xgettext:c-format */
+	      _bfd_error_handler (_("%B symbol number %lu references"
+				    " nonexistent SHT_SYMTAB_SHNDX section"),
+				    abfd, r_symndx);
+	      /* Ideally an error class should be returned here.  */
+	    }
+	  else if (ELF_ST_TYPE (sym.st_info) == STT_GNU_IFUNC)
+	    return reloc_class_ifunc;
+	}
+    }
+
   switch ((int) ELFNN_R_TYPE (rela->r_info))
     {
+    case AARCH64_R (IRELATIVE):
+      return reloc_class_ifunc;
     case AARCH64_R (RELATIVE):
       return reloc_class_relative;
     case AARCH64_R (JUMP_SLOT):
@@ -7914,24 +7877,11 @@ static bfd_boolean
 elfNN_aarch64_create_dynamic_sections (bfd *dynobj,
 				       struct bfd_link_info *info)
 {
-  struct elf_aarch64_link_hash_table *htab;
-
   /* We need to create .got section.  */
   if (!aarch64_elf_create_got_section (dynobj, info))
     return FALSE;
 
-  if (!_bfd_elf_create_dynamic_sections (dynobj, info))
-    return FALSE;
-
-  htab = elf_aarch64_hash_table (info);
-  htab->sdynbss = bfd_get_linker_section (dynobj, ".dynbss");
-  if (!bfd_link_pic (info))
-    htab->srelbss = bfd_get_linker_section (dynobj, ".rela.bss");
-
-  if (!htab->sdynbss || (!bfd_link_pic (info) && !htab->srelbss))
-    abort ();
-
-  return TRUE;
+  return _bfd_elf_create_dynamic_sections (dynobj, info);
 }
 
 
@@ -7954,8 +7904,7 @@ elfNN_aarch64_allocate_dynrelocs (struct elf_link_hash_entry *h, void *inf)
      because we will also be presented with the concrete instance of
      the symbol and elfNN_aarch64_copy_indirect_symbol () will have been
      called to copy all relevant data from the generic to the concrete
-     symbol instance.
-   */
+     symbol instance.  */
   if (h->root.type == bfd_link_hash_indirect)
     return TRUE;
 
@@ -7974,7 +7923,8 @@ elfNN_aarch64_allocate_dynrelocs (struct elf_link_hash_entry *h, void *inf)
     {
       /* Make sure this symbol is output as a dynamic symbol.
          Undefined weak syms won't yet be marked as dynamic.  */
-      if (h->dynindx == -1 && !h->forced_local)
+      if (h->dynindx == -1 && !h->forced_local
+	  && h->root.type == bfd_link_hash_undefweak)
 	{
 	  if (!bfd_elf_link_record_dynamic_symbol (info, h))
 	    return FALSE;
@@ -8055,7 +8005,8 @@ elfNN_aarch64_allocate_dynrelocs (struct elf_link_hash_entry *h, void *inf)
 
       /* Make sure this symbol is output as a dynamic symbol.
          Undefined weak syms won't yet be marked as dynamic.  */
-      if (dyn && h->dynindx == -1 && !h->forced_local)
+      if (dyn && h->dynindx == -1 && !h->forced_local
+	  && h->root.type == bfd_link_hash_undefweak)
 	{
 	  if (!bfd_elf_link_record_dynamic_symbol (info, h))
 	    return FALSE;
@@ -8167,13 +8118,15 @@ elfNN_aarch64_allocate_dynrelocs (struct elf_link_hash_entry *h, void *inf)
          visibility.  */
       if (eh->dyn_relocs != NULL && h->root.type == bfd_link_hash_undefweak)
 	{
-	  if (ELF_ST_VISIBILITY (h->other) != STV_DEFAULT)
+	  if (ELF_ST_VISIBILITY (h->other) != STV_DEFAULT
+	      || UNDEFWEAK_NO_DYNAMIC_RELOC (info, h))
 	    eh->dyn_relocs = NULL;
 
 	  /* Make sure undefined weak symbols are output as a dynamic
 	     symbol in PIEs.  */
 	  else if (h->dynindx == -1
 		   && !h->forced_local
+		   && h->root.type == bfd_link_hash_undefweak
 		   && !bfd_elf_link_record_dynamic_symbol (info, h))
 	    return FALSE;
 	}
@@ -8196,6 +8149,7 @@ elfNN_aarch64_allocate_dynrelocs (struct elf_link_hash_entry *h, void *inf)
 	     Undefined weak syms won't yet be marked as dynamic.  */
 	  if (h->dynindx == -1
 	      && !h->forced_local
+	      && h->root.type == bfd_link_hash_undefweak
 	      && !bfd_elf_link_record_dynamic_symbol (info, h))
 	    return FALSE;
 
@@ -8244,8 +8198,7 @@ elfNN_aarch64_allocate_ifunc_dynrelocs (struct elf_link_hash_entry *h,
      because we will also be presented with the concrete instance of
      the symbol and elfNN_aarch64_copy_indirect_symbol () will have been
      called to copy all relevant data from the generic to the concrete
-     symbol instance.
-   */
+     symbol instance.  */
   if (h->root.type == bfd_link_hash_indirect)
     return TRUE;
 
@@ -8337,6 +8290,7 @@ aarch64_readonly_dynrelocs (struct elf_link_hash_entry * h, void * inf)
 
 /* This is the most important function of all . Innocuosly named
    though !  */
+
 static bfd_boolean
 elfNN_aarch64_size_dynamic_sections (bfd *output_bfd ATTRIBUTE_UNUSED,
 				     struct bfd_link_info *info)
@@ -8533,7 +8487,9 @@ elfNN_aarch64_size_dynamic_sections (bfd *output_bfd ATTRIBUTE_UNUSED,
 	  || s == htab->root.sgot
 	  || s == htab->root.sgotplt
 	  || s == htab->root.iplt
-	  || s == htab->root.igotplt || s == htab->sdynbss)
+	  || s == htab->root.igotplt
+	  || s == htab->root.sdynbss
+	  || s == htab->root.sdynrelro)
 	{
 	  /* Strip this section if we don't need it; see the
 	     comment below.  */
@@ -8565,7 +8521,6 @@ elfNN_aarch64_size_dynamic_sections (bfd *output_bfd ATTRIBUTE_UNUSED,
 	     adjust_dynamic_symbol is called, and it is that
 	     function which decides whether anything needs to go
 	     into these sections.  */
-
 	  s->flags |= SEC_EXCLUDE;
 	  continue;
 	}
@@ -8645,7 +8600,8 @@ elf_aarch64_update_plt_entry (bfd *output_bfd,
 {
   reloc_howto_type *howto = elfNN_aarch64_howto_from_bfd_reloc (r_type);
 
-  _bfd_aarch64_elf_put_addend (output_bfd, plt_entry, r_type, howto, value);
+  /* FIXME: We should check the return value from this function call.  */
+  (void) _bfd_aarch64_elf_put_addend (output_bfd, plt_entry, r_type, howto, value);
 }
 
 static void
@@ -8805,6 +8761,7 @@ elfNN_aarch64_always_size_sections (bfd *output_bfd,
 
 /* Finish up dynamic symbol handling.  We set the contents of various
    dynamic sections here.  */
+
 static bfd_boolean
 elfNN_aarch64_finish_dynamic_symbol (bfd *output_bfd,
 				     struct bfd_link_info *info,
@@ -8845,7 +8802,7 @@ elfNN_aarch64_finish_dynamic_symbol (bfd *output_bfd,
 	  || plt == NULL
 	  || gotplt == NULL
 	  || relplt == NULL)
-	abort ();
+	return FALSE;
 
       elfNN_aarch64_create_small_pltn_entry (h, htab, output_bfd, info);
       if (!h->def_regular)
@@ -8910,7 +8867,7 @@ elfNN_aarch64_finish_dynamic_symbol (bfd *output_bfd,
 	}
       else if (bfd_link_pic (info) && SYMBOL_REFERENCES_LOCAL (info, h))
 	{
-	  if (!h->def_regular)
+	  if (!(h->def_regular || ELF_COMMON_DEF_P (h)))
 	    return FALSE;
 
 	  BFD_ASSERT ((h->got.offset & 1) != 0);
@@ -8937,14 +8894,14 @@ do_glob_dat:
   if (h->needs_copy)
     {
       Elf_Internal_Rela rela;
+      asection *s;
       bfd_byte *loc;
 
       /* This symbol needs a copy reloc.  Set it up.  */
-
       if (h->dynindx == -1
 	  || (h->root.type != bfd_link_hash_defined
 	      && h->root.type != bfd_link_hash_defweak)
-	  || htab->srelbss == NULL)
+	  || htab->root.srelbss == NULL)
 	abort ();
 
       rela.r_offset = (h->root.u.def.value
@@ -8952,8 +8909,11 @@ do_glob_dat:
 		       + h->root.u.def.section->output_offset);
       rela.r_info = ELFNN_R_INFO (h->dynindx, AARCH64_R (COPY));
       rela.r_addend = 0;
-      loc = htab->srelbss->contents;
-      loc += htab->srelbss->reloc_count++ * RELOC_SIZE (htab);
+      if (h->root.u.def.section == htab->root.sdynrelro)
+	s = htab->root.sreldynrelro;
+      else
+	s = htab->root.srelbss;
+      loc = s->contents + s->reloc_count++ * RELOC_SIZE (htab);
       bfd_elfNN_swap_reloca_out (output_bfd, &rela, loc);
     }
 
@@ -9000,8 +8960,7 @@ elfNN_aarch64_init_small_plt0_entry (bfd *output_bfd ATTRIBUTE_UNUSED,
 					// GOTPLT entry for this.
      br   x17
      PLT0 will be slightly different in ELF32 due to different got entry
-     size.
-   */
+     size.  */
   bfd_vma plt_got_2nd_ent;	/* Address of GOT[2].  */
   bfd_vma plt_base;
 
@@ -9365,9 +9324,6 @@ const struct elf_size_info elfNN_aarch64_size_info =
 #define elf_backend_finish_dynamic_symbol	\
   elfNN_aarch64_finish_dynamic_symbol
 
-#define elf_backend_gc_sweep_hook		\
-  elfNN_aarch64_gc_sweep_hook
-
 #define elf_backend_object_p			\
   elfNN_aarch64_object_p
 
@@ -9406,6 +9362,7 @@ const struct elf_size_info elfNN_aarch64_size_info =
 #define elf_backend_plt_readonly       1
 #define elf_backend_want_got_plt       1
 #define elf_backend_want_plt_sym       0
+#define elf_backend_want_dynrelro      1
 #define elf_backend_may_use_rel_p      0
 #define elf_backend_may_use_rela_p     1
 #define elf_backend_default_use_rela_p 1
@@ -9414,6 +9371,7 @@ const struct elf_size_info elfNN_aarch64_size_info =
 #define elf_backend_got_header_size (GOT_ENTRY_SIZE * 3)
 #define elf_backend_default_execstack  0
 #define elf_backend_extern_protected_data 1
+#define elf_backend_hash_symbol elf_aarch64_hash_symbol
 
 #undef  elf_backend_obj_attrs_section
 #define elf_backend_obj_attrs_section		".ARM.attributes"

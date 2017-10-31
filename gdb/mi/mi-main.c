@@ -1,6 +1,6 @@
 /* MI Command Set.
 
-   Copyright (C) 2000-2016 Free Software Foundation, Inc.
+   Copyright (C) 2000-2017 Free Software Foundation, Inc.
 
    Contributed by Cygnus Solutions (a Red Hat company).
 
@@ -38,7 +38,6 @@
 #include "gdbcore.h"		/* For write_memory().  */
 #include "value.h"
 #include "regcache.h"
-#include "gdb.h"
 #include "frame.h"
 #include "mi-main.h"
 #include "mi-common.h"
@@ -46,7 +45,7 @@
 #include "valprint.h"
 #include "inferior.h"
 #include "osdata.h"
-#include "splay-tree.h"
+#include "common/gdb_splay_tree.h"
 #include "tracepoint.h"
 #include "ctf.h"
 #include "ada-lang.h"
@@ -54,10 +53,16 @@
 #include "extension.h"
 #include "gdbcmd.h"
 #include "observer.h"
+#include "common/gdb_optional.h"
+#include "common/byte-vector.h"
 
 #include <ctype.h>
 #include "run-time-clock.h"
 #include <chrono>
+#include "progspace-and-thread.h"
+#include "common/rsp-low.h"
+#include <algorithm>
+#include <set>
 
 enum
   {
@@ -84,12 +89,11 @@ int running_result_record_printed = 1;
    command was issued.  */
 int mi_proceeded;
 
-extern void _initialize_mi_main (void);
 static void mi_cmd_execute (struct mi_parse *parse);
 
 static void mi_execute_cli_command (const char *cmd, int args_p,
 				    const char *args);
-static void mi_execute_async_cli_command (char *cli_command,
+static void mi_execute_async_cli_command (const char *cli_command,
 					  char **argv, int argc);
 static int register_changed_p (int regnum, struct regcache *,
 			       struct regcache *);
@@ -145,10 +149,9 @@ static void print_diff (struct ui_file *file, struct mi_timestamp *start,
 			struct mi_timestamp *end);
 
 void
-mi_cmd_gdb_exit (char *command, char **argv, int argc)
+mi_cmd_gdb_exit (const char *command, char **argv, int argc)
 {
-  struct mi_interp *mi
-    = (struct mi_interp *) interp_data (current_interpreter ());
+  struct mi_interp *mi = (struct mi_interp *) current_interpreter ();
 
   /* We have to print everything right here because we never return.  */
   if (current_token)
@@ -161,7 +164,7 @@ mi_cmd_gdb_exit (char *command, char **argv, int argc)
 }
 
 void
-mi_cmd_exec_next (char *command, char **argv, int argc)
+mi_cmd_exec_next (const char *command, char **argv, int argc)
 {
   /* FIXME: Should call a libgdb function, not a cli wrapper.  */
   if (argc > 0 && strcmp(argv[0], "--reverse") == 0)
@@ -171,7 +174,7 @@ mi_cmd_exec_next (char *command, char **argv, int argc)
 }
 
 void
-mi_cmd_exec_next_instruction (char *command, char **argv, int argc)
+mi_cmd_exec_next_instruction (const char *command, char **argv, int argc)
 {
   /* FIXME: Should call a libgdb function, not a cli wrapper.  */
   if (argc > 0 && strcmp(argv[0], "--reverse") == 0)
@@ -181,7 +184,7 @@ mi_cmd_exec_next_instruction (char *command, char **argv, int argc)
 }
 
 void
-mi_cmd_exec_step (char *command, char **argv, int argc)
+mi_cmd_exec_step (const char *command, char **argv, int argc)
 {
   /* FIXME: Should call a libgdb function, not a cli wrapper.  */
   if (argc > 0 && strcmp(argv[0], "--reverse") == 0)
@@ -191,7 +194,7 @@ mi_cmd_exec_step (char *command, char **argv, int argc)
 }
 
 void
-mi_cmd_exec_step_instruction (char *command, char **argv, int argc)
+mi_cmd_exec_step_instruction (const char *command, char **argv, int argc)
 {
   /* FIXME: Should call a libgdb function, not a cli wrapper.  */
   if (argc > 0 && strcmp(argv[0], "--reverse") == 0)
@@ -201,7 +204,7 @@ mi_cmd_exec_step_instruction (char *command, char **argv, int argc)
 }
 
 void
-mi_cmd_exec_finish (char *command, char **argv, int argc)
+mi_cmd_exec_finish (const char *command, char **argv, int argc)
 {
   /* FIXME: Should call a libgdb function, not a cli wrapper.  */
   if (argc > 0 && strcmp(argv[0], "--reverse") == 0)
@@ -211,7 +214,7 @@ mi_cmd_exec_finish (char *command, char **argv, int argc)
 }
 
 void
-mi_cmd_exec_return (char *command, char **argv, int argc)
+mi_cmd_exec_return (const char *command, char **argv, int argc)
 {
   /* This command doesn't really execute the target, it just pops the
      specified number of frames.  */
@@ -230,7 +233,7 @@ mi_cmd_exec_return (char *command, char **argv, int argc)
 }
 
 void
-mi_cmd_exec_jump (char *args, char **argv, int argc)
+mi_cmd_exec_jump (const char *args, char **argv, int argc)
 {
   /* FIXME: Should call a libgdb function, not a cli wrapper.  */
   mi_execute_async_cli_command ("jump", argv, argc);
@@ -274,8 +277,8 @@ exec_continue (char **argv, int argc)
 	 See comment on infcmd.c:proceed_thread_callback for rationale.  */
       if (current_context->all || current_context->thread_group != -1)
 	{
+	  scoped_restore_current_thread restore_thread;
 	  int pid = 0;
-	  struct cleanup *back_to = make_cleanup_restore_current_thread ();
 
 	  if (!current_context->all)
 	    {
@@ -285,7 +288,6 @@ exec_continue (char **argv, int argc)
 	      pid = inf->pid;
 	    }
 	  iterate_over_threads (proceed_thread_callback, &pid);
-	  do_cleanups (back_to);
 	}
       else
 	{
@@ -313,16 +315,9 @@ exec_continue (char **argv, int argc)
 }
 
 static void
-exec_direction_forward (void *notused)
-{
-  execution_direction = EXEC_FORWARD;
-}
-
-static void
 exec_reverse_continue (char **argv, int argc)
 {
   enum exec_direction_kind dir = execution_direction;
-  struct cleanup *old_chain;
 
   if (dir == EXEC_REVERSE)
     error (_("Already in reverse mode."));
@@ -330,14 +325,13 @@ exec_reverse_continue (char **argv, int argc)
   if (!target_can_execute_reverse)
     error (_("Target %s does not support this command."), target_shortname);
 
-  old_chain = make_cleanup (exec_direction_forward, NULL);
-  execution_direction = EXEC_REVERSE;
+  scoped_restore save_exec_dir = make_scoped_restore (&execution_direction,
+						      EXEC_REVERSE);
   exec_continue (argv, argc);
-  do_cleanups (old_chain);
 }
 
 void
-mi_cmd_exec_continue (char *command, char **argv, int argc)
+mi_cmd_exec_continue (const char *command, char **argv, int argc)
 {
   if (argc > 0 && strcmp (argv[0], "--reverse") == 0)
     exec_reverse_continue (argv + 1, argc - 1);
@@ -367,7 +361,7 @@ interrupt_thread_callback (struct thread_info *thread, void *arg)
    mi_cmd_execute.  */
 
 void
-mi_cmd_exec_interrupt (char *command, char **argv, int argc)
+mi_cmd_exec_interrupt (const char *command, char **argv, int argc)
 {
   /* In all-stop mode, everything stops, so we don't need to try
      anything specific.  */
@@ -437,7 +431,7 @@ run_one_inferior (struct inferior *inf, void *arg)
 }
 
 void
-mi_cmd_exec_run (char *command, char **argv, int argc)
+mi_cmd_exec_run (const char *command, char **argv, int argc)
 {
   int start_p = 0;
 
@@ -476,10 +470,9 @@ mi_cmd_exec_run (char *command, char **argv, int argc)
 
   if (current_context->all)
     {
-      struct cleanup *back_to = save_current_space_and_thread ();
+      scoped_restore_current_pspace_and_thread restore_pspace_thread;
 
       iterate_over_inferiors (run_one_inferior, &start_p);
-      do_cleanups (back_to);
     }
   else
     {
@@ -505,7 +498,7 @@ find_thread_of_process (struct thread_info *ti, void *p)
 }
 
 void
-mi_cmd_target_detach (char *command, char **argv, int argc)
+mi_cmd_target_detach (const char *command, char **argv, int argc)
 {
   if (argc != 0 && argc != 1)
     error (_("Usage: -target-detach [pid | thread-group]"));
@@ -553,23 +546,25 @@ mi_cmd_target_detach (char *command, char **argv, int argc)
 }
 
 void
-mi_cmd_thread_select (char *command, char **argv, int argc)
+mi_cmd_target_flash_erase (const char *command, char **argv, int argc)
 {
-  enum gdb_rc rc;
-  char *mi_error_message;
-  ptid_t previous_ptid = inferior_ptid;
+  flash_erase_command (NULL, 0);
+}
 
+void
+mi_cmd_thread_select (const char *command, char **argv, int argc)
+{
   if (argc != 1)
     error (_("-thread-select: USAGE: threadnum."));
 
-  rc = gdb_thread_select (current_uiout, argv[0], &mi_error_message);
+  int num = value_as_long (parse_and_eval (argv[0]));
+  thread_info *thr = find_thread_global_id (num);
+  if (thr == NULL)
+    error (_("Thread ID %d not known."), num);
 
-  /* If thread switch did not succeed don't notify or print.  */
-  if (rc == GDB_RC_FAIL)
-    {
-      make_cleanup (xfree, mi_error_message);
-      error ("%s", mi_error_message);
-    }
+  ptid_t previous_ptid = inferior_ptid;
+
+  thread_select (argv[0], thr);
 
   print_selected_thread_frame (current_uiout,
 			       USER_SELECTED_THREAD | USER_SELECTED_FRAME);
@@ -583,25 +578,37 @@ mi_cmd_thread_select (char *command, char **argv, int argc)
 }
 
 void
-mi_cmd_thread_list_ids (char *command, char **argv, int argc)
+mi_cmd_thread_list_ids (const char *command, char **argv, int argc)
 {
-  enum gdb_rc rc;
-  char *mi_error_message;
-
   if (argc != 0)
     error (_("-thread-list-ids: No arguments required."));
 
-  rc = gdb_list_thread_ids (current_uiout, &mi_error_message);
+  int num = 0;
+  int current_thread = -1;
 
-  if (rc == GDB_RC_FAIL)
-    {
-      make_cleanup (xfree, mi_error_message);
-      error ("%s", mi_error_message);
-    }
+  update_thread_list ();
+
+  {
+    ui_out_emit_tuple tuple_emitter (current_uiout, "thread-ids");
+
+    struct thread_info *tp;
+    ALL_NON_EXITED_THREADS (tp)
+      {
+	if (tp->ptid == inferior_ptid)
+	  current_thread = tp->global_num;
+
+	num++;
+	current_uiout->field_int ("thread-id", tp->global_num);
+      }
+  }
+
+  if (current_thread != -1)
+    current_uiout->field_int ("current-thread-id", current_thread);
+  current_uiout->field_int ("number-of-threads", num);
 }
 
 void
-mi_cmd_thread_info (char *command, char **argv, int argc)
+mi_cmd_thread_info (const char *command, char **argv, int argc)
 {
   if (argc != 0 && argc != 1)
     error (_("Invalid MI command"));
@@ -612,8 +619,7 @@ mi_cmd_thread_info (char *command, char **argv, int argc)
 struct collect_cores_data
 {
   int pid;
-
-  VEC (int) *cores;
+  std::set<int> cores;
 };
 
 static int
@@ -626,27 +632,16 @@ collect_cores (struct thread_info *ti, void *xdata)
       int core = target_core_of_thread (ti->ptid);
 
       if (core != -1)
-	VEC_safe_push (int, data->cores, core);
+	data->cores.insert (core);
     }
 
   return 0;
 }
 
-static int *
-unique (int *b, int *e)
-{
-  int *d = b;
-
-  while (++b != e)
-    if (*d != *b)
-      *++d = *b;
-  return ++d;
-}
-
 struct print_one_inferior_data
 {
   int recurse;
-  VEC (int) *inferiors;
+  const std::set<int> *inferiors;
 };
 
 static int
@@ -656,14 +651,12 @@ print_one_inferior (struct inferior *inferior, void *xdata)
     = (struct print_one_inferior_data *) xdata;
   struct ui_out *uiout = current_uiout;
 
-  if (VEC_empty (int, top_data->inferiors)
-      || bsearch (&(inferior->pid), VEC_address (int, top_data->inferiors),
-		  VEC_length (int, top_data->inferiors), sizeof (int),
-		  compare_positive_ints))
+  if (top_data->inferiors->empty ()
+      || (top_data->inferiors->find (inferior->pid)
+	  != top_data->inferiors->end ()))
     {
       struct collect_cores_data data;
-      struct cleanup *back_to
-	= make_cleanup_ui_out_tuple_begin_end (uiout, NULL);
+      ui_out_emit_tuple tuple_emitter (uiout, NULL);
 
       uiout->field_fmt ("id", "i%d", inferior->num);
       uiout->field_string ("type", "process");
@@ -679,37 +672,22 @@ print_one_inferior (struct inferior *inferior, void *xdata)
 			       inferior->pspace->pspace_exec_filename);
 	}
 
-      data.cores = 0;
       if (inferior->pid != 0)
 	{
 	  data.pid = inferior->pid;
 	  iterate_over_threads (collect_cores, &data);
 	}
 
-      if (!VEC_empty (int, data.cores))
+      if (!data.cores.empty ())
 	{
-	  int *b, *e;
-	  struct cleanup *back_to_2 =
-	    make_cleanup_ui_out_list_begin_end (uiout, "cores");
+	  ui_out_emit_list list_emitter (uiout, "cores");
 
-	  qsort (VEC_address (int, data.cores),
-		 VEC_length (int, data.cores), sizeof (int),
-		 compare_positive_ints);
-
-	  b = VEC_address (int, data.cores);
-	  e = b + VEC_length (int, data.cores);
-	  e = unique (b, e);
-
-	  for (; b != e; ++b)
-	    uiout->field_int (NULL, *b);
-
-	  do_cleanups (back_to_2);
+	  for (int b : data.cores)
+	    uiout->field_int (NULL, b);
 	}
 
       if (top_data->recurse)
 	print_thread_info (uiout, NULL, inferior->pid);
-
-      do_cleanups (back_to);
     }
 
   return 0;
@@ -722,30 +700,12 @@ print_one_inferior (struct inferior *inferior, void *xdata)
 static void
 output_cores (struct ui_out *uiout, const char *field_name, const char *xcores)
 {
-  struct cleanup *back_to = make_cleanup_ui_out_list_begin_end (uiout,
-								field_name);
-  char *cores = xstrdup (xcores);
-  char *p = cores;
-
-  make_cleanup (xfree, cores);
+  ui_out_emit_list list_emitter (uiout, field_name);
+  gdb::unique_xmalloc_ptr<char> cores (xstrdup (xcores));
+  char *p = cores.get ();
 
   for (p = strtok (p, ","); p;  p = strtok (NULL, ","))
     uiout->field_string (NULL, p);
-
-  do_cleanups (back_to);
-}
-
-static void
-free_vector_of_ints (void *xvector)
-{
-  VEC (int) **vector = (VEC (int) **) xvector;
-
-  VEC_free (int, *vector);
-}
-
-static void
-do_nothing (splay_tree_key k)
-{
 }
 
 static void
@@ -767,14 +727,7 @@ splay_tree_int_comparator (splay_tree_key xa, splay_tree_key xb)
 }
 
 static void
-free_splay_tree (void *xt)
-{
-  splay_tree t = (splay_tree) xt;
-  splay_tree_delete (t);
-}
-
-static void
-list_available_thread_groups (VEC (int) *ids, int recurse)
+list_available_thread_groups (const std::set<int> &ids, int recurse)
 {
   struct osdata *data;
   struct osdata_item *item;
@@ -786,7 +739,7 @@ list_available_thread_groups (VEC (int) *ids, int recurse)
      The vector contains information about all threads for the given pid.
      This is assigned an initial value to avoid "may be used uninitialized"
      warning from gcc.  */
-  splay_tree tree = NULL;
+  gdb_splay_tree_up tree;
 
   /* get_osdata will throw if it cannot return data.  */
   data = get_osdata ("processes");
@@ -797,10 +750,9 @@ list_available_thread_groups (VEC (int) *ids, int recurse)
       struct osdata *threads = get_osdata ("threads");
 
       make_cleanup_osdata_free (threads);
-      tree = splay_tree_new (splay_tree_int_comparator,
-			     do_nothing,
-			     free_vector_of_osdata_items);
-      make_cleanup (free_splay_tree, tree);
+      tree.reset (splay_tree_new (splay_tree_int_comparator,
+				  NULL,
+				  free_vector_of_osdata_items));
 
       for (ix_items = 0;
 	   VEC_iterate (osdata_item_s, threads->items,
@@ -811,11 +763,11 @@ list_available_thread_groups (VEC (int) *ids, int recurse)
 	  int pid_i = strtoul (pid, NULL, 0);
 	  VEC (osdata_item_s) *vec = 0;
 
-	  splay_tree_node n = splay_tree_lookup (tree, pid_i);
+	  splay_tree_node n = splay_tree_lookup (tree.get (), pid_i);
 	  if (!n)
 	    {
 	      VEC_safe_push (osdata_item_s, vec, item);
-	      splay_tree_insert (tree, pid_i, (splay_tree_value)vec);
+	      splay_tree_insert (tree.get (), pid_i, (splay_tree_value)vec);
 	    }
 	  else
 	    {
@@ -826,15 +778,13 @@ list_available_thread_groups (VEC (int) *ids, int recurse)
 	}
     }
 
-  make_cleanup_ui_out_list_begin_end (uiout, "groups");
+  ui_out_emit_list list_emitter (uiout, "groups");
 
   for (ix_items = 0;
        VEC_iterate (osdata_item_s, data->items,
 		    ix_items, item);
        ix_items++)
     {
-      struct cleanup *back_to;
-
       const char *pid = get_osdata_column (item, "pid");
       const char *cmd = get_osdata_column (item, "command");
       const char *user = get_osdata_column (item, "user");
@@ -845,13 +795,10 @@ list_available_thread_groups (VEC (int) *ids, int recurse)
       /* At present, the target will return all available processes
 	 and if information about specific ones was required, we filter
 	 undesired processes here.  */
-      if (ids && bsearch (&pid_i, VEC_address (int, ids),
-			  VEC_length (int, ids),
-			  sizeof (int), compare_positive_ints) == NULL)
+      if (!ids.empty () && ids.find (pid_i) == ids.end ())
 	continue;
 
-
-      back_to = make_cleanup_ui_out_tuple_begin_end (uiout, NULL);
+      ui_out_emit_tuple tuple_emitter (uiout, NULL);
 
       uiout->field_fmt ("id", "%s", pid);
       uiout->field_string ("type", "process");
@@ -864,47 +811,41 @@ list_available_thread_groups (VEC (int) *ids, int recurse)
 
       if (recurse)
 	{
-	  splay_tree_node n = splay_tree_lookup (tree, pid_i);
+	  splay_tree_node n = splay_tree_lookup (tree.get (), pid_i);
 	  if (n)
 	    {
 	      VEC (osdata_item_s) *children = (VEC (osdata_item_s) *) n->value;
 	      struct osdata_item *child;
 	      int ix_child;
 
-	      make_cleanup_ui_out_list_begin_end (uiout, "threads");
+	      ui_out_emit_list thread_list_emitter (uiout, "threads");
 
 	      for (ix_child = 0;
 		   VEC_iterate (osdata_item_s, children, ix_child, child);
 		   ++ix_child)
 		{
-		  struct cleanup *back_to_2 =
-		    make_cleanup_ui_out_tuple_begin_end (uiout, NULL);
+		  ui_out_emit_tuple tuple_emitter (uiout, NULL);
 		  const char *tid = get_osdata_column (child, "tid");
 		  const char *tcore = get_osdata_column (child, "core");
 
 		  uiout->field_string ("id", tid);
 		  if (tcore)
 		    uiout->field_string ("core", tcore);
-
-		  do_cleanups (back_to_2);
 		}
 	    }
 	}
-
-      do_cleanups (back_to);
     }
 
   do_cleanups (cleanup);
 }
 
 void
-mi_cmd_list_thread_groups (char *command, char **argv, int argc)
+mi_cmd_list_thread_groups (const char *command, char **argv, int argc)
 {
   struct ui_out *uiout = current_uiout;
-  struct cleanup *back_to;
   int available = 0;
   int recurse = 0;
-  VEC (int) *ids = 0;
+  std::set<int> ids;
 
   enum opt
   {
@@ -956,23 +897,17 @@ mi_cmd_list_thread_groups (char *command, char **argv, int argc)
 
       if (*end != '\0')
 	error (_("invalid syntax of group id '%s'"), argv[oind]);
-      VEC_safe_push (int, ids, inf);
+      ids.insert (inf);
     }
-  if (VEC_length (int, ids) > 1)
-    qsort (VEC_address (int, ids),
-	   VEC_length (int, ids),
-	   sizeof (int), compare_positive_ints);
-
-  back_to = make_cleanup (free_vector_of_ints, &ids);
 
   if (available)
     {
       list_available_thread_groups (ids, recurse);
     }
-  else if (VEC_length (int, ids) == 1)
+  else if (ids.size () == 1)
     {
       /* Local thread groups, single id.  */
-      int id = *VEC_address (int, ids);
+      int id = *(ids.begin ());
       struct inferior *inf = find_inferior_id (id);
 
       if (!inf)
@@ -985,28 +920,25 @@ mi_cmd_list_thread_groups (char *command, char **argv, int argc)
       struct print_one_inferior_data data;
 
       data.recurse = recurse;
-      data.inferiors = ids;
+      data.inferiors = &ids;
 
       /* Local thread groups.  Either no explicit ids -- and we
 	 print everything, or several explicit ids.  In both cases,
 	 we print more than one group, and have to use 'groups'
 	 as the top-level element.  */
-      make_cleanup_ui_out_list_begin_end (uiout, "groups");
+      ui_out_emit_list list_emitter (uiout, "groups");
       update_thread_list ();
       iterate_over_inferiors (print_one_inferior, &data);
     }
-
-  do_cleanups (back_to);
 }
 
 void
-mi_cmd_data_list_register_names (char *command, char **argv, int argc)
+mi_cmd_data_list_register_names (const char *command, char **argv, int argc)
 {
   struct gdbarch *gdbarch;
   struct ui_out *uiout = current_uiout;
   int regnum, numregs;
   int i;
-  struct cleanup *cleanup;
 
   /* Note that the test for a valid register must include checking the
      gdbarch_register_name because gdbarch_num_regs may be allocated
@@ -1018,7 +950,7 @@ mi_cmd_data_list_register_names (char *command, char **argv, int argc)
   gdbarch = get_current_arch ();
   numregs = gdbarch_num_regs (gdbarch) + gdbarch_num_pseudo_regs (gdbarch);
 
-  cleanup = make_cleanup_ui_out_list_begin_end (uiout, "register-names");
+  ui_out_emit_list list_emitter (uiout, "register-names");
 
   if (argc == 0)		/* No args, just do all the regs.  */
     {
@@ -1047,28 +979,25 @@ mi_cmd_data_list_register_names (char *command, char **argv, int argc)
       else
 	uiout->field_string (NULL, gdbarch_register_name (gdbarch, regnum));
     }
-  do_cleanups (cleanup);
 }
 
 void
-mi_cmd_data_list_changed_registers (char *command, char **argv, int argc)
+mi_cmd_data_list_changed_registers (const char *command, char **argv, int argc)
 {
-  static struct regcache *this_regs = NULL;
+  static std::unique_ptr<struct regcache> this_regs;
   struct ui_out *uiout = current_uiout;
-  struct regcache *prev_regs;
+  std::unique_ptr<struct regcache> prev_regs;
   struct gdbarch *gdbarch;
   int regnum, numregs, changed;
   int i;
-  struct cleanup *cleanup;
 
   /* The last time we visited this function, the current frame's
      register contents were saved in THIS_REGS.  Move THIS_REGS over
      to PREV_REGS, and refresh THIS_REGS with the now-current register
      contents.  */
 
-  prev_regs = this_regs;
+  prev_regs = std::move (this_regs);
   this_regs = frame_save_as_regcache (get_selected_frame (NULL));
-  cleanup = make_cleanup_regcache_xfree (prev_regs);
 
   /* Note that the test for a valid register must include checking the
      gdbarch_register_name because gdbarch_num_regs may be allocated
@@ -1077,10 +1006,10 @@ mi_cmd_data_list_changed_registers (char *command, char **argv, int argc)
      will change depending upon the particular processor being
      debugged.  */
 
-  gdbarch = get_regcache_arch (this_regs);
+  gdbarch = this_regs->arch ();
   numregs = gdbarch_num_regs (gdbarch) + gdbarch_num_pseudo_regs (gdbarch);
 
-  make_cleanup_ui_out_list_begin_end (uiout, "changed-registers");
+  ui_out_emit_list list_emitter (uiout, "changed-registers");
 
   if (argc == 0)
     {
@@ -1092,7 +1021,8 @@ mi_cmd_data_list_changed_registers (char *command, char **argv, int argc)
 	  if (gdbarch_register_name (gdbarch, regnum) == NULL
 	      || *(gdbarch_register_name (gdbarch, regnum)) == '\0')
 	    continue;
-	  changed = register_changed_p (regnum, prev_regs, this_regs);
+	  changed = register_changed_p (regnum, prev_regs.get (),
+					this_regs.get ());
 	  if (changed < 0)
 	    error (_("-data-list-changed-registers: "
 		     "Unable to read register contents."));
@@ -1111,7 +1041,8 @@ mi_cmd_data_list_changed_registers (char *command, char **argv, int argc)
 	  && gdbarch_register_name (gdbarch, regnum) != NULL
 	  && *gdbarch_register_name (gdbarch, regnum) != '\000')
 	{
-	  changed = register_changed_p (regnum, prev_regs, this_regs);
+	  changed = register_changed_p (regnum, prev_regs.get (),
+					this_regs.get ());
 	  if (changed < 0)
 	    error (_("-data-list-changed-registers: "
 		     "Unable to read register contents."));
@@ -1121,35 +1052,35 @@ mi_cmd_data_list_changed_registers (char *command, char **argv, int argc)
       else
 	error (_("bad register number"));
     }
-  do_cleanups (cleanup);
 }
 
 static int
 register_changed_p (int regnum, struct regcache *prev_regs,
 		    struct regcache *this_regs)
 {
-  struct gdbarch *gdbarch = get_regcache_arch (this_regs);
-  gdb_byte prev_buffer[MAX_REGISTER_SIZE];
-  gdb_byte this_buffer[MAX_REGISTER_SIZE];
-  enum register_status prev_status;
-  enum register_status this_status;
+  struct gdbarch *gdbarch = this_regs->arch ();
+  struct value *prev_value, *this_value;
+  int ret;
 
   /* First time through or after gdbarch change consider all registers
      as changed.  */
-  if (!prev_regs || get_regcache_arch (prev_regs) != gdbarch)
+  if (!prev_regs || prev_regs->arch () != gdbarch)
     return 1;
 
   /* Get register contents and compare.  */
-  prev_status = regcache_cooked_read (prev_regs, regnum, prev_buffer);
-  this_status = regcache_cooked_read (this_regs, regnum, this_buffer);
+  prev_value = prev_regs->cooked_read_value (regnum);
+  this_value = this_regs->cooked_read_value (regnum);
+  gdb_assert (prev_value != NULL);
+  gdb_assert (this_value != NULL);
 
-  if (this_status != prev_status)
-    return 1;
-  else if (this_status == REG_VALID)
-    return memcmp (prev_buffer, this_buffer,
-		   register_size (gdbarch, regnum)) != 0;
-  else
-    return 0;
+  ret = value_contents_eq (prev_value, 0, this_value, 0,
+			   register_size (gdbarch, regnum)) == 0;
+
+  release_value (prev_value);
+  release_value (this_value);
+  value_free (prev_value);
+  value_free (this_value);
+  return ret;
 }
 
 /* Return a list of register number and value pairs.  The valid
@@ -1162,14 +1093,13 @@ register_changed_p (int regnum, struct regcache *prev_regs,
    their values is returned.  */
 
 void
-mi_cmd_data_list_register_values (char *command, char **argv, int argc)
+mi_cmd_data_list_register_values (const char *command, char **argv, int argc)
 {
   struct ui_out *uiout = current_uiout;
   struct frame_info *frame;
   struct gdbarch *gdbarch;
   int regnum, numregs, format;
   int i;
-  struct cleanup *list_cleanup;
   int skip_unavailable = 0;
   int oind = 0;
   enum opt
@@ -1216,7 +1146,7 @@ mi_cmd_data_list_register_values (char *command, char **argv, int argc)
   gdbarch = get_frame_arch (frame);
   numregs = gdbarch_num_regs (gdbarch) + gdbarch_num_pseudo_regs (gdbarch);
 
-  list_cleanup = make_cleanup_ui_out_list_begin_end (uiout, "register-values");
+  ui_out_emit_list list_emitter (uiout, "register-values");
 
   if (argc - oind == 1)
     {
@@ -1246,7 +1176,6 @@ mi_cmd_data_list_register_values (char *command, char **argv, int argc)
       else
 	error (_("bad register number"));
     }
-  do_cleanups (list_cleanup);
 }
 
 /* Output one register REGNUM's contents in the desired FORMAT.  If
@@ -1259,14 +1188,12 @@ output_register (struct frame_info *frame, int regnum, int format,
 {
   struct ui_out *uiout = current_uiout;
   struct value *val = value_of_register (regnum, frame);
-  struct cleanup *tuple_cleanup;
   struct value_print_options opts;
-  struct ui_file *stb;
 
   if (skip_unavailable && !value_entirely_available (val))
     return;
 
-  tuple_cleanup = make_cleanup_ui_out_tuple_begin_end (uiout, NULL);
+  ui_out_emit_tuple tuple_emitter (uiout, NULL);
   uiout->field_int ("number", regnum);
 
   if (format == 'N')
@@ -1275,17 +1202,14 @@ output_register (struct frame_info *frame, int regnum, int format,
   if (format == 'r')
     format = 'z';
 
-  stb = mem_fileopen ();
-  make_cleanup_ui_file_delete (stb);
+  string_file stb;
 
   get_formatted_print_options (&opts, format);
   opts.deref_ref = 1;
   val_print (value_type (val),
 	     value_embedded_offset (val), 0,
-	     stb, 0, val, &opts, current_language);
+	     &stb, 0, val, &opts, current_language);
   uiout->field_stream ("value", stb);
-
-  do_cleanups (tuple_cleanup);
 }
 
 /* Write given values into registers. The registers and values are
@@ -1293,7 +1217,7 @@ output_register (struct frame_info *frame, int regnum, int format,
    -data-write-register-values <format>
                                [<regnum1> <value1>...<regnumN> <valueN>] */
 void
-mi_cmd_data_write_register_values (char *command, char **argv, int argc)
+mi_cmd_data_write_register_values (const char *command, char **argv, int argc)
 {
   struct regcache *regcache;
   struct gdbarch *gdbarch;
@@ -1307,7 +1231,7 @@ mi_cmd_data_write_register_values (char *command, char **argv, int argc)
      debugged.  */
 
   regcache = get_current_regcache ();
-  gdbarch = get_regcache_arch (regcache);
+  gdbarch = regcache->arch ();
   numregs = gdbarch_num_regs (gdbarch) + gdbarch_num_pseudo_regs (gdbarch);
 
   if (argc == 0)
@@ -1350,16 +1274,11 @@ mi_cmd_data_write_register_values (char *command, char **argv, int argc)
    included in double quotes.  */
 
 void
-mi_cmd_data_evaluate_expression (char *command, char **argv, int argc)
+mi_cmd_data_evaluate_expression (const char *command, char **argv, int argc)
 {
-  struct cleanup *old_chain;
   struct value *val;
-  struct ui_file *stb;
   struct value_print_options opts;
   struct ui_out *uiout = current_uiout;
-
-  stb = mem_fileopen ();
-  old_chain = make_cleanup_ui_file_delete (stb);
 
   if (argc != 1)
     error (_("-data-evaluate-expression: "
@@ -1369,14 +1288,14 @@ mi_cmd_data_evaluate_expression (char *command, char **argv, int argc)
 
   val = evaluate_expression (expr.get ());
 
+  string_file stb;
+
   /* Print the result of the expression evaluation.  */
   get_user_print_options (&opts);
   opts.deref_ref = 0;
-  common_val_print (val, stb, 0, &opts, current_language);
+  common_val_print (val, &stb, 0, &opts, current_language);
 
   uiout->field_stream ("value", stb);
-
-  do_cleanups (old_chain);
 }
 
 /* This is the -data-read-memory command.
@@ -1399,7 +1318,7 @@ mi_cmd_data_evaluate_expression (char *command, char **argv, int argc)
    The number of bytes read is SIZE*ROW*COL.  */
 
 void
-mi_cmd_data_read_memory (char *command, char **argv, int argc)
+mi_cmd_data_read_memory (const char *command, char **argv, int argc)
 {
   struct gdbarch *gdbarch = get_current_arch ();
   struct ui_out *uiout = current_uiout;
@@ -1495,12 +1414,12 @@ mi_cmd_data_read_memory (char *command, char **argv, int argc)
   /* Create a buffer and read it in.  */
   total_bytes = word_size * nr_rows * nr_cols;
 
-  std::unique_ptr<gdb_byte[]> mbuf (new gdb_byte[total_bytes]);
+  gdb::byte_vector mbuf (total_bytes);
 
   /* Dispatch memory reads to the topmost target, not the flattened
      current_target.  */
   nr_bytes = target_read (current_target.beneath,
-			  TARGET_OBJECT_MEMORY, NULL, mbuf.get (),
+			  TARGET_OBJECT_MEMORY, NULL, mbuf.data (),
 			  addr, total_bytes);
   if (nr_bytes <= 0)
     error (_("Unable to read memory."));
@@ -1516,82 +1435,73 @@ mi_cmd_data_read_memory (char *command, char **argv, int argc)
 
   /* Build the result as a two dimentional table.  */
   {
-    struct ui_file *stream;
-    struct cleanup *cleanup_stream;
     int row;
     int row_byte;
 
-    stream = mem_fileopen ();
-    cleanup_stream = make_cleanup_ui_file_delete (stream);
+    string_file stream;
 
-    make_cleanup_ui_out_list_begin_end (uiout, "memory");
+    ui_out_emit_list list_emitter (uiout, "memory");
     for (row = 0, row_byte = 0;
 	 row < nr_rows;
 	 row++, row_byte += nr_cols * word_size)
       {
 	int col;
 	int col_byte;
-	struct cleanup *cleanup_tuple;
-	struct cleanup *cleanup_list_data;
 	struct value_print_options opts;
 
-	cleanup_tuple = make_cleanup_ui_out_tuple_begin_end (uiout, NULL);
+	ui_out_emit_tuple tuple_emitter (uiout, NULL);
 	uiout->field_core_addr ("addr", gdbarch, addr + row_byte);
 	/* ui_out_field_core_addr_symbolic (uiout, "saddr", addr +
 	   row_byte); */
-	cleanup_list_data = make_cleanup_ui_out_list_begin_end (uiout, "data");
-	get_formatted_print_options (&opts, word_format);
-	for (col = 0, col_byte = row_byte;
-	     col < nr_cols;
-	     col++, col_byte += word_size)
-	  {
-	    if (col_byte + word_size > nr_bytes)
-	      {
-		uiout->field_string (NULL, "N/A");
-	      }
-	    else
-	      {
-		ui_file_rewind (stream);
-		print_scalar_formatted (&mbuf[col_byte], word_type, &opts,
-					word_asize, stream);
-		uiout->field_stream (NULL, stream);
-	      }
-	  }
-	do_cleanups (cleanup_list_data);
+	{
+	  ui_out_emit_list list_data_emitter (uiout, "data");
+	  get_formatted_print_options (&opts, word_format);
+	  for (col = 0, col_byte = row_byte;
+	       col < nr_cols;
+	       col++, col_byte += word_size)
+	    {
+	      if (col_byte + word_size > nr_bytes)
+		{
+		  uiout->field_string (NULL, "N/A");
+		}
+	      else
+		{
+		  stream.clear ();
+		  print_scalar_formatted (&mbuf[col_byte], word_type, &opts,
+					  word_asize, &stream);
+		  uiout->field_stream (NULL, stream);
+		}
+	    }
+	}
+
 	if (aschar)
 	  {
 	    int byte;
 
-	    ui_file_rewind (stream);
+	    stream.clear ();
 	    for (byte = row_byte;
 		 byte < row_byte + word_size * nr_cols; byte++)
 	      {
 		if (byte >= nr_bytes)
-		  fputc_unfiltered ('X', stream);
+		  stream.putc ('X');
 		else if (mbuf[byte] < 32 || mbuf[byte] > 126)
-		  fputc_unfiltered (aschar, stream);
+		  stream.putc (aschar);
 		else
-		  fputc_unfiltered (mbuf[byte], stream);
+		  stream.putc (mbuf[byte]);
 	      }
 	    uiout->field_stream ("ascii", stream);
 	  }
-	do_cleanups (cleanup_tuple);
       }
-    do_cleanups (cleanup_stream);
   }
 }
 
 void
-mi_cmd_data_read_memory_bytes (char *command, char **argv, int argc)
+mi_cmd_data_read_memory_bytes (const char *command, char **argv, int argc)
 {
   struct gdbarch *gdbarch = get_current_arch ();
   struct ui_out *uiout = current_uiout;
-  struct cleanup *cleanups;
   CORE_ADDR addr;
   LONGEST length;
-  memory_read_result_s *read_result;
-  int ix;
-  VEC(memory_read_result_s) *result;
   long offset = 0;
   int unit_size = gdbarch_addressable_memory_unit_size (gdbarch);
   int oind = 0;
@@ -1628,41 +1538,26 @@ mi_cmd_data_read_memory_bytes (char *command, char **argv, int argc)
   addr = parse_and_eval_address (argv[0]) + offset;
   length = atol (argv[1]);
 
-  result = read_memory_robust (current_target.beneath, addr, length);
+  std::vector<memory_read_result> result
+    = read_memory_robust (current_target.beneath, addr, length);
 
-  cleanups = make_cleanup (free_memory_read_result_vector, &result);
-
-  if (VEC_length (memory_read_result_s, result) == 0)
+  if (result.size () == 0)
     error (_("Unable to read memory."));
 
-  make_cleanup_ui_out_list_begin_end (uiout, "memory");
-  for (ix = 0;
-       VEC_iterate (memory_read_result_s, result, ix, read_result);
-       ++ix)
+  ui_out_emit_list list_emitter (uiout, "memory");
+  for (const memory_read_result &read_result : result)
     {
-      struct cleanup *t = make_cleanup_ui_out_tuple_begin_end (uiout, NULL);
-      char *data, *p;
-      int i;
-      int alloc_len;
+      ui_out_emit_tuple tuple_emitter (uiout, NULL);
 
-      uiout->field_core_addr ("begin", gdbarch, read_result->begin);
-      uiout->field_core_addr ("offset", gdbarch, read_result->begin - addr);
-      uiout->field_core_addr ("end", gdbarch, read_result->end);
+      uiout->field_core_addr ("begin", gdbarch, read_result.begin);
+      uiout->field_core_addr ("offset", gdbarch, read_result.begin - addr);
+      uiout->field_core_addr ("end", gdbarch, read_result.end);
 
-      alloc_len = (read_result->end - read_result->begin) * 2 * unit_size + 1;
-      data = (char *) xmalloc (alloc_len);
-
-      for (i = 0, p = data;
-	   i < ((read_result->end - read_result->begin) * unit_size);
-	   ++i, p += 2)
-	{
-	  sprintf (p, "%02x", read_result->data[i]);
-	}
-      uiout->field_string ("contents", data);
-      xfree (data);
-      do_cleanups (t);
+      std::string data = bin2hex (read_result.data.get (),
+				  (read_result.end - read_result.begin)
+				  * unit_size);
+      uiout->field_string ("contents", data.c_str ());
     }
-  do_cleanups (cleanups);
 }
 
 /* Implementation of the -data-write_memory command.
@@ -1683,7 +1578,7 @@ mi_cmd_data_read_memory_bytes (char *command, char **argv, int argc)
    Prints nothing.  */
 
 void
-mi_cmd_data_write_memory (char *command, char **argv, int argc)
+mi_cmd_data_write_memory (const char *command, char **argv, int argc)
 {
   struct gdbarch *gdbarch = get_current_arch ();
   enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
@@ -1692,8 +1587,6 @@ mi_cmd_data_write_memory (char *command, char **argv, int argc)
   /* FIXME: ezannoni 2000-02-17 LONGEST could possibly not be big
      enough when using a compiler other than GCC.  */
   LONGEST value;
-  gdb_byte *buffer;
-  struct cleanup *old_chain;
   long offset = 0;
   int oind = 0;
   char *oarg;
@@ -1740,13 +1633,10 @@ mi_cmd_data_write_memory (char *command, char **argv, int argc)
   /* Get the value as a number.  */
   value = parse_and_eval_address (argv[3]);
   /* Get the value into an array.  */
-  buffer = (gdb_byte *) xmalloc (word_size);
-  old_chain = make_cleanup (xfree, buffer);
-  store_signed_integer (buffer, word_size, byte_order, value);
+  gdb::byte_vector buffer (word_size);
+  store_signed_integer (buffer.data (), word_size, byte_order, value);
   /* Write it down to memory.  */
-  write_memory_with_notification (addr, buffer, word_size);
-  /* Free the buffer.  */
-  do_cleanups (old_chain);
+  write_memory_with_notification (addr, buffer.data (), word_size);
 }
 
 /* Implementation of the -data-write-memory-bytes command.
@@ -1756,15 +1646,12 @@ mi_cmd_data_write_memory (char *command, char **argv, int argc)
    COUNT: number of bytes to be filled (decimal integer).  */
 
 void
-mi_cmd_data_write_memory_bytes (char *command, char **argv, int argc)
+mi_cmd_data_write_memory_bytes (const char *command, char **argv, int argc)
 {
   CORE_ADDR addr;
   char *cdata;
-  gdb_byte *data;
-  gdb_byte *databuf;
   size_t len_hex, len_bytes, len_units, i, steps, remaining_units;
   long int count_units;
-  struct cleanup *back_to;
   int unit_size;
 
   if (argc != 2 && argc != 3)
@@ -1788,8 +1675,7 @@ mi_cmd_data_write_memory_bytes (char *command, char **argv, int argc)
   else
     count_units = len_units;
 
-  databuf = XNEWVEC (gdb_byte, len_bytes);
-  back_to = make_cleanup (xfree, databuf);
+  gdb::byte_vector databuf (len_bytes);
 
   for (i = 0; i < len_bytes; ++i)
     {
@@ -1799,38 +1685,36 @@ mi_cmd_data_write_memory_bytes (char *command, char **argv, int argc)
       databuf[i] = (gdb_byte) x;
     }
 
+  gdb::byte_vector data;
   if (len_units < count_units)
     {
       /* Pattern is made of less units than count:
          repeat pattern to fill memory.  */
-      data = (gdb_byte *) xmalloc (count_units * unit_size);
-      make_cleanup (xfree, data);
+      data = gdb::byte_vector (count_units * unit_size);
 
       /* Number of times the pattern is entirely repeated.  */
       steps = count_units / len_units;
       /* Number of remaining addressable memory units.  */
       remaining_units = count_units % len_units;
       for (i = 0; i < steps; i++)
-        memcpy (data + i * len_bytes, databuf, len_bytes);
+        memcpy (&data[i * len_bytes], &databuf[0], len_bytes);
 
       if (remaining_units > 0)
-        memcpy (data + steps * len_bytes, databuf,
+        memcpy (&data[steps * len_bytes], &databuf[0],
 		remaining_units * unit_size);
     }
   else
     {
       /* Pattern is longer than or equal to count:
          just copy count addressable memory units.  */
-      data = databuf;
+      data = std::move (databuf);
     }
 
-  write_memory_with_notification (addr, data, count_units);
-
-  do_cleanups (back_to);
+  write_memory_with_notification (addr, data.data (), count_units);
 }
 
 void
-mi_cmd_enable_timings (char *command, char **argv, int argc)
+mi_cmd_enable_timings (const char *command, char **argv, int argc)
 {
   if (argc == 0)
     do_timings = 1;
@@ -1853,14 +1737,13 @@ mi_cmd_enable_timings (char *command, char **argv, int argc)
 }
 
 void
-mi_cmd_list_features (char *command, char **argv, int argc)
+mi_cmd_list_features (const char *command, char **argv, int argc)
 {
   if (argc == 0)
     {
-      struct cleanup *cleanup = NULL;
       struct ui_out *uiout = current_uiout;
 
-      cleanup = make_cleanup_ui_out_list_begin_end (uiout, "features");
+      ui_out_emit_list list_emitter (uiout, "features");
       uiout->field_string (NULL, "frozen-varobjs");
       uiout->field_string (NULL, "pending-breakpoints");
       uiout->field_string (NULL, "thread-info");
@@ -1875,7 +1758,6 @@ mi_cmd_list_features (char *command, char **argv, int argc)
       if (ext_lang_initialized_p (get_ext_lang_defn (EXT_LANG_PYTHON)))
 	uiout->field_string (NULL, "python");
 
-      do_cleanups (cleanup);
       return;
     }
 
@@ -1883,19 +1765,17 @@ mi_cmd_list_features (char *command, char **argv, int argc)
 }
 
 void
-mi_cmd_list_target_features (char *command, char **argv, int argc)
+mi_cmd_list_target_features (const char *command, char **argv, int argc)
 {
   if (argc == 0)
     {
-      struct cleanup *cleanup = NULL;
       struct ui_out *uiout = current_uiout;
 
-      cleanup = make_cleanup_ui_out_list_begin_end (uiout, "features");
+      ui_out_emit_list list_emitter (uiout, "features");
       if (mi_async_p ())
 	uiout->field_string (NULL, "async");
       if (target_can_execute_reverse)
 	uiout->field_string (NULL, "reverse");
-      do_cleanups (cleanup);
       return;
     }
 
@@ -1903,7 +1783,7 @@ mi_cmd_list_target_features (char *command, char **argv, int argc)
 }
 
 void
-mi_cmd_add_inferior (char *command, char **argv, int argc)
+mi_cmd_add_inferior (const char *command, char **argv, int argc)
 {
   struct inferior *inf;
 
@@ -1928,7 +1808,7 @@ get_other_inferior (struct inferior *inf, void *arg)
 }
 
 void
-mi_cmd_remove_inferior (char *command, char **argv, int argc)
+mi_cmd_remove_inferior (const char *command, char **argv, int argc)
 {
   int id;
   struct inferior *inf;
@@ -1971,20 +1851,19 @@ mi_cmd_remove_inferior (char *command, char **argv, int argc)
    Return <0 for error; >=0 for ok.
 
    args->action will tell mi_execute_command what action
-   to perfrom after the given command has executed (display/suppress
+   to perform after the given command has executed (display/suppress
    prompt, display error).  */
 
 static void
 captured_mi_execute_command (struct ui_out *uiout, struct mi_parse *context)
 {
-  struct mi_interp *mi = (struct mi_interp *) interp_data (command_interp ());
-  struct cleanup *cleanup;
+  struct mi_interp *mi = (struct mi_interp *) command_interp ();
 
   if (do_timings)
     current_command_ts = context->cmd_start;
 
-  current_token = xstrdup (context->token);
-  cleanup = make_cleanup (free_current_contents, &current_token);
+  scoped_restore save_token = make_scoped_restore (&current_token,
+						   context->token);
 
   running_result_record_printed = 0;
   mi_proceeded = 0;
@@ -2035,7 +1914,7 @@ captured_mi_execute_command (struct ui_out *uiout, struct mi_parse *context)
 	/* Echo the command on the console.  */
 	fprintf_unfiltered (gdb_stdlog, "%s\n", context->command);
 	/* Call the "console" interpreter.  */
-	argv[0] = INTERP_CONSOLE;
+	argv[0] = (char *) INTERP_CONSOLE;
 	argv[1] = context->command;
 	mi_cmd_interpreter_exec ("-interpreter-exec", argv, 2);
 
@@ -2060,8 +1939,6 @@ captured_mi_execute_command (struct ui_out *uiout, struct mi_parse *context)
 	break;
       }
     }
-
-  do_cleanups (cleanup);
 }
 
 /* Print a gdb exception to the MI output stream.  */
@@ -2069,8 +1946,7 @@ captured_mi_execute_command (struct ui_out *uiout, struct mi_parse *context)
 static void
 mi_print_exception (const char *token, struct gdb_exception exception)
 {
-  struct mi_interp *mi
-    = (struct mi_interp *) interp_data (current_interpreter ());
+  struct mi_interp *mi = (struct mi_interp *) current_interpreter ();
 
   fputs_unfiltered (token, mi->raw_stdout);
   fputs_unfiltered ("^error,msg=\"", mi->raw_stdout);
@@ -2122,7 +1998,7 @@ void
 mi_execute_command (const char *cmd, int from_tty)
 {
   char *token;
-  struct mi_parse *command = NULL;
+  std::unique_ptr<struct mi_parse> command;
 
   /* This is to handle EOF (^D). We just quit gdb.  */
   /* FIXME: we should call some API function here.  */
@@ -2145,15 +2021,13 @@ mi_execute_command (const char *cmd, int from_tty)
   if (command != NULL)
     {
       ptid_t previous_ptid = inferior_ptid;
-      struct cleanup *cleanup = make_cleanup (null_cleanup, NULL);
 
-      command->token = token;
+      gdb::optional<scoped_restore_tmpl<int>> restore_suppress;
 
       if (command->cmd != NULL && command->cmd->suppress_notification != NULL)
-        {
-          make_cleanup_restore_integer (command->cmd->suppress_notification);
-          *command->cmd->suppress_notification = 1;
-        }
+	restore_suppress.emplace (command->cmd->suppress_notification, 1);
+
+      command->token = token;
 
       if (do_timings)
 	{
@@ -2163,7 +2037,7 @@ mi_execute_command (const char *cmd, int from_tty)
 
       TRY
 	{
-	  captured_mi_execute_command (current_uiout, command);
+	  captured_mi_execute_command (current_uiout, command.get ());
 	}
       CATCH (result, RETURN_MASK_ALL)
 	{
@@ -2191,10 +2065,9 @@ mi_execute_command (const char *cmd, int from_tty)
 	  && thread_count () != 0
 	  /* If the command already reports the thread change, no need to do it
 	     again.  */
-	  && !command_notifies_uscc_observer (command))
+	  && !command_notifies_uscc_observer (command.get ()))
 	{
-	  struct mi_interp *mi
-	    = (struct mi_interp *) top_level_interpreter_data ();
+	  struct mi_interp *mi = (struct mi_interp *) top_level_interpreter ();
 	  int report_change = 0;
 
 	  if (command->thread == -1)
@@ -2216,19 +2089,13 @@ mi_execute_command (const char *cmd, int from_tty)
 		  (USER_SELECTED_THREAD | USER_SELECTED_FRAME);
 	    }
 	}
-
-      mi_parse_free (command);
-
-      do_cleanups (cleanup);
     }
 }
 
 static void
 mi_cmd_execute (struct mi_parse *parse)
 {
-  struct cleanup *cleanup;
-
-  cleanup = prepare_execute_command ();
+  scoped_value_mark cleanup = prepare_execute_command ();
 
   if (parse->all && parse->thread_group != -1)
     error (_("Cannot specify --thread-group together with --all"));
@@ -2288,9 +2155,10 @@ mi_cmd_execute (struct mi_parse *parse)
 	error (_("Invalid frame id: %d"), frame);
     }
 
+  gdb::optional<scoped_restore_current_language> lang_saver;
   if (parse->language != language_unknown)
     {
-      make_cleanup_restore_current_language ();
+      lang_saver.emplace ();
       set_language (parse->language);
     }
 
@@ -2311,18 +2179,14 @@ mi_cmd_execute (struct mi_parse *parse)
   else
     {
       /* FIXME: DELETE THIS.  */
-      struct ui_file *stb;
+      string_file stb;
 
-      stb = mem_fileopen ();
+      stb.puts ("Undefined mi command: ");
+      stb.putstr (parse->command, '"');
+      stb.puts (" (missing implementation)");
 
-      fputs_unfiltered ("Undefined mi command: ", stb);
-      fputstr_unfiltered (parse->command, '"', stb);
-      fputs_unfiltered (" (missing implementation)", stb);
-
-      make_cleanup_ui_file_delete (stb);
       error_stream (stb);
     }
-  do_cleanups (cleanup);
 }
 
 /* FIXME: This is just a hack so we can get some extra commands going.
@@ -2334,41 +2198,29 @@ mi_execute_cli_command (const char *cmd, int args_p, const char *args)
 {
   if (cmd != 0)
     {
-      struct cleanup *old_cleanups;
-      char *run;
+      std::string run = cmd;
 
       if (args_p)
-	run = xstrprintf ("%s %s", cmd, args);
-      else
-	run = xstrdup (cmd);
+	run = run + " " + args;
       if (mi_debug_p)
 	/* FIXME: gdb_???? */
 	fprintf_unfiltered (gdb_stdout, "cli=%s run=%s\n",
-			    cmd, run);
-      old_cleanups = make_cleanup (xfree, run);
-      execute_command (run, 0 /* from_tty */ );
-      do_cleanups (old_cleanups);
-      return;
+			    cmd, run.c_str ());
+      execute_command (&run[0], 0 /* from_tty */ );
     }
 }
 
 void
-mi_execute_async_cli_command (char *cli_command, char **argv, int argc)
+mi_execute_async_cli_command (const char *cli_command, char **argv, int argc)
 {
-  struct cleanup *old_cleanups;
-  char *run;
+  std::string run = cli_command;
 
+  if (argc)
+    run = run + " " + *argv;
   if (mi_async_p ())
-    run = xstrprintf ("%s %s&", cli_command, argc ? *argv : "");
-  else
-    run = xstrprintf ("%s %s", cli_command, argc ? *argv : "");
-  old_cleanups = make_cleanup (xfree, run);
+    run += "&";
 
-  execute_command (run, 0 /* from_tty */ );
-
-  /* Do this before doing any printing.  It would appear that some
-     print code leaves garbage around in the buffer.  */
-  do_cleanups (old_cleanups);
+  execute_command (&run[0], 0 /* from_tty */ );
 }
 
 void
@@ -2382,46 +2234,44 @@ mi_load_progress (const char *section_name,
   static steady_clock::time_point last_update;
   static char *previous_sect_name = NULL;
   int new_section;
-  struct ui_out *saved_uiout;
-  struct ui_out *uiout;
-  struct mi_interp *mi
-    = (struct mi_interp *) interp_data (current_interpreter ());
+  struct mi_interp *mi = (struct mi_interp *) current_interpreter ();
 
   /* This function is called through deprecated_show_load_progress
      which means uiout may not be correct.  Fix it for the duration
      of this function.  */
-  saved_uiout = current_uiout;
+
+  std::unique_ptr<ui_out> uiout;
 
   if (current_interp_named_p (INTERP_MI)
       || current_interp_named_p (INTERP_MI2))
-    current_uiout = mi_out_new (2);
+    uiout.reset (mi_out_new (2));
   else if (current_interp_named_p (INTERP_MI1))
-    current_uiout = mi_out_new (1);
+    uiout.reset (mi_out_new (1));
   else if (current_interp_named_p (INTERP_MI3))
-    current_uiout = mi_out_new (3);
+    uiout.reset (mi_out_new (3));
   else
     return;
 
-  uiout = current_uiout;
+  scoped_restore save_uiout
+    = make_scoped_restore (&current_uiout, uiout.get ());
 
   new_section = (previous_sect_name ?
 		 strcmp (previous_sect_name, section_name) : 1);
   if (new_section)
     {
-      struct cleanup *cleanup_tuple;
-
       xfree (previous_sect_name);
       previous_sect_name = xstrdup (section_name);
 
       if (current_token)
 	fputs_unfiltered (current_token, mi->raw_stdout);
       fputs_unfiltered ("+download", mi->raw_stdout);
-      cleanup_tuple = make_cleanup_ui_out_tuple_begin_end (uiout, NULL);
-      uiout->field_string ("section", section_name);
-      uiout->field_int ("section-size", total_section);
-      uiout->field_int ("total-size", grand_total);
-      do_cleanups (cleanup_tuple);
-      mi_out_put (uiout, mi->raw_stdout);
+      {
+	ui_out_emit_tuple tuple_emitter (uiout.get (), NULL);
+	uiout->field_string ("section", section_name);
+	uiout->field_int ("section-size", total_section);
+	uiout->field_int ("total-size", grand_total);
+      }
+      mi_out_put (uiout.get (), mi->raw_stdout);
       fputs_unfiltered ("\n", mi->raw_stdout);
       gdb_flush (mi->raw_stdout);
     }
@@ -2429,26 +2279,22 @@ mi_load_progress (const char *section_name,
   steady_clock::time_point time_now = steady_clock::now ();
   if (time_now - last_update > milliseconds (500))
     {
-      struct cleanup *cleanup_tuple;
-
       last_update = time_now;
       if (current_token)
 	fputs_unfiltered (current_token, mi->raw_stdout);
       fputs_unfiltered ("+download", mi->raw_stdout);
-      cleanup_tuple = make_cleanup_ui_out_tuple_begin_end (uiout, NULL);
-      uiout->field_string ("section", section_name);
-      uiout->field_int ("section-sent", sent_so_far);
-      uiout->field_int ("section-size", total_section);
-      uiout->field_int ("total-sent", total_sent);
-      uiout->field_int ("total-size", grand_total);
-      do_cleanups (cleanup_tuple);
-      mi_out_put (uiout, mi->raw_stdout);
+      {
+	ui_out_emit_tuple tuple_emitter (uiout.get (), NULL);
+	uiout->field_string ("section", section_name);
+	uiout->field_int ("section-sent", sent_so_far);
+	uiout->field_int ("section-size", total_section);
+	uiout->field_int ("total-sent", total_sent);
+	uiout->field_int ("total-size", grand_total);
+      }
+      mi_out_put (uiout.get (), mi->raw_stdout);
       fputs_unfiltered ("\n", mi->raw_stdout);
       gdb_flush (mi->raw_stdout);
     }
-
-  xfree (uiout);
-  current_uiout = saved_uiout;
 }
 
 static void
@@ -2495,7 +2341,7 @@ print_diff (struct ui_file *file, struct mi_timestamp *start,
 }
 
 void
-mi_cmd_trace_define_variable (char *command, char **argv, int argc)
+mi_cmd_trace_define_variable (const char *command, char **argv, int argc)
 {
   LONGEST initval = 0;
   struct trace_state_variable *tsv;
@@ -2521,7 +2367,7 @@ mi_cmd_trace_define_variable (char *command, char **argv, int argc)
 }
 
 void
-mi_cmd_trace_list_variables (char *command, char **argv, int argc)
+mi_cmd_trace_list_variables (const char *command, char **argv, int argc)
 {
   if (argc != 0)
     error (_("-trace-list-variables: no arguments allowed"));
@@ -2530,7 +2376,7 @@ mi_cmd_trace_list_variables (char *command, char **argv, int argc)
 }
 
 void
-mi_cmd_trace_find (char *command, char **argv, int argc)
+mi_cmd_trace_find (const char *command, char **argv, int argc)
 {
   char *mode;
 
@@ -2581,29 +2427,22 @@ mi_cmd_trace_find (char *command, char **argv, int argc)
     }
   else if (strcmp (mode, "line") == 0)
     {
-      struct symtabs_and_lines sals;
-      struct symtab_and_line sal;
-      static CORE_ADDR start_pc, end_pc;
-      struct cleanup *back_to;
-
       if (argc != 2)
 	error (_("Line is required"));
 
-      sals = decode_line_with_current_source (argv[1],
-					      DECODE_LINE_FUNFIRSTLINE);
-      back_to = make_cleanup (xfree, sals.sals);
-
-      sal = sals.sals[0];
+      std::vector<symtab_and_line> sals
+	= decode_line_with_current_source (argv[1],
+					   DECODE_LINE_FUNFIRSTLINE);
+      const symtab_and_line &sal = sals[0];
 
       if (sal.symtab == 0)
 	error (_("Could not find the specified line"));
 
+      CORE_ADDR start_pc, end_pc;
       if (sal.line > 0 && find_line_pc_range (sal, &start_pc, &end_pc))
 	tfind_1 (tfind_range, 0, start_pc, end_pc - 1, 0);
       else
 	error (_("Could not find the specified line"));
-
-      do_cleanups (back_to);
     }
   else
     error (_("Invalid mode '%s'"), mode);
@@ -2613,7 +2452,7 @@ mi_cmd_trace_find (char *command, char **argv, int argc)
 }
 
 void
-mi_cmd_trace_save (char *command, char **argv, int argc)
+mi_cmd_trace_save (const char *command, char **argv, int argc)
 {
   int target_saves = 0;
   int generate_ctf = 0;
@@ -2663,19 +2502,19 @@ mi_cmd_trace_save (char *command, char **argv, int argc)
 }
 
 void
-mi_cmd_trace_start (char *command, char **argv, int argc)
+mi_cmd_trace_start (const char *command, char **argv, int argc)
 {
   start_tracing (NULL);
 }
 
 void
-mi_cmd_trace_status (char *command, char **argv, int argc)
+mi_cmd_trace_status (const char *command, char **argv, int argc)
 {
   trace_status_mi (0);
 }
 
 void
-mi_cmd_trace_stop (char *command, char **argv, int argc)
+mi_cmd_trace_stop (const char *command, char **argv, int argc)
 {
   stop_tracing (NULL);
   trace_status_mi (1);
@@ -2684,7 +2523,7 @@ mi_cmd_trace_stop (char *command, char **argv, int argc)
 /* Implement the "-ada-task-info" command.  */
 
 void
-mi_cmd_ada_task_info (char *command, char **argv, int argc)
+mi_cmd_ada_task_info (const char *command, char **argv, int argc)
 {
   if (argc != 0 && argc != 1)
     error (_("Invalid MI command"));
@@ -2697,14 +2536,11 @@ mi_cmd_ada_task_info (char *command, char **argv, int argc)
 static void
 print_variable_or_computed (const char *expression, enum print_values values)
 {
-  struct cleanup *old_chain;
   struct value *val;
-  struct ui_file *stb;
   struct type *type;
   struct ui_out *uiout = current_uiout;
 
-  stb = mem_fileopen ();
-  old_chain = make_cleanup_ui_file_delete (stb);
+  string_file stb;
 
   expression_up expr = parse_expression (expression);
 
@@ -2713,15 +2549,16 @@ print_variable_or_computed (const char *expression, enum print_values values)
   else
     val = evaluate_expression (expr.get ());
 
+  gdb::optional<ui_out_emit_tuple> tuple_emitter;
   if (values != PRINT_NO_VALUES)
-    make_cleanup_ui_out_tuple_begin_end (uiout, NULL);
+    tuple_emitter.emplace (uiout, nullptr);
   uiout->field_string ("name", expression);
 
   switch (values)
     {
     case PRINT_SIMPLE_VALUES:
       type = check_typedef (value_type (val));
-      type_print (value_type (val), "", stb, -1);
+      type_print (value_type (val), "", &stb, -1);
       uiout->field_stream ("type", stb);
       if (TYPE_CODE (type) != TYPE_CODE_ARRAY
 	  && TYPE_CODE (type) != TYPE_CODE_STRUCT
@@ -2731,7 +2568,7 @@ print_variable_or_computed (const char *expression, enum print_values values)
 
 	  get_no_prettyformat_print_options (&opts);
 	  opts.deref_ref = 1;
-	  common_val_print (val, stb, 0, &opts, current_language);
+	  common_val_print (val, &stb, 0, &opts, current_language);
 	  uiout->field_stream ("value", stb);
 	}
       break;
@@ -2741,21 +2578,18 @@ print_variable_or_computed (const char *expression, enum print_values values)
 
 	get_no_prettyformat_print_options (&opts);
 	opts.deref_ref = 1;
-	common_val_print (val, stb, 0, &opts, current_language);
+	common_val_print (val, &stb, 0, &opts, current_language);
 	uiout->field_stream ("value", stb);
       }
       break;
     }
-
-  do_cleanups (old_chain);
 }
 
 /* Implement the "-trace-frame-collected" command.  */
 
 void
-mi_cmd_trace_frame_collected (char *command, char **argv, int argc)
+mi_cmd_trace_frame_collected (const char *command, char **argv, int argc)
 {
-  struct cleanup *old_chain;
   struct bp_location *tloc;
   int stepping_frame;
   struct collection_list *clist;
@@ -2818,7 +2652,7 @@ mi_cmd_trace_frame_collected (char *command, char **argv, int argc)
 
   /* This command only makes sense for the current frame, not the
      selected frame.  */
-  old_chain = make_cleanup_restore_current_thread ();
+  scoped_restore_current_thread restore_thread;
   select_frame (get_current_frame ());
 
   encode_actions (tloc, &tracepoint_list, &stepping_list);
@@ -2832,12 +2666,9 @@ mi_cmd_trace_frame_collected (char *command, char **argv, int argc)
 
   /* Explicitly wholly collected variables.  */
   {
-    struct cleanup *list_cleanup;
     int i;
 
-    list_cleanup = make_cleanup_ui_out_list_begin_end (uiout,
-						       "explicit-variables");
-
+    ui_out_emit_list list_emitter (uiout, "explicit-variables");
     const std::vector<std::string> &wholly_collected
       = clist->wholly_collected ();
     for (size_t i = 0; i < wholly_collected.size (); i++)
@@ -2845,19 +2676,14 @@ mi_cmd_trace_frame_collected (char *command, char **argv, int argc)
 	const std::string &str = wholly_collected[i];
 	print_variable_or_computed (str.c_str (), var_print_values);
       }
-
-    do_cleanups (list_cleanup);
   }
 
   /* Computed expressions.  */
   {
-    struct cleanup *list_cleanup;
     char *p;
     int i;
 
-    list_cleanup
-      = make_cleanup_ui_out_list_begin_end (uiout,
-					    "computed-expressions");
+    ui_out_emit_list list_emitter (uiout, "computed-expressions");
 
     const std::vector<std::string> &computed = clist->computed ();
     for (size_t i = 0; i < computed.size (); i++)
@@ -2865,8 +2691,6 @@ mi_cmd_trace_frame_collected (char *command, char **argv, int argc)
 	const std::string &str = computed[i];
 	print_variable_or_computed (str.c_str (), comp_print_values);
       }
-
-    do_cleanups (list_cleanup);
   }
 
   /* Registers.  Given pseudo-registers, and that some architectures
@@ -2874,13 +2698,12 @@ mi_cmd_trace_frame_collected (char *command, char **argv, int argc)
      the trace frame info, but instead consult the register cache for
      register availability.  */
   {
-    struct cleanup *list_cleanup;
     struct frame_info *frame;
     struct gdbarch *gdbarch;
     int regnum;
     int numregs;
 
-    list_cleanup = make_cleanup_ui_out_list_begin_end (uiout, "registers");
+    ui_out_emit_list list_emitter (uiout, "registers");
 
     frame = get_selected_frame (NULL);
     gdbarch = get_frame_arch (frame);
@@ -2894,37 +2717,23 @@ mi_cmd_trace_frame_collected (char *command, char **argv, int argc)
 
 	output_register (frame, regnum, registers_format, 1);
       }
-
-    do_cleanups (list_cleanup);
   }
 
   /* Trace state variables.  */
   {
-    struct cleanup *list_cleanup;
-    int tvar;
-    char *tsvname;
-    int i;
+    ui_out_emit_list list_emitter (uiout, "tvars");
 
-    list_cleanup = make_cleanup_ui_out_list_begin_end (uiout, "tvars");
-
-    tsvname = NULL;
-    make_cleanup (free_current_contents, &tsvname);
-
-    for (i = 0; VEC_iterate (int, tinfo->tvars, i, tvar); i++)
+    for (int tvar : tinfo->tvars)
       {
-	struct cleanup *cleanup_child;
 	struct trace_state_variable *tsv;
 
 	tsv = find_trace_state_variable_by_number (tvar);
 
-	cleanup_child = make_cleanup_ui_out_tuple_begin_end (uiout, NULL);
+	ui_out_emit_tuple tuple_emitter (uiout, NULL);
 
 	if (tsv != NULL)
 	  {
-	    tsvname = (char *) xrealloc (tsvname, strlen (tsv->name) + 2);
-	    tsvname[0] = '$';
-	    strcpy (tsvname + 1, tsv->name);
-	    uiout->field_string ("name", tsvname);
+	    uiout->field_fmt ("name", "$%s", tsv->name);
 
 	    tsv->value_known = target_get_trace_state_variable_value (tsv->number,
 								      &tsv->value);
@@ -2935,63 +2744,40 @@ mi_cmd_trace_frame_collected (char *command, char **argv, int argc)
 	    uiout->field_skip ("name");
 	    uiout->field_skip ("current");
 	  }
-
-	do_cleanups (cleanup_child);
       }
-
-    do_cleanups (list_cleanup);
   }
 
   /* Memory.  */
   {
-    struct cleanup *list_cleanup;
-    VEC(mem_range_s) *available_memory = NULL;
-    struct mem_range *r;
-    int i;
+    std::vector<mem_range> available_memory;
 
     traceframe_available_memory (&available_memory, 0, ULONGEST_MAX);
-    make_cleanup (VEC_cleanup(mem_range_s), &available_memory);
 
-    list_cleanup = make_cleanup_ui_out_list_begin_end (uiout, "memory");
+    ui_out_emit_list list_emitter (uiout, "memory");
 
-    for (i = 0; VEC_iterate (mem_range_s, available_memory, i, r); i++)
+    for (const mem_range &r : available_memory)
       {
-	struct cleanup *cleanup_child;
-	gdb_byte *data;
 	struct gdbarch *gdbarch = target_gdbarch ();
 
-	cleanup_child = make_cleanup_ui_out_tuple_begin_end (uiout, NULL);
+	ui_out_emit_tuple tuple_emitter (uiout, NULL);
 
-	uiout->field_core_addr ("address", gdbarch, r->start);
-	uiout->field_int ("length", r->length);
+	uiout->field_core_addr ("address", gdbarch, r.start);
+	uiout->field_int ("length", r.length);
 
-	data = (gdb_byte *) xmalloc (r->length);
-	make_cleanup (xfree, data);
+	gdb::byte_vector data (r.length);
 
 	if (memory_contents)
 	  {
-	    if (target_read_memory (r->start, data, r->length) == 0)
+	    if (target_read_memory (r.start, data.data (), r.length) == 0)
 	      {
-		int m;
-		char *data_str, *p;
-
-		data_str = (char *) xmalloc (r->length * 2 + 1);
-		make_cleanup (xfree, data_str);
-
-		for (m = 0, p = data_str; m < r->length; ++m, p += 2)
-		  sprintf (p, "%02x", data[m]);
-		uiout->field_string ("contents", data_str);
+		std::string data_str = bin2hex (data.data (), r.length);
+		uiout->field_string ("contents", data_str.c_str ());
 	      }
 	    else
 	      uiout->field_skip ("contents");
 	  }
-	do_cleanups (cleanup_child);
       }
-
-    do_cleanups (list_cleanup);
   }
-
-  do_cleanups (old_chain);
 }
 
 void

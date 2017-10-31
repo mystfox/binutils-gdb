@@ -1,5 +1,5 @@
 /* TILE-Gx-specific support for 64-bit ELF.
-   Copyright (C) 2011-2016 Free Software Foundation, Inc.
+   Copyright (C) 2011-2017 Free Software Foundation, Inc.
 
    This file is part of BFD, the Binary File Descriptor library.
 
@@ -111,7 +111,6 @@ tilegx_elf_grok_psinfo (bfd *abfd, Elf_Internal_Note *note)
 #define elf_backend_finish_dynamic_symbol    tilegx_elf_finish_dynamic_symbol
 #define elf_backend_finish_dynamic_sections  tilegx_elf_finish_dynamic_sections
 #define elf_backend_gc_mark_hook	     tilegx_elf_gc_mark_hook
-#define elf_backend_gc_sweep_hook            tilegx_elf_gc_sweep_hook
 #define elf_backend_plt_sym_val		     tilegx_elf_plt_sym_val
 #define elf_info_to_howto_rel                NULL
 #define elf_info_to_howto                    tilegx_info_to_howto_rela
@@ -129,6 +128,7 @@ tilegx_elf_grok_psinfo (bfd *abfd, Elf_Internal_Note *note)
 #define elf_backend_plt_alignment 6
 #define elf_backend_want_plt_sym 1
 #define elf_backend_got_header_size 8
+#define elf_backend_want_dynrelro 1
 #define elf_backend_rela_normal 1
 #define elf_backend_default_execstack 0
 

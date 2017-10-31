@@ -1,7 +1,7 @@
 
 /* Internal type definitions for GDB.
 
-   Copyright (C) 1992-2016 Free Software Foundation, Inc.
+   Copyright (C) 1992-2017 Free Software Foundation, Inc.
 
    Contributed by Cygnus Support, using pieces from other GDB modules.
 
@@ -45,6 +45,8 @@
  */
 
 #include "hashtab.h"
+#include "common/offset-type.h"
+#include "common/enum-flags.h"
 
 /* Forward declarations for prototypes.  */
 struct field;
@@ -57,18 +59,11 @@ struct language_defn;
 
 /* * Offset relative to the start of its containing CU (compilation
    unit).  */
-typedef struct
-{
-  unsigned int cu_off;
-} cu_offset;
+DEFINE_OFFSET_TYPE (cu_offset, unsigned int);
 
 /* * Offset relative to the start of its .debug_info or .debug_types
    section.  */
-
-typedef struct
-{
-  unsigned int sect_off;
-} sect_offset;
+DEFINE_OFFSET_TYPE (sect_offset, unsigned int);
 
 /* Some macros for char-based bitfields.  */
 
@@ -160,6 +155,8 @@ enum type_code
 
     TYPE_CODE_REF,		/**< C++ Reference types */
 
+    TYPE_CODE_RVALUE_REF,	/**< C++ rvalue reference types */
+
     TYPE_CODE_CHAR,		/**< *real* character type */
 
     /* * Boolean type.  0 is false, 1 is true, and other values are
@@ -200,6 +197,8 @@ enum type_instance_flag_value
   TYPE_INSTANCE_FLAG_ATOMIC = (1 << 8)
 };
 
+DEF_ENUM_FLAGS_TYPE (enum type_instance_flag_value, type_instance_flags);
+
 /* * Unsigned integer type.  If this is not set for a TYPE_CODE_INT,
    the type is signed (unless TYPE_NOSIGN (below) is set).  */
 
@@ -224,13 +223,6 @@ enum type_instance_flag_value
    TYPE_CODE_TYPEDEF.  */
 
 #define TYPE_TARGET_STUB(t)	(TYPE_MAIN_TYPE (t)->flag_target_stub)
-
-/* * Static type.  If this is set, the corresponding type had 
-   a static modifier.
-   Note: This may be unnecessary, since static data members
-   are indicated by other means (bitpos == -1).  */
-
-#define TYPE_STATIC(t)		(TYPE_MAIN_TYPE (t)->flag_static)
 
 /* * This is a function type which appears to have a prototype.  We
    need this for function calls in order to tell us if it's necessary
@@ -315,25 +307,30 @@ enum type_instance_flag_value
 /* * Constant type.  If this is set, the corresponding type has a
    const modifier.  */
 
-#define TYPE_CONST(t) (TYPE_INSTANCE_FLAGS (t) & TYPE_INSTANCE_FLAG_CONST)
+#define TYPE_CONST(t) ((TYPE_INSTANCE_FLAGS (t) & TYPE_INSTANCE_FLAG_CONST) != 0)
 
 /* * Volatile type.  If this is set, the corresponding type has a
    volatile modifier.  */
 
 #define TYPE_VOLATILE(t) \
-  (TYPE_INSTANCE_FLAGS (t) & TYPE_INSTANCE_FLAG_VOLATILE)
+  ((TYPE_INSTANCE_FLAGS (t) & TYPE_INSTANCE_FLAG_VOLATILE) != 0)
 
 /* * Restrict type.  If this is set, the corresponding type has a
    restrict modifier.  */
 
 #define TYPE_RESTRICT(t) \
-  (TYPE_INSTANCE_FLAGS (t) & TYPE_INSTANCE_FLAG_RESTRICT)
+  ((TYPE_INSTANCE_FLAGS (t) & TYPE_INSTANCE_FLAG_RESTRICT) != 0)
 
 /* * Atomic type.  If this is set, the corresponding type has an
    _Atomic modifier.  */
 
 #define TYPE_ATOMIC(t) \
-  (TYPE_INSTANCE_FLAGS (t) & TYPE_INSTANCE_FLAG_ATOMIC)
+  ((TYPE_INSTANCE_FLAGS (t) & TYPE_INSTANCE_FLAG_ATOMIC) != 0)
+
+/* * True if this type represents either an lvalue or lvalue reference type.  */
+
+#define TYPE_IS_REFERENCE(t) \
+  (TYPE_CODE (t) == TYPE_CODE_REF || TYPE_CODE (t) == TYPE_CODE_RVALUE_REF)
 
 /* * Instruction-space delimited type.  This is for Harvard architectures
    which have separate instruction and data address spaces (and perhaps
@@ -355,10 +352,10 @@ enum type_instance_flag_value
    is instruction space, and for data objects is data memory.  */
 
 #define TYPE_CODE_SPACE(t) \
-  (TYPE_INSTANCE_FLAGS (t) & TYPE_INSTANCE_FLAG_CODE_SPACE)
+  ((TYPE_INSTANCE_FLAGS (t) & TYPE_INSTANCE_FLAG_CODE_SPACE) != 0)
 
 #define TYPE_DATA_SPACE(t) \
-  (TYPE_INSTANCE_FLAGS (t) & TYPE_INSTANCE_FLAG_DATA_SPACE)
+  ((TYPE_INSTANCE_FLAGS (t) & TYPE_INSTANCE_FLAG_DATA_SPACE) != 0)
 
 /* * Address class flags.  Some environments provide for pointers
    whose size is different from that of a normal pointer or address
@@ -574,12 +571,11 @@ union type_specific
 
   struct gnat_aux_type *gnat_stuff;
 
-  /* * FLOATFORMAT is for TYPE_CODE_FLT.  It is a pointer to two
-     floatformat objects that describe the floating-point value
-     that resides within the type.  The first is for big endian
-     targets and the second is for little endian targets.  */
+  /* * FLOATFORMAT is for TYPE_CODE_FLT.  It is a pointer to a
+     floatformat object that describes the floating-point value
+     that resides within the type.  */
 
-  const struct floatformat **floatformat;
+  const struct floatformat *floatformat;
 
   /* * For TYPE_CODE_FUNC and TYPE_CODE_METHOD types.  */
 
@@ -740,6 +736,10 @@ struct type
 
   struct type *reference_type;
 
+  /* * A C++ rvalue reference type added in C++11. */
+
+  struct type *rvalue_reference_type;
+
   /* * Variant chain.  This points to a type that differs from this
      one only in qualifiers and length.  Currently, the possible
      qualifiers are const, volatile, code-space, data-space, and
@@ -839,12 +839,6 @@ struct fn_field
   unsigned int is_volatile:1;
   unsigned int is_private:1;
   unsigned int is_protected:1;
-  unsigned int is_public:1;
-  unsigned int is_abstract:1;
-  unsigned int is_static:1;
-  unsigned int is_final:1;
-  unsigned int is_synchronized:1;
-  unsigned int is_native:1;
   unsigned int is_artificial:1;
 
   /* * A stub method only has some fields valid (but they are enough
@@ -858,7 +852,7 @@ struct fn_field
 
   /* * Unused.  */
 
-  unsigned int dummy:3;
+  unsigned int dummy:9;
 
   /* * Index into that baseclass's virtual function table, minus 2;
      else if static: VOFFSET_STATIC; else: 0.  */
@@ -879,6 +873,12 @@ struct typedef_field
   /* * Type this typedef named NAME represents.  */
 
   struct type *type;
+
+  /* * True if this field was declared protected, false otherwise.  */
+  unsigned int is_protected : 1;
+
+  /* * True if this field was declared private, false otherwise.  */
+  unsigned int is_private : 1;
 };
 
 /* * C++ language-specific information for TYPE_CODE_STRUCT and
@@ -1041,12 +1041,12 @@ struct func_type
 
     unsigned int is_noreturn : 1;
 
-    /* * Only those DW_TAG_GNU_call_site's in this function that have
-       DW_AT_GNU_tail_call set are linked in this list.  Function
+    /* * Only those DW_TAG_call_site's in this function that have
+       DW_AT_call_tail_call set are linked in this list.  Function
        without its tail call list complete
-       (DW_AT_GNU_all_tail_call_sites or its superset
-       DW_AT_GNU_all_call_sites) has TAIL_CALL_LIST NULL, even if some
-       DW_TAG_GNU_call_site's exist in such function. */
+       (DW_AT_call_all_tail_calls or its superset
+       DW_AT_call_all_calls) has TAIL_CALL_LIST NULL, even if some
+       DW_TAG_call_site's exist in such function. */
 
     struct call_site *tail_call_list;
 
@@ -1097,7 +1097,7 @@ union call_site_parameter_u
      DW_TAG_formal_parameter which is referenced by both
      caller and the callee.  */
 
-  cu_offset param_offset;
+  cu_offset param_cu_off;
 };
 
 struct call_site_parameter
@@ -1106,13 +1106,12 @@ struct call_site_parameter
 
   union call_site_parameter_u u;
 
-  /* * DW_TAG_formal_parameter's DW_AT_GNU_call_site_value.  It
-     is never NULL.  */
+  /* * DW_TAG_formal_parameter's DW_AT_call_value.  It is never NULL.  */
 
   const gdb_byte *value;
   size_t value_size;
 
-  /* * DW_TAG_formal_parameter's DW_AT_GNU_call_site_data_value.
+  /* * DW_TAG_formal_parameter's DW_AT_call_data_value.
      It may be NULL if not provided by DWARF.  */
 
   const gdb_byte *data_value;
@@ -1120,8 +1119,7 @@ struct call_site_parameter
 };
 
 /* * A place where a function gets called from, represented by
-   DW_TAG_GNU_call_site.  It can be looked up from
-   symtab->call_site_htab.  */
+   DW_TAG_call_site.  It can be looked up from symtab->call_site_htab.  */
 
 struct call_site
   {
@@ -1135,7 +1133,7 @@ struct call_site
 
     struct call_site *tail_call_next;
 
-    /* * Describe DW_AT_GNU_call_site_target.  Missing attribute uses
+    /* * Describe DW_AT_call_target.  Missing attribute uses
        FIELD_LOC_KIND_DWARF_BLOCK with FIELD_DWARF_BLOCK == NULL.  */
 
     struct call_site_target target;
@@ -1149,7 +1147,7 @@ struct call_site
 
     struct dwarf2_per_cu_data *per_cu;
 
-    /* * Describe DW_TAG_GNU_call_site's DW_TAG_formal_parameter.  */
+    /* * Describe DW_TAG_call_site's DW_TAG_formal_parameter.  */
 
     struct call_site_parameter parameter[1];
   };
@@ -1198,6 +1196,7 @@ extern void allocate_gnat_aux_type (struct type *);
 #define TYPE_TARGET_TYPE(thistype) TYPE_MAIN_TYPE(thistype)->target_type
 #define TYPE_POINTER_TYPE(thistype) (thistype)->pointer_type
 #define TYPE_REFERENCE_TYPE(thistype) (thistype)->reference_type
+#define TYPE_RVALUE_REFERENCE_TYPE(thistype) (thistype)->rvalue_reference_type
 #define TYPE_CHAIN(thistype) (thistype)->chain
 /* * Note that if thistype is a TYPEDEF type, you have to call check_typedef.
    But check_typedef does set the TYPE_LENGTH of the TYPEDEF type,
@@ -1401,13 +1400,7 @@ extern void set_type_vptr_basetype (struct type *, struct type *);
 #define TYPE_FN_FIELD_VOLATILE(thisfn, n) ((thisfn)[n].is_volatile)
 #define TYPE_FN_FIELD_PRIVATE(thisfn, n) ((thisfn)[n].is_private)
 #define TYPE_FN_FIELD_PROTECTED(thisfn, n) ((thisfn)[n].is_protected)
-#define TYPE_FN_FIELD_PUBLIC(thisfn, n) ((thisfn)[n].is_public)
-#define TYPE_FN_FIELD_STATIC(thisfn, n) ((thisfn)[n].is_static)
-#define TYPE_FN_FIELD_FINAL(thisfn, n) ((thisfn)[n].is_final)
-#define TYPE_FN_FIELD_SYNCHRONIZED(thisfn, n) ((thisfn)[n].is_synchronized)
-#define TYPE_FN_FIELD_NATIVE(thisfn, n) ((thisfn)[n].is_native)
 #define TYPE_FN_FIELD_ARTIFICIAL(thisfn, n) ((thisfn)[n].is_artificial)
-#define TYPE_FN_FIELD_ABSTRACT(thisfn, n) ((thisfn)[n].is_abstract)
 #define TYPE_FN_FIELD_STUB(thisfn, n) ((thisfn)[n].is_stub)
 #define TYPE_FN_FIELD_CONSTRUCTOR(thisfn, n) ((thisfn)[n].is_constructor)
 #define TYPE_FN_FIELD_FCONTEXT(thisfn, n) ((thisfn)[n].fcontext)
@@ -1415,6 +1408,7 @@ extern void set_type_vptr_basetype (struct type *, struct type *);
 #define TYPE_FN_FIELD_VIRTUAL_P(thisfn, n) ((thisfn)[n].voffset > 1)
 #define TYPE_FN_FIELD_STATIC_P(thisfn, n) ((thisfn)[n].voffset == VOFFSET_STATIC)
 
+/* Accessors for typedefs defined by a class.  */
 #define TYPE_TYPEDEF_FIELD_ARRAY(thistype) \
   TYPE_CPLUS_SPECIFIC (thistype)->typedef_field
 #define TYPE_TYPEDEF_FIELD(thistype, n) \
@@ -1425,6 +1419,10 @@ extern void set_type_vptr_basetype (struct type *, struct type *);
   TYPE_TYPEDEF_FIELD (thistype, n).type
 #define TYPE_TYPEDEF_FIELD_COUNT(thistype) \
   TYPE_CPLUS_SPECIFIC (thistype)->typedef_field_count
+#define TYPE_TYPEDEF_FIELD_PROTECTED(thistype, n) \
+  TYPE_TYPEDEF_FIELD (thistype, n).is_protected
+#define TYPE_TYPEDEF_FIELD_PRIVATE(thistype, n)        \
+  TYPE_TYPEDEF_FIELD (thistype, n).is_private
 
 #define TYPE_IS_OPAQUE(thistype) \
   (((TYPE_CODE (thistype) == TYPE_CODE_STRUCT) \
@@ -1445,6 +1443,9 @@ extern void set_type_vptr_basetype (struct type *, struct type *);
 
 #define TYPE_ERROR_NAME(type) \
   (TYPE_NAME (type) ? TYPE_NAME (type) : _("<error type>"))
+
+/* Given TYPE, return its floatformat.  */
+const struct floatformat *floatformat_from_type (const struct type *type);
 
 struct builtin_type
 {
@@ -1499,6 +1500,7 @@ struct builtin_type
   /* Wide character types.  */
   struct type *builtin_char16;
   struct type *builtin_char32;
+  struct type *builtin_wchar;
 
   /* Pointer types.  */
 
@@ -1694,7 +1696,7 @@ struct field *append_composite_type_field_raw (struct type *t, const char *name,
    type is created using arch_flag_type().  Flags are then added using
    append_flag_type_field() and append_flag_type_flag().  */
 extern struct type *arch_flags_type (struct gdbarch *gdbarch,
-				     const char *name, int length);
+				     const char *name, int bit);
 extern void append_flags_type_field (struct type *type,
 				     int start_bitpos, int nr_bits,
 				     struct type *field_type, const char *name);
@@ -1704,9 +1706,13 @@ extern void append_flags_type_flag (struct type *type, int bitpos,
 extern void make_vector_type (struct type *array_type);
 extern struct type *init_vector_type (struct type *elt_type, int n);
 
-extern struct type *lookup_reference_type (struct type *);
+extern struct type *lookup_reference_type (struct type *, enum type_code);
+extern struct type *lookup_lvalue_reference_type (struct type *);
+extern struct type *lookup_rvalue_reference_type (struct type *);
 
-extern struct type *make_reference_type (struct type *, struct type **);
+
+extern struct type *make_reference_type (struct type *, struct type **,
+                                         enum type_code);
 
 extern struct type *make_cv_type (int, int, struct type *, struct type **);
 
@@ -1882,10 +1888,21 @@ extern const struct rank VOID_PTR_CONVERSION_BADNESS;
 extern const struct rank BOOL_CONVERSION_BADNESS;
 /* * Badness of converting derived to base class.  */
 extern const struct rank BASE_CONVERSION_BADNESS;
-/* * Badness of converting from non-reference to reference.  */
+/* * Badness of converting from non-reference to reference.  Subrank
+   is the type of reference conversion being done.  */
 extern const struct rank REFERENCE_CONVERSION_BADNESS;
+/* * Conversion to rvalue reference.  */
+#define REFERENCE_CONVERSION_RVALUE 1
+/* * Conversion to const lvalue reference.  */
+#define REFERENCE_CONVERSION_CONST_LVALUE 2
+
 /* * Badness of converting integer 0 to NULL pointer.  */
 extern const struct rank NULL_POINTER_CONVERSION;
+/* * Badness of cv-conversion.  Subrank is a flag describing the conversions
+   being done.  */
+extern const struct rank CV_CONVERSION_BADNESS;
+#define CV_CONVERSION_CONST 1
+#define CV_CONVERSION_VOLATILE 2
 
 /* Non-standard conversions allowed by the debugger */
 
@@ -1927,7 +1944,7 @@ extern int is_scalar_type_recursive (struct type *);
 
 extern int class_or_union_p (const struct type *);
 
-extern void maintenance_print_type (char *, int);
+extern void maintenance_print_type (const char *, int);
 
 extern htab_t create_copied_types_hash (struct objfile *objfile);
 

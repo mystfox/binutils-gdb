@@ -1,5 +1,5 @@
 /* CRIS-specific support for 32-bit ELF.
-   Copyright (C) 2000-2016 Free Software Foundation, Inc.
+   Copyright (C) 2000-2017 Free Software Foundation, Inc.
    Contributed by Axis Communications AB.
    Written by Hans-Peter Nilsson, based on elf32-fr30.c
    PIC and shlib bits based primarily on elf32-m68k.c and elf32-i386.c.
@@ -1018,6 +1018,7 @@ cris_elf_relocate_section (bfd *output_bfd ATTRIBUTE_UNUSED,
       bfd_reloc_status_type r;
       const char *symname = NULL;
       enum elf_cris_reloc_type r_type;
+      bfd_boolean resolved_to_zero;
 
       r_type = ELF32_R_TYPE (rel->r_info);
 
@@ -1129,6 +1130,9 @@ cris_elf_relocate_section (bfd *output_bfd ATTRIBUTE_UNUSED,
 
       if (bfd_link_relocatable (info))
 	continue;
+
+      resolved_to_zero = (h != NULL
+			  && UNDEFWEAK_NO_DYNAMIC_RELOC (info, h));
 
       switch (r_type)
 	{
@@ -1301,7 +1305,7 @@ cris_elf_relocate_section (bfd *output_bfd ATTRIBUTE_UNUSED,
 		if (h == NULL)
 		  _bfd_error_handler
 		    /* xgettext:c-format */
-		    (_("%B, section %A: relocation %s with non-zero addend %d"
+		    (_("%B, section %A: relocation %s with non-zero addend %Ld"
 		       " against local symbol"),
 		     input_bfd,
 		     input_section,
@@ -1310,7 +1314,7 @@ cris_elf_relocate_section (bfd *output_bfd ATTRIBUTE_UNUSED,
 		else
 		  _bfd_error_handler
 		    /* xgettext:c-format */
-		    (_("%B, section %A: relocation %s with non-zero addend %d"
+		    (_("%B, section %A: relocation %s with non-zero addend %Ld"
 		       " against symbol `%s'"),
 		     input_bfd,
 		     input_section,
@@ -1432,6 +1436,7 @@ cris_elf_relocate_section (bfd *output_bfd ATTRIBUTE_UNUSED,
 	case R_CRIS_16:
 	case R_CRIS_32:
 	  if (bfd_link_pic (info)
+	      && !resolved_to_zero
 	      && r_symndx != STN_UNDEF
 	      && (input_section->flags & SEC_ALLOC) != 0
 	      && ((r_type != R_CRIS_8_PCREL
@@ -1657,7 +1662,7 @@ cris_elf_relocate_section (bfd *output_bfd ATTRIBUTE_UNUSED,
 		 to pass us these kinds of things.  */
 	      _bfd_error_handler
 		/* xgettext:c-format */
-		(_("%B, section %A: relocation %s with non-zero addend %d"
+		(_("%B, section %A: relocation %s with non-zero addend %Ld"
 		   " against symbol `%s'"),
 		 input_bfd,
 		 input_section,
@@ -1810,7 +1815,7 @@ cris_elf_relocate_section (bfd *output_bfd ATTRIBUTE_UNUSED,
 		 things.  */
 	      _bfd_error_handler
 		/* xgettext:c-format */
-		(_("%B, section %A: relocation %s with non-zero addend %d"
+		(_("%B, section %A: relocation %s with non-zero addend %Ld"
 		   " against symbol `%s'"),
 		 input_bfd,
 		 input_section,
@@ -2057,7 +2062,6 @@ elf_cris_finish_dynamic_symbol (bfd *output_bfd,
 				Elf_Internal_Sym *sym)
 {
   struct elf_cris_link_hash_table * htab;
-  bfd *dynobj;
 
   /* Where in the plt entry to put values.  */
   int plt_off1 = 2, plt_off2 = 10, plt_off3 = 16;
@@ -2088,8 +2092,6 @@ elf_cris_finish_dynamic_symbol (bfd *output_bfd,
       plt_entry = elf_cris_plt_entry_v32;
       plt_pic_entry = elf_cris_pic_plt_entry_v32;
     }
-
-  dynobj = htab->root.dynobj;
 
   if (h->plt.offset != (bfd_vma) -1)
     {
@@ -2278,8 +2280,10 @@ elf_cris_finish_dynamic_symbol (bfd *output_bfd,
 		  && (h->root.type == bfd_link_hash_defined
 		      || h->root.type == bfd_link_hash_defweak));
 
-      s = bfd_get_linker_section (dynobj, ".rela.bss");
-      BFD_ASSERT (s != NULL);
+      if (h->root.u.def.section == htab->root.sdynrelro)
+	s = htab->root.sreldynrelro;
+      else
+	s = htab->root.srelbss;
 
       rela.r_offset = (h->root.u.def.value
 		       + h->root.u.def.section->output_section->vma
@@ -2452,193 +2456,6 @@ cris_elf_gc_mark_hook (asection *sec,
   return _bfd_elf_gc_mark_hook (sec, info, rel, h, sym);
 }
 
-/* Update the got entry reference counts for the section being removed.  */
-
-static bfd_boolean
-cris_elf_gc_sweep_hook (bfd *abfd,
-			struct bfd_link_info *info,
-			asection *sec,
-			const Elf_Internal_Rela *relocs)
-{
-  struct elf_cris_link_hash_table * htab;
-  Elf_Internal_Shdr *symtab_hdr;
-  struct elf_link_hash_entry **sym_hashes;
-  bfd_signed_vma *local_got_refcounts;
-  const Elf_Internal_Rela *rel, *relend;
-  bfd *dynobj;
-  asection *sgot;
-  asection *srelgot;
-
-  if (bfd_link_relocatable (info))
-    return TRUE;
-
-  dynobj = elf_hash_table (info)->dynobj;
-  if (dynobj == NULL)
-    return TRUE;
-
-  htab = elf_cris_hash_table (info);
-  if (htab == NULL)
-    return FALSE;
-
-  symtab_hdr = &elf_tdata (abfd)->symtab_hdr;
-  sym_hashes = elf_sym_hashes (abfd);
-  local_got_refcounts = elf_local_got_refcounts (abfd);
-
-  sgot = htab->root.sgot;
-  srelgot = htab->root.srelgot;
-
-  relend = relocs + sec->reloc_count;
-  for (rel = relocs; rel < relend; rel++)
-    {
-      unsigned long r_symndx;
-      struct elf_link_hash_entry *h = NULL;
-      bfd_signed_vma got_element_size = 4;
-      bfd_signed_vma *specific_refcount = NULL;
-      enum elf_cris_reloc_type r_type;
-
-      r_symndx = ELF32_R_SYM (rel->r_info);
-      if (r_symndx >= symtab_hdr->sh_info)
-	{
-	  h = sym_hashes[r_symndx - symtab_hdr->sh_info];
-	  while (h->root.type == bfd_link_hash_indirect
-		 || h->root.type == bfd_link_hash_warning)
-	    h = (struct elf_link_hash_entry *) h->root.u.i.link;
-	}
-
-      r_type = ELF32_R_TYPE (rel->r_info);
-      switch (r_type)
-	{
-	case R_CRIS_32_GOT:
-	case R_CRIS_16_GOT:
-	case R_CRIS_16_GOTPLT:
-	case R_CRIS_32_GOTPLT:
-	  specific_refcount = h != NULL
-	    ? &((struct elf_cris_link_hash_entry *) h)->reg_got_refcount
-	    : &local_got_refcounts[LGOT_REG_NDX (r_symndx)];
-	  break;
-
-	case R_CRIS_32_GD:
-	case R_CRIS_32_GOT_GD:
-	case R_CRIS_16_GOT_GD:
-	  got_element_size = 8;
-	  specific_refcount = h != NULL
-	    ? &((struct elf_cris_link_hash_entry *) h)->dtp_refcount
-	    : &local_got_refcounts[LGOT_DTP_NDX (r_symndx)];
-	  break;
-
-	case R_CRIS_32_IE:
-	case R_CRIS_16_GOT_TPREL:
-	case R_CRIS_32_GOT_TPREL:
-	  specific_refcount = h != NULL
-	    ? &((struct elf_cris_link_hash_entry *) h)->tprel_refcount
-	    : &local_got_refcounts[LGOT_TPREL_NDX (r_symndx)];
-	  break;
-
-	default:
-	  break;
-	}
-
-      switch (r_type)
-	{
-	case R_CRIS_32_IE:
-	case R_CRIS_32_GD:
-	case R_CRIS_16_GOT_TPREL:
-	case R_CRIS_32_GOT_TPREL:
-	case R_CRIS_32_GOT_GD:
-	case R_CRIS_16_GOT_GD:
-	case R_CRIS_16_GOT:
-	case R_CRIS_32_GOT:
-	  if (h != NULL)
-	    {
-	      /* If the counters are 0 when we got here, we've
-		 miscounted somehow somewhere, an internal error.  */
-	      BFD_ASSERT (h->got.refcount > 0);
-	      --h->got.refcount;
-
-	      BFD_ASSERT (*specific_refcount > 0);
-	      --*specific_refcount;
-	      if (*specific_refcount == 0)
-		{
-		  /* We don't need the .got entry any more.  */
-		  sgot->size -= got_element_size;
-		  srelgot->size -= sizeof (Elf32_External_Rela);
-		}
-	      break;
-	    }
-
-	local_got_reloc:
-	  if (local_got_refcounts != NULL)
-	    {
-	      /* If the counters are 0 when we got here, we've
-		 miscounted somehow somewhere, an internal error.  */
-	      BFD_ASSERT (local_got_refcounts[r_symndx] > 0);
-	      --local_got_refcounts[r_symndx];
-
-	      BFD_ASSERT (*specific_refcount > 0);
-	      --*specific_refcount;
-	      if (*specific_refcount == 0)
-		{
-		  /* We don't need the .got entry any more.  */
-		  sgot->size -= got_element_size;
-		  if (bfd_link_pic (info))
-		    srelgot->size -= sizeof (Elf32_External_Rela);
-		}
-	    }
-	  break;
-
-	case R_CRIS_16_GOTPLT:
-	case R_CRIS_32_GOTPLT:
-	  /* For local symbols, treat these like GOT relocs.  */
-	  if (h == NULL)
-	    goto local_got_reloc;
-	  else
-	    /* For global symbols, adjust the reloc-specific refcount.  */
-	    elf_cris_hash_entry (h)->gotplt_refcount--;
-	  /* Fall through.  */
-
-	case R_CRIS_32_PLT_GOTREL:
-	  /* FIXME: We don't garbage-collect away the .got section.  */
-	  if (local_got_refcounts != NULL)
-	    local_got_refcounts[-1]--;
-	  /* Fall through.  */
-
-	case R_CRIS_8:
-	case R_CRIS_16:
-	case R_CRIS_32:
-	case R_CRIS_8_PCREL:
-	case R_CRIS_16_PCREL:
-	case R_CRIS_32_PCREL:
-	case R_CRIS_32_PLT_PCREL:
-	  /* Negate the increment we did in cris_elf_check_relocs.  */
-	  if (h != NULL)
-	    {
-	      if (ELF_ST_VISIBILITY (h->other) == STV_DEFAULT
-		  && h->plt.refcount > 0)
-		--h->plt.refcount;
-	    }
-	  break;
-
-	case R_CRIS_32_DTPREL:
-	  /* This'd be a .dtpreld entry in e.g. debug info.  */
-	  if ((sec->flags & SEC_ALLOC) == 0)
-	    break;
-	  /* Fall through.  */
-	case R_CRIS_16_DTPREL:
-	  htab->dtpmod_refcount--;
-	  if (htab->dtpmod_refcount == 0)
-	    htab->next_gotplt_entry -= 8;
-	  BFD_ASSERT (local_got_refcounts != NULL);
-	  local_got_refcounts[-1]--;
-	  break;
-
-	default:
-	  break;
-	}
-    }
-
-  return TRUE;
-}
-
 /* The elf_backend_plt_sym_val hook function.  */
 
 static bfd_vma
@@ -2715,8 +2532,9 @@ elf_cris_adjust_gotplt_to_got (struct elf_cris_link_hash_entry *h, void * p)
   struct bfd_link_info *info = (struct bfd_link_info *) p;
 
   /* A GOTPLT reloc, when activated, is supposed to be included into
-     the PLT refcount.  */
+     the PLT refcount, when the symbol isn't set-or-forced local.  */
   BFD_ASSERT (h->gotplt_refcount == 0
+	      || h->root.plt.refcount == -1
 	      || h->gotplt_refcount <= h->root.plt.refcount);
 
   /* If nobody wanted a GOTPLT with this symbol, we're done.  */
@@ -2742,6 +2560,7 @@ elf_cris_adjust_gotplt_to_got (struct elf_cris_link_hash_entry *h, void * p)
       srelgot = elf_hash_table (info)->srelgot;
 
       /* Put accurate refcounts there.  */
+      BFD_ASSERT (h->root.got.refcount >= 0);
       h->root.got.refcount += h->gotplt_refcount;
       h->reg_got_refcount = h->gotplt_refcount;
 
@@ -2840,6 +2659,7 @@ elf_cris_adjust_dynamic_symbol (struct bfd_link_info *info,
   struct elf_cris_link_hash_table * htab;
   bfd *dynobj;
   asection *s;
+  asection *srel;
   bfd_size_type plt_entry_size;
 
   htab = elf_cris_hash_table (info);
@@ -3027,22 +2847,29 @@ elf_cris_adjust_dynamic_symbol (struct bfd_link_info *info,
      both the dynamic object and the regular object will refer to the
      same memory location for the variable.  */
 
-  s = bfd_get_linker_section (dynobj, ".dynbss");
-  BFD_ASSERT (s != NULL);
-
   /* We must generate a R_CRIS_COPY reloc to tell the dynamic linker to
      copy the initial value out of the dynamic object and into the
      runtime process image.  We need to remember the offset into the
      .rela.bss section we are going to use.  */
+
+  if ((h->root.u.def.section->flags & SEC_READONLY) != 0)
+    {
+      s = htab->root.sdynrelro;
+      srel = htab->root.sreldynrelro;
+    }
+  else
+    {
+      s = htab->root.sdynbss;
+      srel = htab->root.srelbss;
+    }
   if ((h->root.u.def.section->flags & SEC_ALLOC) != 0 && h->size != 0)
     {
-      asection *srel;
-
-      srel = bfd_get_linker_section (dynobj, ".rela.bss");
       BFD_ASSERT (srel != NULL);
       srel->size += sizeof (Elf32_External_Rela);
       h->needs_copy = 1;
     }
+
+  BFD_ASSERT (s != NULL);
 
   return _bfd_elf_adjust_dynamic_copy (info, h, s);
 }
@@ -3169,7 +2996,7 @@ cris_elf_check_relocs (bfd *abfd,
 
 	  /* PR15323, ref flags aren't set for references in the same
 	     object.  */
-	  h->root.non_ir_ref = 1;
+	  h->root.non_ir_ref_regular = 1;
 	}
 
       r_type = ELF32_R_TYPE (rel->r_info);
@@ -3221,7 +3048,7 @@ cris_elf_check_relocs (bfd *abfd,
 		{
 		  _bfd_error_handler
 		    /* xgettext:c-format */
-		    (_("%B, section %A:\n  v10/v32 compatible object %s"
+		    (_("%B, section %A:\n  v10/v32 compatible object"
 		       " must not contain a PIC relocation"),
 		     abfd, sec);
 		  return FALSE;
@@ -3469,7 +3296,10 @@ cris_elf_check_relocs (bfd *abfd,
 	    continue;
 
 	  h->needs_plt = 1;
-	  h->plt.refcount++;
+
+	  /* If the symbol is forced local, the refcount is unavailable.  */
+	  if (h->plt.refcount != -1)
+	    h->plt.refcount++;
 	  break;
 
 	case R_CRIS_8:
@@ -3528,7 +3358,8 @@ cris_elf_check_relocs (bfd *abfd,
 	     render the symbol local.  */
 
 	  /* No need to do anything if we're not creating a shared object.  */
-	  if (! bfd_link_pic (info))
+	  if (! bfd_link_pic (info)
+	      || UNDEFWEAK_NO_DYNAMIC_RELOC (info, h))
 	    break;
 
 	  /* We may need to create a reloc section in the dynobj and made room
@@ -3787,7 +3618,8 @@ elf_cris_size_dynamic_sections (bfd *output_bfd ATTRIBUTE_UNUSED,
 	    }
 	}
       else if (! CONST_STRNEQ (name, ".got")
-	       && strcmp (name, ".dynbss") != 0)
+	       && strcmp (name, ".dynbss") != 0
+	       && s != htab->root.sdynrelro)
 	{
 	  /* It's not one of our sections, so don't allocate space.  */
 	  continue;
@@ -3969,6 +3801,7 @@ elf_cris_discard_excess_program_dynamics (struct elf_cris_link_hash_entry *h,
       if (! (info->export_dynamic
 	     || (h->root.type != STT_FUNC && info->dynamic_data))
 	  && h->root.dynindx != -1
+	  && !h->root.dynamic
 	  && !h->root.def_dynamic
 	  && !h->root.ref_dynamic)
 	{
@@ -4277,7 +4110,6 @@ elf_cris_got_elt_size (bfd *abfd ATTRIBUTE_UNUSED,
 #define elf_info_to_howto			cris_info_to_howto_rela
 #define elf_backend_relocate_section		cris_elf_relocate_section
 #define elf_backend_gc_mark_hook		cris_elf_gc_mark_hook
-#define elf_backend_gc_sweep_hook		cris_elf_gc_sweep_hook
 #define elf_backend_plt_sym_val			cris_elf_plt_sym_val
 #define elf_backend_check_relocs                cris_elf_check_relocs
 #define elf_backend_grok_prstatus		cris_elf_grok_prstatus
@@ -4325,6 +4157,7 @@ elf_cris_got_elt_size (bfd *abfd ATTRIBUTE_UNUSED,
 #define elf_backend_got_header_size	12
 #define elf_backend_got_elt_size elf_cris_got_elt_size
 #define elf_backend_dtrel_excludes_plt	1
+#define elf_backend_want_dynrelro	1
 
 /* Later, we my want to optimize RELA entries into REL entries for dynamic
    linking and libraries (if it's a win of any significance).  Until then,
@@ -4332,6 +4165,8 @@ elf_cris_got_elt_size (bfd *abfd ATTRIBUTE_UNUSED,
 #define elf_backend_may_use_rel_p 0
 #define elf_backend_may_use_rela_p 1
 #define elf_backend_rela_normal		1
+
+#define elf_backend_linux_prpsinfo32_ugid16	TRUE
 
 #include "elf32-target.h"
 

@@ -1,6 +1,6 @@
 /* Low level packing and unpacking of values for GDB, the GNU Debugger.
 
-   Copyright (C) 1986-2016 Free Software Foundation, Inc.
+   Copyright (C) 1986-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -29,6 +29,7 @@
 #include "language.h"
 #include "demangle.h"
 #include "doublest.h"
+#include "floatformat.h"
 #include "regcache.h"
 #include "block.h"
 #include "dfp.h"
@@ -41,10 +42,7 @@
 #include "cp-abi.h"
 #include "user-regs.h"
 #include <algorithm>
-
-/* Prototypes for exported functions.  */
-
-void _initialize_values (void);
+#include "completer.h"
 
 /* Definition of a user function.  */
 struct internal_function
@@ -888,8 +886,6 @@ value_contents_eq (const struct value *val1, LONGEST offset1,
 
 static void show_values (char *, int);
 
-static void show_convenience (char *, int);
-
 
 /* The value-history records all the values printed
    by print commands during this session.  Each chunk
@@ -1205,8 +1201,7 @@ value_actual_type (struct value *value, int resolve_simple_types,
     {
       /* If result's target type is TYPE_CODE_STRUCT, proceed to
 	 fetch its rtti type.  */
-      if ((TYPE_CODE (result) == TYPE_CODE_PTR
-	   || TYPE_CODE (result) == TYPE_CODE_REF)
+      if ((TYPE_CODE (result) == TYPE_CODE_PTR || TYPE_IS_REFERENCE (result))
 	  && TYPE_CODE (check_typedef (TYPE_TARGET_TYPE (result)))
 	     == TYPE_CODE_STRUCT
 	  && !value_optimized_out (value))
@@ -2145,14 +2140,12 @@ lookup_only_internalvar (const char *name)
   return NULL;
 }
 
-/* Complete NAME by comparing it to the names of internal variables.
-   Returns a vector of newly allocated strings, or NULL if no matches
-   were found.  */
+/* Complete NAME by comparing it to the names of internal
+   variables.  */
 
-VEC (char_ptr) *
-complete_internalvar (const char *name)
+void
+complete_internalvar (completion_tracker &tracker, const char *name)
 {
-  VEC (char_ptr) *result = NULL;
   struct internalvar *var;
   int len;
 
@@ -2161,12 +2154,10 @@ complete_internalvar (const char *name)
   for (var = internalvars; var; var = var->next)
     if (strncmp (var->name, name, len) == 0)
       {
-	char *r = xstrdup (var->name);
+	gdb::unique_xmalloc_ptr<char> copy (xstrdup (var->name));
 
-	VEC_safe_push (char_ptr, result, r);
+	tracker.add_completion (std::move (copy));
       }
-
-  return result;
 }
 
 /* Create an internal variable with name NAME and with a void value.
@@ -2567,7 +2558,7 @@ call_internal_function (struct gdbarch *gdbarch,
    the implementation of the sub-command that is created when
    registering an internal function.  */
 static void
-function_command (char *command, int from_tty)
+function_command (const char *command, int from_tty)
 {
   /* Do nothing.  */
 }
@@ -2669,7 +2660,7 @@ preserve_values (struct objfile *objfile)
 }
 
 static void
-show_convenience (char *ignore, int from_tty)
+show_convenience (const char *ignore, int from_tty)
 {
   struct gdbarch *gdbarch = get_current_arch ();
   struct internalvar *var;
@@ -2883,7 +2874,7 @@ value_as_address (struct value *val)
      ABI-specific code is a more reasonable place to handle it.  */
 
   if (TYPE_CODE (value_type (val)) != TYPE_CODE_PTR
-      && TYPE_CODE (value_type (val)) != TYPE_CODE_REF
+      && !TYPE_IS_REFERENCE (value_type (val))
       && gdbarch_integer_to_address_p (gdbarch))
     return gdbarch_integer_to_address (gdbarch, value_type (val),
 				       value_contents (val));
@@ -2934,12 +2925,11 @@ unpack_long (struct type *type, const gdb_byte *valaddr)
       return (LONGEST) extract_typed_floating (valaddr, type);
 
     case TYPE_CODE_DECFLOAT:
-      /* libdecnumber has a function to convert from decimal to integer, but
-	 it doesn't work when the decimal number has a fractional part.  */
-      return (LONGEST) decimal_to_doublest (valaddr, len, byte_order);
+      return decimal_to_longest (valaddr, len, byte_order);
 
     case TYPE_CODE_PTR:
     case TYPE_CODE_REF:
+    case TYPE_CODE_RVALUE_REF:
       /* Assume a CORE_ADDR can fit in a LONGEST (for now).  Not sure
          whether we want this to be true eventually.  */
       return extract_typed_address (valaddr, type);
@@ -3546,6 +3536,7 @@ pack_long (gdb_byte *buf, struct type *type, LONGEST num)
       break;
 
     case TYPE_CODE_REF:
+    case TYPE_CODE_RVALUE_REF:
     case TYPE_CODE_PTR:
       store_typed_address (buf, type, (CORE_ADDR) num);
       break;
@@ -3582,6 +3573,7 @@ pack_unsigned_long (gdb_byte *buf, struct type *type, ULONGEST num)
       break;
 
     case TYPE_CODE_REF:
+    case TYPE_CODE_RVALUE_REF:
     case TYPE_CODE_PTR:
       store_typed_address (buf, type, (CORE_ADDR) num);
       break;
@@ -3812,7 +3804,7 @@ coerce_ref_if_computed (const struct value *arg)
 {
   const struct lval_funcs *funcs;
 
-  if (TYPE_CODE (check_typedef (value_type (arg))) != TYPE_CODE_REF)
+  if (!TYPE_IS_REFERENCE (check_typedef (value_type (arg))))
     return NULL;
 
   if (value_lval_const (arg) != lval_computed)
@@ -3854,7 +3846,7 @@ coerce_ref (struct value *arg)
   if (retval)
     return retval;
 
-  if (TYPE_CODE (value_type_arg_tmp) != TYPE_CODE_REF)
+  if (!TYPE_IS_REFERENCE (value_type_arg_tmp))
     return arg;
 
   enc_type = check_typedef (value_enclosing_type (arg));

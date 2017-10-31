@@ -1,6 +1,6 @@
 /* Support for complaint handling during symbol reading in GDB.
 
-   Copyright (C) 1990-2016 Free Software Foundation, Inc.
+   Copyright (C) 1990-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -21,8 +21,6 @@
 #include "complaints.h"
 #include "command.h"
 #include "gdbcmd.h"
-
-extern void _initialize_complaints (void);
 
 /* Should each complaint message be self explanatory, or should we
    assume that a series of complaints is being produced?  */
@@ -194,16 +192,14 @@ vcomplaint (struct complaints **c, const char *file,
 	vwarning (fmt, args);
       else
 	{
-	  char *msg;
-	  struct cleanup *cleanups;
-	  msg = xstrvprintf (fmt, args);
-	  cleanups = make_cleanup (xfree, msg);
+	  std::string msg = string_vprintf (fmt, args);
 	  wrap_here ("");
 	  if (series != SUBSEQUENT_MESSAGE)
 	    begin_line ();
 	  /* XXX: i18n */
 	  fprintf_filtered (gdb_stderr, "%s%s%s",
-			    complaints->explanation[series].prefix, msg,
+			    complaints->explanation[series].prefix,
+			    msg.c_str (),
 			    complaints->explanation[series].postfix);
 	  /* Force a line-break after any isolated message.  For the
              other cases, clear_complaints() takes care of any missing
@@ -216,7 +212,6 @@ vcomplaint (struct complaints **c, const char *file,
 	    fputs_filtered ("\n", gdb_stderr);
 	  else
 	    wrap_here ("");
-	  do_cleanups (cleanups);
 	}
     }
 

@@ -1,6 +1,6 @@
 /* Support for printing Ada values for GDB, the GNU debugger.
 
-   Copyright (C) 1986-2016 Free Software Foundation, Inc.
+   Copyright (C) 1986-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -298,12 +298,11 @@ static void
 ada_print_floating (const gdb_byte *valaddr, struct type *type,
 		    struct ui_file *stream)
 {
-  struct ui_file *tmp_stream = mem_fileopen ();
-  struct cleanup *cleanups = make_cleanup_ui_file_delete (tmp_stream);
+  string_file tmp_stream;
 
-  print_floating (valaddr, type, tmp_stream);
+  print_floating (valaddr, type, &tmp_stream);
 
-  std::string s = ui_file_as_string (tmp_stream);
+  std::string &s = tmp_stream.string ();
   size_t skip_count = 0;
 
   /* Modify for Ada rules.  */
@@ -342,8 +341,6 @@ ada_print_floating (const gdb_byte *valaddr, struct type *type,
     }
   else
     fprintf_filtered (stream, "%s", &s[skip_count]);
-
-  do_cleanups (cleanups);
 }
 
 void
@@ -862,7 +859,8 @@ ada_val_print_num (struct type *type, const gdb_byte *valaddr,
 	}
       else
 	{
-	  val_print_type_code_int (type, valaddr + offset_aligned, stream);
+	  val_print_scalar_formatted (type, offset_aligned,
+				      original_value, options, 0, stream);
 	  if (ada_is_character_type (type))
 	    {
 	      LONGEST c;
@@ -1060,6 +1058,9 @@ ada_val_print_ref (struct type *type, const gdb_byte *valaddr,
      references to dynamic objects whose contents is uninitialized
      (Eg: an array whose bounds are not set yet).  */
   ada_ensure_varsize_limit (value_type (deref_val));
+
+  if (value_lazy (deref_val))
+    value_fetch_lazy (deref_val);
 
   val_print (value_type (deref_val),
 	     value_embedded_offset (deref_val),
