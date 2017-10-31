@@ -6,7 +6,7 @@ set -e
 DIR=$( pwd )
 
 git clone -b rust-os --depth 1 \
-  https://github.com/phil-opp/binutils-gdb.git
+  https://github.com/mystfox/binutils-gdb.git
 mkdir build-binutils
 cd build-binutils
 ../binutils-gdb/configure --target=x86_64-pc-linux-gnu --prefix="$DIR/rust-os-gdb" --with-python=yes \
