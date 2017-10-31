@@ -1,6 +1,6 @@
 /* Target-vector operations for controlling windows child processes, for GDB.
 
-   Copyright (C) 1995-2016 Free Software Foundation, Inc.
+   Copyright (C) 1995-2017 Free Software Foundation, Inc.
 
    Contributed by Cygnus Solutions, A Red Hat Company.
 
@@ -42,6 +42,7 @@
 #include <sys/cygwin.h>
 #include <cygwin/version.h>
 #endif
+#include <algorithm>
 
 #include "buildsym.h"
 #include "filenames.h"
@@ -66,6 +67,7 @@
 #include "x86-nat.h"
 #include "complaints.h"
 #include "inf-child.h"
+#include "gdb_tilde_expand.h"
 
 #define AdjustTokenPrivileges		dyn_AdjustTokenPrivileges
 #define DebugActiveProcessStop		dyn_DebugActiveProcessStop
@@ -460,18 +462,15 @@ windows_delete_thread (ptid_t ptid, DWORD exit_code)
 }
 
 static void
-do_windows_fetch_inferior_registers (struct regcache *regcache, int r)
+do_windows_fetch_inferior_registers (struct regcache *regcache,
+				     windows_thread_info *th, int r)
 {
-  char *context_offset = ((char *) &current_thread->context) + mappings[r];
-  struct gdbarch *gdbarch = get_regcache_arch (regcache);
+  char *context_offset = ((char *) &th->context) + mappings[r];
+  struct gdbarch *gdbarch = regcache->arch ();
   struct gdbarch_tdep *tdep = gdbarch_tdep (gdbarch);
   long l;
 
-  if (!current_thread)
-    return;	/* Windows sometimes uses a non-existent thread id in its
-		   events.  */
-
-  if (current_thread->reload_context)
+  if (th->reload_context)
     {
 #ifdef __CYGWIN__
       if (have_saved_context)
@@ -480,14 +479,13 @@ do_windows_fetch_inferior_registers (struct regcache *regcache, int r)
 	     cygwin has informed us that we should consider the signal
 	     to have occurred at another location which is stored in
 	     "saved_context.  */
-	  memcpy (&current_thread->context, &saved_context,
+	  memcpy (&th->context, &saved_context,
 		  __COPY_CONTEXT_SIZE);
 	  have_saved_context = 0;
 	}
       else
 #endif
 	{
-	  windows_thread_info *th = current_thread;
 	  th->context.ContextFlags = CONTEXT_DEBUGGER_DR;
 	  CHECK (GetThreadContext (th->h, &th->context));
 	  /* Copy dr values from that thread.
@@ -503,7 +501,7 @@ do_windows_fetch_inferior_registers (struct regcache *regcache, int r)
 	      dr[7] = th->context.Dr7;
 	    }
 	}
-      current_thread->reload_context = 0;
+      th->reload_context = 0;
     }
 
   if (r == I387_FISEG_REGNUM (tdep))
@@ -529,7 +527,7 @@ do_windows_fetch_inferior_registers (struct regcache *regcache, int r)
   else
     {
       for (r = 0; r < gdbarch_num_regs (gdbarch); r++)
-	do_windows_fetch_inferior_registers (regcache, r);
+	do_windows_fetch_inferior_registers (regcache, th, r);
     }
 }
 
@@ -537,38 +535,42 @@ static void
 windows_fetch_inferior_registers (struct target_ops *ops,
 				  struct regcache *regcache, int r)
 {
-  current_thread = thread_rec (ptid_get_tid (inferior_ptid), TRUE);
-  /* Check if current_thread exists.  Windows sometimes uses a non-existent
+  DWORD pid = ptid_get_tid (regcache_get_ptid (regcache));
+  windows_thread_info *th = thread_rec (pid, TRUE);
+
+  /* Check if TH exists.  Windows sometimes uses a non-existent
      thread id in its events.  */
-  if (current_thread)
-    do_windows_fetch_inferior_registers (regcache, r);
+  if (th != NULL)
+    do_windows_fetch_inferior_registers (regcache, th, r);
 }
 
 static void
-do_windows_store_inferior_registers (const struct regcache *regcache, int r)
+do_windows_store_inferior_registers (const struct regcache *regcache,
+				     windows_thread_info *th, int r)
 {
-  if (!current_thread)
-    /* Windows sometimes uses a non-existent thread id in its events.  */;
-  else if (r >= 0)
+  if (r >= 0)
     regcache_raw_collect (regcache, r,
-			  ((char *) &current_thread->context) + mappings[r]);
+			  ((char *) &th->context) + mappings[r]);
   else
     {
-      for (r = 0; r < gdbarch_num_regs (get_regcache_arch (regcache)); r++)
-	do_windows_store_inferior_registers (regcache, r);
+      for (r = 0; r < gdbarch_num_regs (regcache->arch ()); r++)
+	do_windows_store_inferior_registers (regcache, th, r);
     }
 }
 
-/* Store a new register value into the current thread context.  */
+/* Store a new register value into the context of the thread tied to
+   REGCACHE.  */
 static void
 windows_store_inferior_registers (struct target_ops *ops,
 				  struct regcache *regcache, int r)
 {
-  current_thread = thread_rec (ptid_get_tid (inferior_ptid), TRUE);
-  /* Check if current_thread exists.  Windows sometimes uses a non-existent
+  DWORD pid = ptid_get_tid (regcache_get_ptid (regcache));
+  windows_thread_info *th = thread_rec (pid, TRUE);
+
+  /* Check if TH exists.  Windows sometimes uses a non-existent
      thread id in its events.  */
-  if (current_thread)
-    do_windows_store_inferior_registers (regcache, r);
+  if (th != NULL)
+    do_windows_store_inferior_registers (regcache, th, r);
 }
 
 /* Encapsulate the information required in a call to
@@ -585,9 +587,9 @@ struct safe_symbol_file_add_args
 };
 
 /* Maintain a linked list of "so" information.  */
-struct lm_info
+struct lm_info_windows : public lm_info_base
 {
-  LPVOID load_addr;
+  LPVOID load_addr = 0;
 };
 
 static struct so_list solib_start, *solib_end;
@@ -645,8 +647,9 @@ windows_make_so (const char *name, LPVOID load_addr)
     }
 #endif
   so = XCNEW (struct so_list);
-  so->lm_info = XNEW (struct lm_info);
-  so->lm_info->load_addr = load_addr;
+  lm_info_windows *li = new lm_info_windows;
+  so->lm_info = li;
+  li->load_addr = load_addr;
   strcpy (so->so_original_name, name);
 #ifndef __CYGWIN__
   strcpy (so->so_name, buf);
@@ -669,32 +672,27 @@ windows_make_so (const char *name, LPVOID load_addr)
   p = strchr (so->so_name, '\0') - (sizeof ("/cygwin1.dll") - 1);
   if (p >= so->so_name && strcasecmp (p, "/cygwin1.dll") == 0)
     {
-      bfd *abfd;
       asection *text = NULL;
       CORE_ADDR text_vma;
 
-      abfd = gdb_bfd_open (so->so_name, "pei-i386", -1);
+      gdb_bfd_ref_ptr abfd (gdb_bfd_open (so->so_name, "pei-i386", -1));
 
-      if (!abfd)
+      if (abfd == NULL)
 	return so;
 
-      if (bfd_check_format (abfd, bfd_object))
-	text = bfd_get_section_by_name (abfd, ".text");
+      if (bfd_check_format (abfd.get (), bfd_object))
+	text = bfd_get_section_by_name (abfd.get (), ".text");
 
       if (!text)
-	{
-	  gdb_bfd_unref (abfd);
-	  return so;
-	}
+	return so;
 
       /* The symbols in a dll are offset by 0x1000, which is the
 	 offset from 0 of the first byte in an image - because of the
 	 file header and the section alignment.  */
       cygwin_load_start = (CORE_ADDR) (uintptr_t) ((char *)
 						   load_addr + 0x1000);
-      cygwin_load_end = cygwin_load_start + bfd_section_size (abfd, text);
-
-      gdb_bfd_unref (abfd);
+      cygwin_load_end = cygwin_load_start + bfd_section_size (abfd.get (),
+							      text);
     }
 #endif
 
@@ -758,8 +756,8 @@ get_image_name (HANDLE h, void *address, int unicode)
    do_initial_windows_stuff and windows_add_all_dlls for more info
    on how we handle DLL loading during that phase).  */
 
-static int
-handle_load_dll (void *dummy)
+static void
+handle_load_dll ()
 {
   LOAD_DLL_DEBUG_INFO *event = &current_event.u.LoadDll;
   char *dll_name;
@@ -772,22 +770,23 @@ handle_load_dll (void *dummy)
   dll_name = get_image_name (current_process_handle,
 			     event->lpImageName, event->fUnicode);
   if (!dll_name)
-    return 1;
+    return;
 
   solib_end->next = windows_make_so (dll_name, event->lpBaseOfDll);
   solib_end = solib_end->next;
 
-  DEBUG_EVENTS (("gdb: Loading dll \"%s\" at %s.\n", solib_end->so_name,
-		 host_address_to_string (solib_end->lm_info->load_addr)));
+  lm_info_windows *li = (lm_info_windows *) solib_end->lm_info;
 
-  return 1;
+  DEBUG_EVENTS (("gdb: Loading dll \"%s\" at %s.\n", solib_end->so_name,
+		 host_address_to_string (li->load_addr)));
 }
 
 static void
 windows_free_so (struct so_list *so)
 {
-  if (so->lm_info)
-    xfree (so->lm_info);
+  lm_info_windows *li = (lm_info_windows *) so->lm_info;
+
+  delete li;
   xfree (so);
 }
 
@@ -799,25 +798,29 @@ windows_free_so (struct so_list *so)
    do_initial_windows_stuff and windows_add_all_dlls for more info
    on how we handle DLL loading during that phase).  */
 
-static int
-handle_unload_dll (void *dummy)
+static void
+handle_unload_dll ()
 {
   LPVOID lpBaseOfDll = current_event.u.UnloadDll.lpBaseOfDll;
   struct so_list *so;
 
   for (so = &solib_start; so->next != NULL; so = so->next)
-    if (so->next->lm_info->load_addr == lpBaseOfDll)
-      {
-	struct so_list *sodel = so->next;
+    {
+      lm_info_windows *li_next = (lm_info_windows *) so->next->lm_info;
 
-	so->next = sodel->next;
-	if (!so->next)
-	  solib_end = so;
-	DEBUG_EVENTS (("gdb: Unloading dll \"%s\".\n", sodel->so_name));
+      if (li_next->load_addr == lpBaseOfDll)
+	{
+	  struct so_list *sodel = so->next;
 
-	windows_free_so (sodel);
-	return 1;
-      }
+	  so->next = sodel->next;
+	  if (!so->next)
+	    solib_end = so;
+	  DEBUG_EVENTS (("gdb: Unloading dll \"%s\".\n", sodel->so_name));
+
+	  windows_free_so (sodel);
+	  return;
+	}
+    }
 
   /* We did not find any DLL that was previously loaded at this address,
      so register a complaint.  We do not report an error, because we have
@@ -828,8 +831,23 @@ handle_unload_dll (void *dummy)
      32bit and 64bit worlds).  */
   complaint (&symfile_complaints, _("dll starting at %s not found."),
 	     host_address_to_string (lpBaseOfDll));
+}
 
-  return 0;
+/* Call FUNC wrapped in a TRY/CATCH that swallows all GDB
+   exceptions.  */
+
+static void
+catch_errors (void (*func) ())
+{
+  TRY
+    {
+      func ();
+    }
+  CATCH (ex, RETURN_MASK_ALL)
+    {
+      exception_print (gdb_stderr, ex);
+    }
+  END_CATCH
 }
 
 /* Clear list of loaded DLLs.  */
@@ -1358,7 +1376,7 @@ windows_resume (struct target_ops *ops,
 	{
 	  /* Single step by setting t bit.  */
 	  struct regcache *regcache = get_current_regcache ();
-	  struct gdbarch *gdbarch = get_regcache_arch (regcache);
+	  struct gdbarch *gdbarch = regcache->arch ();
 	  windows_fetch_inferior_registers (ops, regcache,
 					    gdbarch_ps_regnum (gdbarch));
 	  th->context.EFlags |= FLAG_TRACE_BIT;
@@ -1516,7 +1534,7 @@ get_windows_debug_event (struct target_ops *ops,
 		     "EXIT_PROCESS_DEBUG_EVENT"));
       if (!windows_initialization_done)
 	{
-	  target_terminal_ours ();
+	  target_terminal::ours ();
 	  target_mourn_inferior (inferior_ptid);
 	  error (_("During startup program exited with code 0x%x."),
 		 (unsigned int) current_event.u.ExitProcess.dwExitCode);
@@ -1537,7 +1555,7 @@ get_windows_debug_event (struct target_ops *ops,
       CloseHandle (current_event.u.LoadDll.hFile);
       if (saw_create != 1 || ! windows_initialization_done)
 	break;
-      catch_errors (handle_load_dll, NULL, (char *) "", RETURN_MASK_ALL);
+      catch_errors (handle_load_dll);
       ourstatus->kind = TARGET_WAITKIND_LOADED;
       ourstatus->value.integer = 0;
       thread_id = main_thread_id;
@@ -1550,7 +1568,7 @@ get_windows_debug_event (struct target_ops *ops,
 		     "UNLOAD_DLL_DEBUG_EVENT"));
       if (saw_create != 1 || ! windows_initialization_done)
 	break;
-      catch_errors (handle_unload_dll, NULL, (char *) "", RETURN_MASK_ALL);
+      catch_errors (handle_unload_dll);
       ourstatus->kind = TARGET_WAITKIND_LOADED;
       ourstatus->value.integer = 0;
       thread_id = main_thread_id;
@@ -1623,7 +1641,7 @@ windows_wait (struct target_ops *ops,
 {
   int pid = -1;
 
-  target_terminal_ours ();
+  target_terminal::ours ();
 
   /* We loop when we get a non-standard exception rather than return
      with a SPURIOUS because resume can try and step or modify things,
@@ -1768,8 +1786,8 @@ do_initial_windows_stuff (struct target_ops *ops, DWORD pid, int attaching)
      current thread until we report an event out of windows_wait.  */
   inferior_ptid = pid_to_ptid (pid);
 
-  target_terminal_init ();
-  target_terminal_inferior ();
+  target_terminal::init ();
+  target_terminal::inferior ();
 
   windows_initialization_done = 0;
 
@@ -1909,7 +1927,7 @@ windows_attach (struct target_ops *ops, const char *args, int from_tty)
     }
 
   do_initial_windows_stuff (ops, pid, 1);
-  target_terminal_ours ();
+  target_terminal::ours ();
 }
 
 static void
@@ -1917,7 +1935,7 @@ windows_detach (struct target_ops *ops, const char *args, int from_tty)
 {
   int detached = 1;
 
-  ptid_t ptid = {-1};
+  ptid_t ptid = minus_one_ptid;
   windows_resume (ops, ptid, 0, GDB_SIGNAL_0);
 
   if (!DebugActiveProcessStop (current_event.dwProcessId))
@@ -1930,7 +1948,7 @@ windows_detach (struct target_ops *ops, const char *args, int from_tty)
 
   if (detached && from_tty)
     {
-      char *exec_file = get_exec_file (0);
+      const char *exec_file = get_exec_file (0);
       if (exec_file == 0)
 	exec_file = "";
       printf_unfiltered ("Detaching from program: %s, Pid %u\n", exec_file,
@@ -2417,13 +2435,15 @@ redirect_inferior_handles (const char *cmd_orig, char *cmd,
    ENV is the environment vector to pass.  Errors reported with error().  */
 
 static void
-windows_create_inferior (struct target_ops *ops, char *exec_file,
-		       char *allargs, char **in_env, int from_tty)
+windows_create_inferior (struct target_ops *ops, const char *exec_file,
+			 const std::string &origallargs, char **in_env,
+			 int from_tty)
 {
   STARTUPINFO si;
 #ifdef __CYGWIN__
   cygwin_buf_t real_path[__PMAX];
   cygwin_buf_t shell[__PMAX]; /* Path to shell */
+  cygwin_buf_t infcwd[__PMAX];
   const char *sh;
   cygwin_buf_t *toexec;
   cygwin_buf_t *cygallargs;
@@ -2436,7 +2456,7 @@ windows_create_inferior (struct target_ops *ops, char *exec_file,
 #else  /* !__CYGWIN__ */
   char real_path[__PMAX];
   char shell[__PMAX]; /* Path to shell */
-  char *toexec;
+  const char *toexec;
   char *args, *allargs_copy;
   size_t args_len, allargs_len;
   int fd_inp = -1, fd_out = -1, fd_err = -1;
@@ -2452,6 +2472,7 @@ windows_create_inferior (struct target_ops *ops, char *exec_file,
   size_t envsize;
   char **env;
 #endif	/* !__CYGWIN__ */
+  const char *allargs = origallargs.c_str ();
   PROCESS_INFORMATION pi;
   BOOL ret;
   DWORD flags = 0;
@@ -2459,6 +2480,17 @@ windows_create_inferior (struct target_ops *ops, char *exec_file,
 
   if (!exec_file)
     error (_("No executable specified, use `target exec'."));
+
+  const char *inferior_cwd = get_inferior_cwd ();
+  std::string expanded_infcwd;
+  if (inferior_cwd != NULL)
+    {
+      expanded_infcwd = gdb_tilde_expand (inferior_cwd);
+      /* Mirror slashes on inferior's cwd.  */
+      std::replace (expanded_infcwd.begin (), expanded_infcwd.end (),
+		    '/', '\\');
+      inferior_cwd = expanded_infcwd.c_str ();
+    }
 
   memset (&si, 0, sizeof (si));
   si.cb = sizeof (si);
@@ -2508,6 +2540,11 @@ windows_create_inferior (struct target_ops *ops, char *exec_file,
       toexec = shell;
       flags |= DEBUG_PROCESS;
     }
+
+  if (inferior_cwd != NULL
+      && cygwin_conv_path (CCP_POSIX_TO_WIN_W, inferior_cwd,
+			   infcwd, strlen (inferior_cwd)) < 0)
+    error (_("Error converting inferior cwd: %d"), errno);
 
 #ifdef __USEWIDE
   args = (cygwin_buf_t *) alloca ((wcslen (toexec) + wcslen (cygallargs) + 2)
@@ -2569,7 +2606,8 @@ windows_create_inferior (struct target_ops *ops, char *exec_file,
 		       TRUE,	/* inherit handles */
 		       flags,	/* start flags */
 		       w32_env,	/* environment */
-		       NULL,	/* current directory */
+		       inferior_cwd != NULL ? infcwd : NULL, /* current
+								directory */
 		       &si,
 		       &pi);
   if (w32_env)
@@ -2692,7 +2730,7 @@ windows_create_inferior (struct target_ops *ops, char *exec_file,
 			TRUE,	/* inherit handles */
 			flags,	/* start flags */
 			w32env,	/* environment */
-			NULL,	/* current directory */
+			inferior_cwd, /* current directory */
 			&si,
 			&pi);
   if (tty != INVALID_HANDLE_VALUE)
@@ -2812,7 +2850,7 @@ windows_close (struct target_ops *self)
 }
 
 /* Convert pid to printable format.  */
-static char *
+static const char *
 windows_pid_to_str (struct target_ops *ops, ptid_t ptid)
 {
   static char buf[80];
@@ -2845,9 +2883,13 @@ windows_xfer_shared_libraries (struct target_ops *ops,
   obstack_init (&obstack);
   obstack_grow_str (&obstack, "<library-list>\n");
   for (so = solib_start.next; so; so = so->next)
-    windows_xfer_shared_library (so->so_name, (CORE_ADDR)
-				 (uintptr_t) so->lm_info->load_addr,
-				 target_gdbarch (), &obstack);
+    {
+      lm_info_windows *li = (lm_info_windows *) so->lm_info;
+
+      windows_xfer_shared_library (so->so_name, (CORE_ADDR)
+				   (uintptr_t) li->load_addr,
+				   target_gdbarch (), &obstack);
+    }
   obstack_grow_str0 (&obstack, "</library-list>\n");
 
   buf = (const char *) obstack_finish (&obstack);
@@ -2949,9 +2991,6 @@ windows_target (void)
 
   return t;
 }
-
-/* -Wmissing-prototypes */
-extern initialize_file_ftype _initialize_windows_nat;
 
 void
 _initialize_windows_nat (void)
@@ -3121,9 +3160,6 @@ windows_thread_alive (struct target_ops *ops, ptid_t ptid)
     ? FALSE : TRUE;
 }
 
-/* -Wmissing-prototypes */
-extern initialize_file_ftype _initialize_check_for_gdb_ini;
-
 void
 _initialize_check_for_gdb_ini (void)
 {
@@ -3218,9 +3254,6 @@ bad_GetConsoleFontSize (HANDLE w, DWORD nFont)
   return size;
 }
  
-/* -Wmissing-prototypes */
-extern initialize_file_ftype _initialize_loadable;
-
 /* Load any functions which may not be available in ancient versions
    of Windows.  */
 

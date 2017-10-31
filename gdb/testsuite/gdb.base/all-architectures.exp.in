@@ -1,4 +1,4 @@
-# Copyright (C) 2016 Free Software Foundation, Inc.
+# Copyright (C) 2016-2017 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -152,6 +152,11 @@ proc print_floats {} {
 
 proc do_arch_tests {} {
     print_floats
+
+    # GDB can't access memory because there is no loaded executable
+    # nor live inferior.
+    gdb_test_internal "disassemble 0x0,+4" \
+	"Cannot access memory at address 0x0"
 }
 
 # Given we can't change arch, osabi, endianness, etc. atomically, we

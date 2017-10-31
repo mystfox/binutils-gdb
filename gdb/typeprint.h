@@ -1,5 +1,5 @@
 /* Language independent support for printing types for GDB, the GNU debugger.
-   Copyright (C) 1986-2016 Free Software Foundation, Inc.
+   Copyright (C) 1986-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -73,6 +73,15 @@ void c_type_print_varspec_suffix (struct type *, struct ui_file *, int,
 
 void c_type_print_args (struct type *, struct ui_file *, int, enum language,
 			const struct type_print_options *);
+
+/* Print <unknown return type> to stream STREAM.  */
+
+void type_print_unknown_return_type (struct ui_file *stream);
+
+/* Throw an error indicating that the user tried to use a symbol that
+   has unknown type.  SYM_PRINT_NAME is the name of the symbol, to be
+   included in the error message.  */
+extern void error_unknown_type (const char *sym_print_name);
 
 extern void val_print_not_allocated (struct ui_file *stream);
 

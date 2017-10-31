@@ -1,5 +1,5 @@
 /* Native debugging support for Intel x86 running DJGPP.
-   Copyright (C) 1997-2016 Free Software Foundation, Inc.
+   Copyright (C) 1997-2017 Free Software Foundation, Inc.
    Written by Robert Hoehne.
 
    This file is part of GDB.
@@ -493,7 +493,7 @@ go32_wait (struct target_ops *ops,
 static void
 fetch_register (struct regcache *regcache, int regno)
 {
-  struct gdbarch *gdbarch = get_regcache_arch (regcache);
+  struct gdbarch *gdbarch = regcache->arch ();
   if (regno < gdbarch_fp0_regnum (gdbarch))
     regcache_raw_supply (regcache, regno,
 			 (char *) &a_tss + regno_mapping[regno].tss_ofs);
@@ -514,7 +514,7 @@ go32_fetch_registers (struct target_ops *ops,
   else
     {
       for (regno = 0;
-	   regno < gdbarch_fp0_regnum (get_regcache_arch (regcache));
+	   regno < gdbarch_fp0_regnum (regcache->arch ());
 	   regno++)
 	fetch_register (regcache, regno);
       i387_supply_fsave (regcache, -1, &npx);
@@ -524,7 +524,7 @@ go32_fetch_registers (struct target_ops *ops,
 static void
 store_register (const struct regcache *regcache, int regno)
 {
-  struct gdbarch *gdbarch = get_regcache_arch (regcache);
+  struct gdbarch *gdbarch = regcache->arch ();
   if (regno < gdbarch_fp0_regnum (gdbarch))
     regcache_raw_collect (regcache, regno,
 			  (char *) &a_tss + regno_mapping[regno].tss_ofs);
@@ -546,7 +546,7 @@ go32_store_registers (struct target_ops *ops,
     store_register (regcache, regno);
   else
     {
-      for (r = 0; r < gdbarch_fp0_regnum (get_regcache_arch (regcache)); r++)
+      for (r = 0; r < gdbarch_fp0_regnum (regcache->arch ()); r++)
 	store_register (regcache, r);
       i387_collect_fsave (regcache, -1, &npx);
     }
@@ -631,8 +631,9 @@ go32_kill_inferior (struct target_ops *ops)
 }
 
 static void
-go32_create_inferior (struct target_ops *ops, char *exec_file,
-		      char *args, char **env, int from_tty)
+go32_create_inferior (struct target_ops *ops,
+		      const char *exec_file,
+		      const std::string &allargs, char **env, int from_tty)
 {
   extern char **environ;
   jmp_buf start_state;
@@ -641,6 +642,7 @@ go32_create_inferior (struct target_ops *ops, char *exec_file,
   size_t cmdlen;
   struct inferior *inf;
   int result;
+  const char *args = allargs.c_str ();
 
   /* If no exec file handed to us, get it from the exec-file command -- with
      a good, common error message if none is specified.  */
@@ -938,10 +940,10 @@ go32_terminal_ours (struct target_ops *self)
 static int
 go32_thread_alive (struct target_ops *ops, ptid_t ptid)
 {
-  return !ptid_equal (inferior_ptid, null_ptid);
+  return !ptid_equal (ptid, null_ptid);
 }
 
-static char *
+static const char *
 go32_pid_to_str (struct target_ops *ops, ptid_t ptid)
 {
   return normal_pid_to_str (ptid);
@@ -1126,7 +1128,7 @@ go32_sysinfo (char *arg, int from_tty)
   /* CPUID with EAX = 1 returns processor signature and features.  */
   if (cpuid_max >= 1)
     {
-      static char *brand_name[] = {
+      static const char *brand_name[] = {
 	"",
 	" Celeron",
 	" III",
@@ -2051,13 +2053,10 @@ go32_pte_for_address (char *arg, int from_tty)
 static struct cmd_list_element *info_dos_cmdlist = NULL;
 
 static void
-go32_info_dos_command (char *args, int from_tty)
+go32_info_dos_command (const char *args, int from_tty)
 {
   help_list (info_dos_cmdlist, "info dos ", class_info, gdb_stdout);
 }
-
-/* -Wmissing-prototypes */
-extern initialize_file_ftype _initialize_go32_nat;
 
 void
 _initialize_go32_nat (void)

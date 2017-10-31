@@ -1,5 +1,5 @@
 /* Handle TIC6X (DSBT) shared libraries for GDB, the GNU Debugger.
-   Copyright (C) 2010-2016 Free Software Foundation, Inc.
+   Copyright (C) 2010-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -123,10 +123,15 @@ struct ext_link_map
 
 /* Link map info to include in an allocated so_list entry */
 
-struct lm_info
+struct lm_info_dsbt : public lm_info_base
 {
+  ~lm_info_dsbt ()
+  {
+    xfree (this->map);
+  }
+
   /* The loadmap, digested into an easier to use form.  */
-  struct int_elf32_dsbt_loadmap *map;
+  int_elf32_dsbt_loadmap *map = NULL;
 };
 
 /* Per pspace dsbt specific data.  */
@@ -137,7 +142,7 @@ struct dsbt_info
      of loaded shared objects.  ``main_executable_lm_info'' provides
      a way to get at this information so that it doesn't need to be
      frequently recomputed.  Initialized by dsbt_relocate_main_executable.  */
-  struct lm_info *main_executable_lm_info;
+  struct lm_info_dsbt *main_executable_lm_info;
 
   /* Load maps for the main executable and the interpreter.  These are obtained
      from ptrace.  They are the starting point for getting into the program,
@@ -502,16 +507,10 @@ scan_dyntag (int dyntag, bfd *abfd, CORE_ADDR *ptr)
   return 0;
 }
 
-/* If no open symbol file, attempt to locate and open the main symbol
-   file.
-
-   If FROM_TTYP dereferences to a non-zero integer, allow messages to
-   be printed.  This parameter is a pointer rather than an int because
-   open_symbol_file_object is called via catch_errors and
-   catch_errors requires a pointer argument. */
+/* See solist.h. */
 
 static int
-open_symbol_file_object (void *from_ttyp)
+open_symbol_file_object (int from_tty)
 {
   /* Unimplemented.  */
   return 0;
@@ -711,8 +710,9 @@ dsbt_current_sos (void)
 	    }
 
 	  sop = XCNEW (struct so_list);
-	  sop->lm_info = XCNEW (struct lm_info);
-	  sop->lm_info->map = loadmap;
+	  lm_info_dsbt *li = new lm_info_dsbt;
+	  sop->lm_info = li;
+	  li->map = loadmap;
 	  /* Fetch the name.  */
 	  addr = extract_unsigned_integer (lm_buf.l_name,
 					   sizeof (lm_buf.l_name),
@@ -816,7 +816,6 @@ enable_break (void)
     {
       unsigned int interp_sect_size;
       char *buf;
-      bfd *tmp_bfd = NULL;
       CORE_ADDR addr;
       struct int_elf32_dsbt_loadmap *ldm;
       int ret;
@@ -832,6 +831,7 @@ enable_break (void)
 	 loaded so that we can load its symbols and place a breakpoint
 	 in the dynamic linker itself.  */
 
+      gdb_bfd_ref_ptr tmp_bfd;
       TRY
 	{
 	  tmp_bfd = solib_bfd_open (buf);
@@ -852,29 +852,31 @@ enable_break (void)
 
       /* Record the relocated start and end address of the dynamic linker
 	 text and plt section for dsbt_in_dynsym_resolve_code.  */
-      interp_sect = bfd_get_section_by_name (tmp_bfd, ".text");
+      interp_sect = bfd_get_section_by_name (tmp_bfd.get (), ".text");
       if (interp_sect)
 	{
 	  info->interp_text_sect_low
-	    = bfd_section_vma (tmp_bfd, interp_sect);
+	    = bfd_section_vma (tmp_bfd.get (), interp_sect);
 	  info->interp_text_sect_low
 	    += displacement_from_map (ldm, info->interp_text_sect_low);
 	  info->interp_text_sect_high
 	    = info->interp_text_sect_low
-	    + bfd_section_size (tmp_bfd, interp_sect);
+	    + bfd_section_size (tmp_bfd.get (), interp_sect);
 	}
-      interp_sect = bfd_get_section_by_name (tmp_bfd, ".plt");
+      interp_sect = bfd_get_section_by_name (tmp_bfd.get (), ".plt");
       if (interp_sect)
 	{
 	  info->interp_plt_sect_low =
-	    bfd_section_vma (tmp_bfd, interp_sect);
+	    bfd_section_vma (tmp_bfd.get (), interp_sect);
 	  info->interp_plt_sect_low
 	    += displacement_from_map (ldm, info->interp_plt_sect_low);
 	  info->interp_plt_sect_high =
-	    info->interp_plt_sect_low + bfd_section_size (tmp_bfd, interp_sect);
+	    info->interp_plt_sect_low + bfd_section_size (tmp_bfd.get (),
+							  interp_sect);
 	}
 
-      addr = gdb_bfd_lookup_symbol (tmp_bfd, cmp_name, "_dl_debug_state");
+      addr = gdb_bfd_lookup_symbol (tmp_bfd.get (), cmp_name,
+				    "_dl_debug_state");
       if (addr != 0)
 	{
 	  if (solib_dsbt_debug)
@@ -901,10 +903,7 @@ enable_break (void)
 	  ret = 0;
 	}
 
-      /* We're done with the temporary bfd.  */
-      gdb_bfd_unref (tmp_bfd);
-
-      /* We're also done with the loadmap.  */
+      /* We're done with the loadmap.  */
       xfree (ldm);
 
       return ret;
@@ -930,8 +929,8 @@ dsbt_relocate_main_executable (void)
   dsbt_get_initial_loadmaps ();
   ldm = info->exec_loadmap;
 
-  xfree (info->main_executable_lm_info);
-  info->main_executable_lm_info = XCNEW (struct lm_info);
+  delete info->main_executable_lm_info;
+  info->main_executable_lm_info = new lm_info_dsbt;
   info->main_executable_lm_info->map = ldm;
 
   new_offsets = XCNEWVEC (struct section_offsets,
@@ -1006,19 +1005,17 @@ dsbt_clear_solib (void)
 
   info->lm_base_cache = 0;
   info->main_lm_addr = 0;
-  if (info->main_executable_lm_info != 0)
-    {
-      xfree (info->main_executable_lm_info->map);
-      xfree (info->main_executable_lm_info);
-      info->main_executable_lm_info = 0;
-    }
+
+  delete info->main_executable_lm_info;
+  info->main_executable_lm_info = NULL;
 }
 
 static void
 dsbt_free_so (struct so_list *so)
 {
-  xfree (so->lm_info->map);
-  xfree (so->lm_info);
+  lm_info_dsbt *li = (lm_info_dsbt *) so->lm_info;
+
+  delete li;
 }
 
 static void
@@ -1026,9 +1023,8 @@ dsbt_relocate_section_addresses (struct so_list *so,
 				 struct target_section *sec)
 {
   int seg;
-  struct int_elf32_dsbt_loadmap *map;
-
-  map = so->lm_info->map;
+  lm_info_dsbt *li = (lm_info_dsbt *) so->lm_info;
+  int_elf32_dsbt_loadmap *map = li->map;
 
   for (seg = 0; seg < map->nsegs; seg++)
     {
@@ -1051,9 +1047,6 @@ show_dsbt_debug (struct ui_file *file, int from_tty,
 }
 
 struct target_so_ops dsbt_so_ops;
-
-/* Provide a prototype to silence -Wmissing-prototypes.  */
-extern initialize_file_ftype _initialize_dsbt_solib;
 
 void
 _initialize_dsbt_solib (void)

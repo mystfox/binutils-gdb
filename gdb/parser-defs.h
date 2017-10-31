@@ -1,6 +1,6 @@
 /* Parser definitions for GDB.
 
-   Copyright (C) 1986-2016 Free Software Foundation, Inc.
+   Copyright (C) 1986-2017 Free Software Foundation, Inc.
 
    Modified from expread.y by the Department of Computer Science at the
    State University of New York at Buffalo.
@@ -23,7 +23,6 @@
 #if !defined (PARSER_DEFS_H)
 #define PARSER_DEFS_H 1
 
-#include "doublest.h"
 #include "vec.h"
 #include "expression.h"
 
@@ -127,6 +126,7 @@ enum type_pieces
     tp_end = -1, 
     tp_pointer, 
     tp_reference, 
+    tp_rvalue_reference,
     tp_array, 
     tp_function,
     tp_function_with_arguments,
@@ -188,9 +188,7 @@ extern void write_exp_elt_sym (struct parser_state *, struct symbol *);
 
 extern void write_exp_elt_longcst (struct parser_state *, LONGEST);
 
-extern void write_exp_elt_dblcst (struct parser_state *, DOUBLEST);
-
-extern void write_exp_elt_decfloatcst (struct parser_state *, gdb_byte *);
+extern void write_exp_elt_floatcst (struct parser_state *, const gdb_byte *);
 
 extern void write_exp_elt_type (struct parser_state *, struct type *);
 
@@ -246,8 +244,6 @@ extern void type_stack_cleanup (void *arg);
 
 extern void push_typelist (VEC (type_ptr) *typelist);
 
-extern int length_of_subexp (struct expression *, int);
-
 extern int dump_subexp (struct expression *, struct ui_file *, int);
 
 extern int dump_subexp_body_standard (struct expression *, 
@@ -263,17 +259,16 @@ extern int operator_check_standard (struct expression *exp, int pos,
 				      (struct objfile *objfile, void *data),
 				    void *data);
 
-extern char *op_name_standard (enum exp_opcode);
+extern const char *op_name_standard (enum exp_opcode);
 
 extern struct type *follow_types (struct type *);
 
+extern type_instance_flags follow_type_instance_flags ();
+
 extern void null_post_parser (struct expression **, int);
 
-extern int parse_float (const char *p, int len, DOUBLEST *d,
-			const char **suffix);
-
-extern int parse_c_float (struct gdbarch *gdbarch, const char *p, int len,
-			  DOUBLEST *d, struct type **t);
+extern bool parse_float (const char *p, int len,
+			 const struct type *type, gdb_byte *data);
 
 /* During parsing of a C expression, the pointer to the next character
    is in this variable.  */
@@ -313,7 +308,7 @@ enum precedence
 
 struct op_print
   {
-    char *string;
+    const char *string;
     enum exp_opcode opcode;
     /* Precedence of operator.  These values are used only by comparisons.  */
     enum precedence precedence;
@@ -353,7 +348,7 @@ struct exp_descriptor
        The returned value should never be NULL, even if EXP_OPCODE is
        an unknown opcode (a string containing an image of the numeric
        value of the opcode can be returned, for instance).  */
-    char *(*op_name) (enum exp_opcode);
+    const char *(*op_name) (enum exp_opcode);
 
     /* Dump the rest of this (prefix) expression after the operator
        itself has been printed.  See dump_subexp_body_standard in

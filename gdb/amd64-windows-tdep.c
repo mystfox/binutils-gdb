@@ -1,4 +1,4 @@
-/* Copyright (C) 2009-2016 Free Software Foundation, Inc.
+/* Copyright (C) 2009-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -18,6 +18,7 @@
 #include "defs.h"
 #include "osabi.h"
 #include "amd64-tdep.h"
+#include "x86-xstate.h"
 #include "gdbtypes.h"
 #include "gdbcore.h"
 #include "regcache.h"
@@ -56,6 +57,7 @@ amd64_windows_passed_by_integer_register (struct type *type)
       case TYPE_CODE_CHAR:
       case TYPE_CODE_PTR:
       case TYPE_CODE_REF:
+      case TYPE_CODE_RVALUE_REF:
       case TYPE_CODE_STRUCT:
       case TYPE_CODE_UNION:
 	return (TYPE_LENGTH (type) == 1
@@ -1223,7 +1225,8 @@ amd64_windows_init_abi (struct gdbarch_info info, struct gdbarch *gdbarch)
   */
   frame_unwind_append_unwinder (gdbarch, &amd64_windows_frame_unwind);
 
-  amd64_init_abi (info, gdbarch);
+  amd64_init_abi (info, gdbarch,
+		  amd64_target_description (X86_XSTATE_SSE_MASK));
 
   windows_init_abi (info, gdbarch);
 
@@ -1241,9 +1244,6 @@ amd64_windows_init_abi (struct gdbarch_info info, struct gdbarch *gdbarch)
 
   set_gdbarch_auto_wide_charset (gdbarch, amd64_windows_auto_wide_charset);
 }
-
-/* -Wmissing-prototypes */
-extern initialize_file_ftype _initialize_amd64_windows_tdep;
 
 void
 _initialize_amd64_windows_tdep (void)

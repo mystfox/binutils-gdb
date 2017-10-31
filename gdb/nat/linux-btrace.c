@@ -1,6 +1,6 @@
 /* Linux-dependent part of branch trace support for GDB, and GDBserver.
 
-   Copyright (C) 2013-2016 Free Software Foundation, Inc.
+   Copyright (C) 2013-2017 Free Software Foundation, Inc.
 
    Contributed by Intel Corp. <markus.t.metzger@intel.com>
 
@@ -204,24 +204,23 @@ linux_determine_kernel_start (void)
 {
   static uint64_t kernel_start;
   static int cached;
-  FILE *file;
 
   if (cached != 0)
     return kernel_start;
 
   cached = 1;
 
-  file = gdb_fopen_cloexec ("/proc/kallsyms", "r");
+  gdb_file_up file = gdb_fopen_cloexec ("/proc/kallsyms", "r");
   if (file == NULL)
     return kernel_start;
 
-  while (!feof (file))
+  while (!feof (file.get ()))
     {
       char buffer[1024], symbol[8], *line;
       uint64_t addr;
       int match;
 
-      line = fgets (buffer, sizeof (buffer), file);
+      line = fgets (buffer, sizeof (buffer), file.get ());
       if (line == NULL)
 	break;
 
@@ -235,8 +234,6 @@ linux_determine_kernel_start (void)
 	  break;
 	}
     }
-
-  fclose (file);
 
   return kernel_start;
 }

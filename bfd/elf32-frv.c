@@ -1,5 +1,5 @@
 /* FRV-specific support for 32-bit ELF.
-   Copyright (C) 2002-2016 Free Software Foundation, Inc.
+   Copyright (C) 2002-2017 Free Software Foundation, Inc.
 
    This file is part of BFD, the Binary File Descriptor library.
 
@@ -6041,7 +6041,7 @@ elf32_frv_check_relocs (bfd *abfd,
 
 	  /* PR15323, ref flags aren't set for references in the same
 	     object.  */
-	  h->root.non_ir_ref = 1;
+	  h->root.non_ir_ref_regular = 1;
 	}
 
       switch (ELF32_R_TYPE (rel->r_info))
@@ -6355,7 +6355,7 @@ frv_elf_merge_private_bfd_data (bfd *ibfd, struct bfd_link_info *info)
 
 #ifdef DEBUG
   _bfd_error_handler
-    ("old_flags = 0x%.8lx, new_flags = 0x%.8lx, init = %s, filename = %s",
+    ("old_flags = 0x%.8x, new_flags = 0x%.8x, init = %s, filename = %s",
      old_flags, new_flags, elf_flags_init (obfd) ? "yes" : "no",
      bfd_get_filename (ibfd));
 #endif
@@ -6507,9 +6507,9 @@ frv_elf_merge_private_bfd_data (bfd *ibfd, struct bfd_link_info *info)
 	      error = TRUE;
 	      _bfd_error_handler
 		/* xgettext:c-format */
-		(_("%s: compiled with %s and linked with modules that use non-pic relocations"),
-		 bfd_get_filename (ibfd),
-		 (new_flags & EF_FRV_BIGPIC) ? "-fPIC" : "-fpic");
+		(_("%B: compiled with %s and linked with modules"
+		   " that use non-pic relocations"),
+		 ibfd, (new_flags & EF_FRV_BIGPIC) ? "-fPIC" : "-fpic");
 #endif
 	    }
 	}
@@ -6561,8 +6561,8 @@ frv_elf_merge_private_bfd_data (bfd *ibfd, struct bfd_link_info *info)
 	  error = TRUE;
 	  _bfd_error_handler
 	    /* xgettext:c-format */
-	    (_("%s: compiled with %s and linked with modules compiled with %s"),
-	     bfd_get_filename (ibfd), new_opt, old_opt);
+	    (_("%B: compiled with %s and linked with modules compiled with %s"),
+	     ibfd, new_opt, old_opt);
 	}
 
       /* Warn about any other mismatches */
@@ -6574,8 +6574,9 @@ frv_elf_merge_private_bfd_data (bfd *ibfd, struct bfd_link_info *info)
 	  error = TRUE;
 	  _bfd_error_handler
 	    /* xgettext:c-format */
-	    (_("%s: uses different unknown e_flags (0x%lx) fields than previous modules (0x%lx)"),
-	     bfd_get_filename (ibfd), (long)new_partial, (long)old_partial);
+	    (_("%B: uses different unknown e_flags (%#x) fields"
+	       " than previous modules (%#x)"),
+	     ibfd, new_partial, old_partial);
 	}
     }
 
@@ -6595,12 +6596,12 @@ frv_elf_merge_private_bfd_data (bfd *ibfd, struct bfd_link_info *info)
       error = TRUE;
       if (IS_FDPIC (obfd))
 	_bfd_error_handler
-	  (_("%s: cannot link non-fdpic object file into fdpic executable"),
-	   bfd_get_filename (ibfd));
+	  (_("%B: cannot link non-fdpic object file into fdpic executable"),
+	   ibfd);
       else
 	_bfd_error_handler
-	  (_("%s: cannot link fdpic object file into non-fdpic executable"),
-	   bfd_get_filename (ibfd));
+	  (_("%B: cannot link fdpic object file into non-fdpic executable"),
+	   ibfd);
     }
 
   if (error)
@@ -6772,7 +6773,6 @@ elf32_frv_grok_psinfo (bfd *abfd, Elf_Internal_Note *note)
   return TRUE;
 }
 #define ELF_ARCH		bfd_arch_frv
-#define ELF_TARGET_ID		FRV_ELF_DATA
 #define ELF_MACHINE_CODE	EM_CYGNUS_FRV
 #define ELF_MAXPAGESIZE		0x1000
 
@@ -6809,8 +6809,12 @@ elf32_frv_grok_psinfo (bfd *abfd, Elf_Internal_Note *note)
 #define elf_backend_grok_prstatus	elf32_frv_grok_prstatus
 #define elf_backend_grok_psinfo		elf32_frv_grok_psinfo
 
+#define elf_backend_linux_prpsinfo32_ugid16	TRUE
+
 #include "elf32-target.h"
 
+#undef ELF_TARGET_ID
+#define ELF_TARGET_ID		FRV_ELF_DATA
 #undef ELF_MAXPAGESIZE
 #define ELF_MAXPAGESIZE		0x4000
 

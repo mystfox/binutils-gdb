@@ -1,4 +1,4 @@
-# Copyright (C) 1989-2016 Free Software Foundation, Inc.
+# Copyright (C) 1989-2017 Free Software Foundation, Inc.
 
 # This file is part of GDB.
 
@@ -114,7 +114,7 @@ depcomp = $(SHELL) $(srcdir)/../depcomp
 
 # Note that these are overridden by GNU make-specific code below if
 # GNU make is used.  The overrides implement dependency tracking.
-COMPILE.pre = $(CXX) $(CXX_DIALECT)
+COMPILE.pre = $(CXX) -x c++ $(CXX_DIALECT)
 COMPILE.post = -c -o $@
 COMPILE = $(COMPILE.pre) $(INTERNAL_CFLAGS) $(COMPILE.post)
 POSTCOMPILE = @true
@@ -453,6 +453,7 @@ SUBDIR_PYTHON_OBS = \
 	py-inferior.o \
 	py-infevents.o \
 	py-infthread.o \
+	py-instruction.o \
 	py-lazy-string.o \
 	py-linetable.o \
 	py-newobjfileevent.o \
@@ -460,6 +461,9 @@ SUBDIR_PYTHON_OBS = \
 	py-param.o \
 	py-prettyprint.o \
 	py-progspace.o \
+	py-record.o \
+	py-record-btrace.o \
+	py-record-full.o \
 	py-signalevent.o \
 	py-stopevent.o \
 	py-symbol.o \
@@ -493,6 +497,7 @@ SUBDIR_PYTHON_SRCS = \
 	python/py-inferior.c \
 	python/py-infevents.c \
 	python/py-infthread.c \
+	python/py-instruction.c \
 	python/py-lazy-string.c \
 	python/py-linetable.c \
 	python/py-newobjfileevent.c \
@@ -500,6 +505,9 @@ SUBDIR_PYTHON_SRCS = \
 	python/py-param.c \
 	python/py-prettyprint.c \
 	python/py-progspace.c \
+	python/py-record.c \
+	python/py-record-btrace.c \
+	python/py-record-full.c \
 	python/py-signalevent.c \
 	python/py-stopevent.c \
 	python/py-symbol.c \
@@ -516,6 +524,30 @@ SUBDIR_PYTHON_SRCS = \
 SUBDIR_PYTHON_DEPS =
 SUBDIR_PYTHON_LDFLAGS =
 SUBDIR_PYTHON_CFLAGS =
+
+SUBDIR_UNITTESTS_SRCS = \
+	unittests/array-view-selftests.c \
+	unittests/common-utils-selftests.c \
+	unittests/environ-selftests.c \
+	unittests/function-view-selftests.c \
+	unittests/memrange-selftests.c \
+	unittests/offset-type-selftests.c \
+	unittests/optional-selftests.c \
+	unittests/ptid-selftests.c \
+	unittests/scoped_restore-selftests.c \
+	unittests/xml-utils-selftests.c
+
+SUBDIR_UNITTESTS_OBS = \
+	array-view-selftests.o \
+	common-utils-selftests.o \
+	environ-selftests.o \
+	function-view-selftests.o \
+	memrange-selftests.o \
+	offset-type-selftests.o \
+	optional-selftests.o \
+	ptid-selftests.o \
+	scoped_restore-selftests.o \
+	xml-utils-selftests.o
 
 # Opcodes currently live in one of two places.  Either they are in the
 # opcode library, typically ../opcodes, or they are in a header file
@@ -604,6 +636,7 @@ CONFIG_ALL = @CONFIG_ALL@
 CONFIG_CLEAN = @CONFIG_CLEAN@
 CONFIG_INSTALL = @CONFIG_INSTALL@
 CONFIG_UNINSTALL = @CONFIG_UNINSTALL@
+CONFIG_SRC_SUBDIR = @CONFIG_SRC_SUBDIR@
 HAVE_NATIVE_GCORE_TARGET = @HAVE_NATIVE_GCORE_TARGET@
 
 # -I. for config files.
@@ -727,12 +760,11 @@ TARGET_OBS = @TARGET_OBS@
 # All target-dependent objects files that require 64-bit CORE_ADDR
 # (used with --enable-targets=all --enable-64-bit-bfd).
 ALL_64_TARGET_OBS = \
-	aarch64-insn.o \
+	aarch64-fbsd-tdep.o \
 	aarch64-linux-tdep.o \
 	aarch64-newlib-tdep.o \
 	aarch64-tdep.o \
 	alpha-bsd-tdep.o \
-	alpha-fbsd-tdep.o \
 	alpha-linux-tdep.o \
 	alpha-mdebug-tdep.o \
 	alpha-nbsd-tdep.o \
@@ -747,6 +779,8 @@ ALL_64_TARGET_OBS = \
 	amd64-sol2-tdep.o \
 	amd64-tdep.o \
 	amd64-windows-tdep.o \
+	arch/aarch64-insn.o \
+	arch/amd64.o \
 	ia64-linux-tdep.o \
 	ia64-tdep.o \
 	ia64-vms-tdep.o \
@@ -761,10 +795,12 @@ ALL_64_TARGET_OBS = \
 # All other target-dependent objects files (used with --enable-targets=all).
 ALL_TARGET_OBS = \
 	arc-tdep.o \
-	arm.o \
+	arch/arm.o \
+	arch/arm-get-next-pcs.o \
+	arch/arm-linux.o \
+	arch/i386.o \
 	arm-bsd-tdep.o \
-	arm-get-next-pcs.o \
-	arm-linux.o \
+	arm-fbsd-tdep.o \
 	arm-linux-tdep.o \
 	arm-nbsd-tdep.o \
 	arm-obsd-tdep.o \
@@ -795,6 +831,7 @@ ALL_TARGET_OBS = \
 	i386-dicos-tdep.o \
 	i386-fbsd-tdep.o \
 	i386-gnu-tdep.o \
+	i386-go32-tdep.o \
 	i386-linux-tdep.o \
 	i386-nbsd-tdep.o \
 	i386-nto-tdep.o \
@@ -817,6 +854,7 @@ ALL_TARGET_OBS = \
 	mep-tdep.o \
 	microblaze-linux-tdep.o \
 	microblaze-tdep.o \
+	mips-fbsd-tdep.o \
 	mips-linux-tdep.o \
 	mips-nbsd-tdep.o \
 	mips-sde-tdep.o \
@@ -881,9 +919,21 @@ ALL_TARGET_OBS = \
 	xtensa-linux-tdep.o \
 	xtensa-tdep.o
 
-# Host-dependent makefile fragment comes in here.
-@host_makefile_frag@
-# End of host-dependent makefile fragment
+# The following native-target dependent variables are defined on
+# configure.nat.
+NAT_FILE = @NAT_FILE@
+NATDEPFILES = @NATDEPFILES@
+NAT_CDEPS = @NAT_CDEPS@
+LOADLIBES = @LOADLIBES@
+MH_CFLAGS = @MH_CFLAGS@
+XM_CLIBS = @XM_CLIBS@
+NAT_GENERATED_FILES = @NAT_GENERATED_FILES@
+HAVE_NATIVE_GCORE_HOST = @HAVE_NATIVE_GCORE_HOST@
+
+# Native-target dependent makefile fragment comes in here.
+@nat_makefile_frag@
+
+# End of native-target dependent variables.
 
 FLAGS_TO_PASS = \
 	"prefix=$(prefix)" \
@@ -993,6 +1043,7 @@ SFILES = \
 	agent.c \
 	annotate.c \
 	arch-utils.c \
+	arch/i386.c \
 	auto-load.c \
 	auxv.c \
 	ax-gdb.c \
@@ -1038,6 +1089,7 @@ SFILES = \
 	dfp.c \
 	dictionary.c \
 	disasm.c \
+	disasm-selftests.c \
 	doublest.c \
 	dtrace-probe.c \
 	dummy-frame.c \
@@ -1047,7 +1099,6 @@ SFILES = \
 	dwarf2loc.c \
 	dwarf2read.c \
 	elfread.c \
-	environ.c \
 	eval.c \
 	event-loop.c \
 	event-top.c \
@@ -1069,8 +1120,10 @@ SFILES = \
 	gdb_bfd.c \
 	gdb-dlfcn.c \
 	gdb_obstack.c \
+	gdb_regex.c \
 	gdb_usleep.c \
 	gdbarch.c \
+	gdbarch-selftests.c \
 	gdbtypes.c \
 	gnu-v2-abi.c \
 	gnu-v3-abi.c \
@@ -1123,8 +1176,10 @@ SFILES = \
 	parse.c \
 	printcmd.c \
 	probe.c \
+	producer.c \
 	proc-service.list \
 	progspace.c \
+	progspace-and-thread.c \
 	prologue-value.c \
 	psymtab.c \
 	record.c \
@@ -1138,7 +1193,7 @@ SFILES = \
 	reverse.c \
 	rust-exp.y \
 	rust-lang.c \
-	selftest.c \
+	selftest-arch.c \
 	sentinel-frame.c \
 	ser-base.c \
 	ser-event.c \
@@ -1192,15 +1247,19 @@ SFILES = \
 	common/common-regcache.c \
 	common/common-utils.c \
 	common/errors.c \
+	common/environ.c \
 	common/fileio.c \
 	common/filestuff.c \
 	common/format.c \
+	common/job-control.c \
+	common/gdb_tilde_expand.c \
 	common/gdb_vecs.c \
 	common/new-op.c \
 	common/print-utils.c \
 	common/ptid.c \
 	common/rsp-low.c \
 	common/run-time-clock.c \
+	common/selftest.c \
 	common/signals.c \
 	common/signals-state-save-restore.c \
 	common/vec.c \
@@ -1270,7 +1329,6 @@ HFILES_NO_SRCDIR = \
 	dwarf2-frame-tailcall.h \
 	dwarf2expr.h \
 	dwarf2loc.h \
-	environ.h \
 	event-loop.h \
 	event-top.h \
 	exceptions.h \
@@ -1295,7 +1353,6 @@ HFILES_NO_SRCDIR = \
 	gdb_expat.h \
 	gdb_obstack.h \
 	gdb_proc_service.h \
-	gdb_ptrace.h \
 	gdb_regex.h \
 	gdb_select.h \
 	gdb-stabs.h \
@@ -1380,6 +1437,7 @@ HFILES_NO_SRCDIR = \
 	proc-utils.h \
 	procfs.h \
 	progspace.h \
+	progspace-and-thread.h \
 	prologue-value.h \
 	psympriv.h \
 	psymtab.h \
@@ -1396,6 +1454,7 @@ HFILES_NO_SRCDIR = \
 	rs6000-tdep.h \
 	s390-linux-tdep.h \
 	score-tdep.h \
+	selftest-arch.h \
 	sentinel-frame.h \
 	ser-base.h \
 	ser-event.h \
@@ -1457,6 +1516,7 @@ HFILES_NO_SRCDIR = \
 	xtensa-tdep.h \
 	arch/aarch64-insn.h \
 	arch/arm.h \
+	arch/i386.h \
 	cli/cli-cmds.h \
 	cli/cli-decode.h \
 	cli/cli-script.h \
@@ -1467,19 +1527,25 @@ HFILES_NO_SRCDIR = \
 	common/common-debug.h \
 	common/common-defs.h \
 	common/common-exceptions.h \
+	common/common-gdbthread.h \
 	common/common-regcache.h \
 	common/common-types.h \
 	common/common-utils.h \
+	common/job-control.h \
 	common/errors.h \
+	common/environ.h \
 	common/fileio.h \
 	common/format.h \
 	common/gdb_assert.h \
+	common/gdb_tilde_expand.h \
 	common/gdb_locale.h \
 	common/gdb_setjmp.h \
 	common/gdb_signals.h \
 	common/gdb_sys_time.h \
+	common/gdb_termios.h \
 	common/gdb_vecs.h \
 	common/gdb_wait.h \
+	common/common-inferior.h \
 	common/host-defs.h \
 	common/print-utils.h \
 	common/ptid.h \
@@ -1518,7 +1584,9 @@ HFILES_NO_SRCDIR = \
 	nat/aarch64-linux.h \
 	nat/aarch64-linux-hw-point.h \
 	nat/amd64-linux-siginfo.h \
+	nat/gdb_ptrace.h \
 	nat/gdb_thread_db.h \
+	nat/fork-inferior.h \
 	nat/linux-btrace.h \
 	nat/linux-namespaces.h \
 	nat/linux-nat.h \
@@ -1621,6 +1689,7 @@ COMMON_OBS = $(DEPFILES) $(CONFIG_OBS) $(YYOBJ) \
 	common-agent.o \
 	common-debug.o \
 	common-exceptions.o \
+	job-control.o \
 	common-regcache.o \
 	common-utils.o \
 	complaints.o \
@@ -1642,6 +1711,7 @@ COMMON_OBS = $(DEPFILES) $(CONFIG_OBS) $(YYOBJ) \
 	dfp.o \
 	dictionary.o \
 	disasm.o \
+	disasm-selftests.o \
 	doublest.o \
 	dummy-frame.o \
 	dwarf2-frame.o \
@@ -1662,6 +1732,7 @@ COMMON_OBS = $(DEPFILES) $(CONFIG_OBS) $(YYOBJ) \
 	f-typeprint.o \
 	f-valprint.o \
 	fileio.o \
+	filename-seen-cache.o \
 	filestuff.o \
 	filesystem.o \
 	findcmd.o \
@@ -1672,11 +1743,14 @@ COMMON_OBS = $(DEPFILES) $(CONFIG_OBS) $(YYOBJ) \
 	frame-unwind.o \
 	gcore.o \
 	gdb_bfd.o \
+	gdb_tilde_expand.o \
 	gdb-dlfcn.o \
 	gdb_obstack.o \
+	gdb_regex.o \
 	gdb_usleep.o \
 	gdb_vecs.o \
 	gdbarch.o \
+	gdbarch-selftests.o \
 	gdbtypes.o \
 	gnu-v2-abi.o \
 	gnu-v3-abi.o \
@@ -1728,7 +1802,9 @@ COMMON_OBS = $(DEPFILES) $(CONFIG_OBS) $(YYOBJ) \
 	print-utils.o \
 	printcmd.o \
 	probe.o \
+	producer.o \
 	progspace.o \
+	progspace-and-thread.o \
 	prologue-value.o \
 	psymtab.o \
 	ptid.o \
@@ -1743,6 +1819,7 @@ COMMON_OBS = $(DEPFILES) $(CONFIG_OBS) $(YYOBJ) \
 	run-time-clock.o \
 	rust-lang.o \
 	selftest.o \
+	selftest-arch.o \
 	sentinel-frame.o \
 	ser-event.o \
 	serial.o \
@@ -1774,7 +1851,6 @@ COMMON_OBS = $(DEPFILES) $(CONFIG_OBS) $(YYOBJ) \
 	ui-out.o \
 	user-regs.o \
 	utils.o \
-	utils-selftests.o \
 	valarith.o \
 	valops.o \
 	valprint.o \
@@ -1853,10 +1929,6 @@ all: gdb$(EXEEXT) $(CONFIG_ALL)
 	$(POSTCOMPILE)
 
 # Rules for compiling .c files in the various source subdirectories.
-%.o: ${srcdir}/arch/%.c
-	$(COMPILE) $<
-	$(POSTCOMPILE)
-
 %.o: $(srcdir)/cli/%.c
 	$(COMPILE) $<
 	$(POSTCOMPILE)
@@ -1894,6 +1966,10 @@ all: gdb$(EXEEXT) $(CONFIG_ALL)
 	$(POSTCOMPILE)
 
 %.o: $(srcdir)/tui/%.c
+	$(COMPILE) $<
+	$(POSTCOMPILE)
+
+%.o: ${srcdir}/unittests/%.c
 	$(COMPILE) $<
 	$(POSTCOMPILE)
 
@@ -1987,8 +2063,8 @@ CHECK_HEADERS = $(HFILES_NO_SRCDIR)
 check-headers:
 	@echo Checking headers.
 	for i in $(CHECK_HEADERS) ; do \
-		$(CC) -x c -c -fsyntax-only $(INTERNAL_CFLAGS) \
-			-include defs.h $(srcdir)/$$i ; \
+		$(CXX) $(CXX_DIALECT) -x c++-header -c -fsyntax-only \
+		$(INTERNAL_CFLAGS) -include defs.h $(srcdir)/$$i ; \
 	done
 .PHONY: check-headers
 
@@ -2228,6 +2304,10 @@ clean mostlyclean: $(CONFIG_CLEAN)
 	rm -f test-cp-name-parser$(EXEEXT)
 	rm -f xml-builtin.c stamp-xml
 	rm -f $(DEPDIR)/*
+	for i in $(CONFIG_SRC_SUBDIR); do \
+		rm -f $$i/*.o;	\
+		rm -f $$i/$(DEPDIR)/*; \
+	done
 
 # This used to depend on c-exp.c m2-exp.c TAGS
 # I believe this is wrong; the makefile standards for distclean just
@@ -2246,6 +2326,9 @@ distclean: clean
 	rm -f config.log config.cache
 	rm -f Makefile
 	rm -rf $(DEPDIR)
+	for i in $(CONFIG_SRC_SUBDIR); do \
+		rmdir $$i/$(DEPDIR); \
+	done
 
 maintainer-clean: local-maintainer-clean do-maintainer-clean distclean
 realclean: maintainer-clean
@@ -2284,21 +2367,21 @@ subdir_do: force
 		else true ; fi ; \
 	done
 
-Makefile: Makefile.in config.status @frags@
+Makefile: Makefile.in config.status
 	# Regenerate the Makefile and the tm.h / nm.h links.
 	CONFIG_FILES="Makefile" \
 	  CONFIG_COMMANDS= \
 	  CONFIG_HEADERS= \
 	  $(SHELL) config.status
 
-$(GNULIB_BUILDDIR)/Makefile: gnulib/Makefile.in config.status @frags@
+$(GNULIB_BUILDDIR)/Makefile: gnulib/Makefile.in config.status
 	@cd $(GNULIB_BUILDDIR); CONFIG_FILES="Makefile" \
 	  CONFIG_COMMANDS="depfiles" \
 	  CONFIG_HEADERS= \
 	  CONFIG_LINKS= \
 	  $(SHELL) config.status
 
-data-directory/Makefile: data-directory/Makefile.in config.status @frags@
+data-directory/Makefile: data-directory/Makefile.in config.status
 	CONFIG_FILES="data-directory/Makefile" \
 	  CONFIG_COMMANDS="depfiles" \
 	  CONFIG_HEADERS= \
@@ -2429,6 +2512,8 @@ force_update:
 MAKEOVERRIDES =
 
 ALLDEPFILES = \
+	aarch64-fbsd-nat.c \
+	aarch64-fbsd-tdep.c \
 	aarch64-linux-nat.c \
 	aarch64-linux-tdep.c \
 	aarch64-newlib-tdep.c \
@@ -2436,7 +2521,6 @@ ALLDEPFILES = \
 	aix-thread.c \
 	alpha-bsd-nat.c \
 	alpha-bsd-tdep.c \
-	alpha-fbsd-tdep.c \
 	alpha-linux-nat.c \
 	alpha-linux-tdep.c \
 	alpha-mdebug-tdep.c \
@@ -2460,6 +2544,8 @@ ALLDEPFILES = \
 	arc-tdep.c \
 	arm.c \
 	arm-bsd-tdep.c \
+	arm-fbsd-nat.c \
+	arm-fbsd-tdep.c \
 	arm-get-next-pcs.c \
 	arm-linux.c \
 	arm-linux-nat.c \
@@ -2540,6 +2626,8 @@ ALLDEPFILES = \
 	microblaze-linux-tdep.c \
 	microblaze-tdep.c \
 	mingw-hdep.c \
+	mips-fbsd-nat.c \
+	mips-fbsd-tdep.c \
 	mips-linux-nat.c \
 	mips-linux-tdep.c \
 	mips-nbsd-nat.c \
@@ -2638,23 +2726,17 @@ ALLDEPFILES = \
 # Some files need explicit build rules (due to -Werror problems) or due
 # to sub-directory fun 'n' games.
 
-# FIXME: cagney/2003-08-10: "monitor.c" gets -Wformat-nonliteral
-# errors.  It turns out that that is the least of monitor.c's
-# problems.  The function print_vsprintf appears to be using
-# va_arg(long) to extract CORE_ADDR parameters - something that
-# definitly will not work.  "monitor.c" needs to be rewritten so that
-# it doesn't use format strings and instead uses callbacks.
-monitor.o: $(srcdir)/monitor.c
-	$(COMPILE.pre) $(INTERNAL_CFLAGS) $(GDB_WARN_CFLAGS_NO_FORMAT) \
-		$(COMPILE.post) $(srcdir)/monitor.c
-	$(POSTCOMPILE)
-
 # Do not try to build "printcmd.c" with -Wformat-nonliteral.  It manually
 # checks format strings.
 printcmd.o: $(srcdir)/printcmd.c
 	$(COMPILE.pre) $(INTERNAL_CFLAGS) $(GDB_WARN_CFLAGS_NO_FORMAT) \
 		$(COMPILE.post) $(srcdir)/printcmd.c
 	$(POSTCOMPILE)
+
+# Same for "doublest.c".
+doublest.o: $(srcdir)/doublest.c
+	$(COMPILE.pre) $(INTERNAL_CFLAGS) $(GDB_WARN_CFLAGS_NO_FORMAT) \
+		$(COMPILE.post) $(srcdir)/doublest.c
 
 # ada-exp.c can appear in srcdir, for releases; or in ., for
 # development builds.
@@ -2880,12 +2962,13 @@ ifeq ($(DEPMODE),depmode=gcc3)
 # into place if the compile succeeds.  We need this because gcc does
 # not atomically write the dependency output file.
 override COMPILE.post = -c -o $@ -MT $@ -MMD -MP \
-	-MF $(DEPDIR)/$(basename $(@F)).Tpo
-override POSTCOMPILE = @mv $(DEPDIR)/$(basename $(@F)).Tpo \
-	$(DEPDIR)/$(basename $(@F)).Po
+	-MF $(@D)/$(DEPDIR)/$(basename $(@F)).Tpo
+override POSTCOMPILE = @mv $(@D)/$(DEPDIR)/$(basename $(@F)).Tpo \
+	$(@D)/$(DEPDIR)/$(basename $(@F)).Po
 else
 override COMPILE.pre = source='$<' object='$@' libtool=no \
-	DEPDIR=$(DEPDIR) $(DEPMODE) $(depcomp) $(CC)
+	DEPDIR=$(DEPDIR) $(DEPMODE) $(depcomp) \
+	$(CXX) -x c++ $(CXX_DIALECT)
 # depcomp handles atomicity for us, so we don't need a postcompile
 # step.
 override POSTCOMPILE =

@@ -1,5 +1,5 @@
 /* Target-dependent code for GNU/Linux on Nios II.
-   Copyright (C) 2012-2016 Free Software Foundation, Inc.
+   Copyright (C) 2012-2017 Free Software Foundation, Inc.
    Contributed by Mentor Graphics, Inc.
 
    This file is part of GDB.
@@ -237,10 +237,6 @@ nios2_linux_init_abi (struct gdbarch_info info, struct gdbarch *gdbarch)
   /* Index of target address word in glibc jmp_buf.  */
   tdep->jb_pc = 10;
 }
-
-/* Provide a prototype to silence -Wmissing-prototypes.  */
-
-extern initialize_file_ftype _initialize_nios2_linux_tdep;
 
 void
 _initialize_nios2_linux_tdep (void)

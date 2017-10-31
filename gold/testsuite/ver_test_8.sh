@@ -2,7 +2,7 @@
 
 # ver_test_8.sh -- check that __GLOBAL_OFFSET_TABLE__ is defined only once.
 
-# Copyright (C) 2016 Free Software Foundation, Inc.
+# Copyright (C) 2016-2017 Free Software Foundation, Inc.
 # Written by Cary Coutant <ccoutant@gmail.com>.
 
 # This file is part of gold.
@@ -22,10 +22,10 @@
 # Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
 # MA 02110-1301, USA.
 
-count=`grep -c '_GLOBAL_OFFSET_TABLE_' ver_test_8_2.so.syms`
+count=`grep -c -E '(_GLOBAL_OFFSET_TABLE_|\.TOC\.)' ver_test_8_2.so.syms`
 
-if test "$count" -ne 1; then
-  echo "Found $count copies of '_GLOBAL_OFFSET_TABLE_' (should be only 1)"
+if test "$count" -gt 1; then
+  echo "Found $count copies of '_GLOBAL_OFFSET_TABLE_|.TOC.' (should be only 1)"
   exit 1
 fi
 

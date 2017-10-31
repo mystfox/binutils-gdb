@@ -1,6 +1,6 @@
 /* Native-dependent code for Solaris x86.
 
-   Copyright (C) 2004-2016 Free Software Foundation, Inc.
+   Copyright (C) 2004-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -129,9 +129,6 @@ fill_fpregset (const struct regcache *regcache,
 /* For 32-bit Solaris x86, we use the Unix SVR4 code in i386v4-nat.c.  */
 
 #endif
-
-/* Provide a prototype to silence -Wmissing-prototypes.  */
-extern void _initialize_amd64_sol2_nat (void);
 
 void
 _initialize_amd64_sol2_nat (void)

@@ -1,5 +1,5 @@
 /* Shared library declarations for GDB, the GNU Debugger.
-   Copyright (C) 1990-2016 Free Software Foundation, Inc.
+   Copyright (C) 1990-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -22,10 +22,18 @@
 #define SO_NAME_MAX_PATH_SIZE 512	/* FIXME: Should be dynamic */
 /* For domain_enum domain.  */
 #include "symtab.h"
+#include "gdb_bfd.h"
 
-/* Forward declaration for target specific link map information.  This
-   struct is opaque to all but the target specific file.  */
-struct lm_info;
+#define ALL_SO_LIBS(so) \
+    for (so = so_list_head; \
+	 so != NULL; \
+	 so = so->next)
+
+/* Base class for target-specific link map information.  */
+
+struct lm_info_base
+{
+};
 
 struct so_list
   {
@@ -39,7 +47,7 @@ struct so_list
        will be a copy of struct link_map from the user process, but
        it need not be; it can be any collection of data needed to
        traverse the dynamic linker's data structures.  */
-    struct lm_info *lm_info;
+    lm_info_base *lm_info;
 
     /* Shared object file name, exactly as it appears in the
        inferior's link map.  This may be a relative path, or something
@@ -73,7 +81,10 @@ struct so_list
 
     /* Record the range of addresses belonging to this shared library.
        There may not be just one (e.g. if two segments are relocated
-       differently); but this is only used for "info sharedlibrary".  */
+       differently).  This is used for "info sharedlibrary" and
+       the MI command "-file-list-shared-libraries".  The latter has a format
+       that supports outputting multiple segments once the related code
+       supports them.  */
     CORE_ADDR addr_low, addr_high;
   };
 
@@ -110,18 +121,15 @@ struct target_so_ops
     struct so_list *(*current_sos) (void);
 
     /* Find, open, and read the symbols for the main executable.  If
-       FROM_TTYP dereferences to a non-zero integer, allow messages to
-       be printed.  This parameter is a pointer rather than an int
-       because open_symbol_file_object is called via catch_errors and
-       catch_errors requires a pointer argument.  */
-    int (*open_symbol_file_object) (void *from_ttyp);
+       FROM_TTY is non-zero, allow messages to be printed.  */
+    int (*open_symbol_file_object) (int from_ttyp);
 
     /* Determine if PC lies in the dynamic symbol resolution code of
        the run time loader.  */
     int (*in_dynsym_resolve_code) (CORE_ADDR pc);
 
     /* Find and open shared library binary file.  */
-    bfd *(*bfd_open) (char *pathname);
+    gdb_bfd_ref_ptr (*bfd_open) (char *pathname);
 
     /* Optional extra hook for finding and opening a solib.
        If TEMP_PATHNAME is non-NULL: If the file is successfully opened a
@@ -168,6 +176,18 @@ struct target_so_ops
 /* Free the memory associated with a (so_list *).  */
 void free_so (struct so_list *so);
 
+/* A deleter that calls free_so.  */
+struct so_deleter
+{
+  void operator() (struct so_list *so) const
+  {
+    free_so (so);
+  }
+};
+
+/* A unique pointer to a so_list.  */
+typedef std::unique_ptr<so_list, so_deleter> so_list_up;
+
 /* Return address of first so_list entry in master shared object list.  */
 struct so_list *master_so_list (void);
 
@@ -178,10 +198,10 @@ extern char *exec_file_find (const char *in_pathname, int *fd);
 extern char *solib_find (const char *in_pathname, int *fd);
 
 /* Open BFD for shared library file.  */
-extern bfd *solib_bfd_fopen (char *pathname, int fd);
+extern gdb_bfd_ref_ptr solib_bfd_fopen (char *pathname, int fd);
 
 /* Find solib binary file and open it.  */
-extern bfd *solib_bfd_open (char *in_pathname);
+extern gdb_bfd_ref_ptr solib_bfd_open (char *in_pathname);
 
 /* FIXME: gdbarch needs to control this variable.  */
 extern struct target_so_ops *current_target_so_ops;

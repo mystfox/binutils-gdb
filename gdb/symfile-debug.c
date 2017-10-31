@@ -1,6 +1,6 @@
 /* Debug logging for the symbol file functions for the GNU debugger, GDB.
 
-   Copyright (C) 2013-2016 Free Software Foundation, Inc.
+   Copyright (C) 2013-2017 Free Software Foundation, Inc.
 
    Contributed by Cygnus Support, using pieces from other GDB modules.
 
@@ -117,28 +117,23 @@ debug_qf_forget_cached_source_info (struct objfile *objfile)
   debug_data->real_sf->qf->forget_cached_source_info (objfile);
 }
 
-static int
-debug_qf_map_symtabs_matching_filename (struct objfile *objfile,
-					const char *name,
-					const char *real_path,
-					int (*callback) (struct symtab *,
-							 void *),
-					void *data)
+static bool
+debug_qf_map_symtabs_matching_filename
+  (struct objfile *objfile, const char *name, const char *real_path,
+   gdb::function_view<bool (symtab *)> callback)
 {
   const struct debug_sym_fns_data *debug_data
     = ((const struct debug_sym_fns_data *)
        objfile_data (objfile, symfile_debug_objfile_data_key));
-  int retval;
 
   fprintf_filtered (gdb_stdlog,
-		    "qf->map_symtabs_matching_filename (%s, \"%s\", \"%s\", %s, %s)\n",
+		    "qf->map_symtabs_matching_filename (%s, \"%s\", \"%s\", %s)\n",
 		    objfile_debug_name (objfile), name,
 		    real_path ? real_path : NULL,
-		    host_address_to_string (callback),
-		    host_address_to_string (data));
+		    host_address_to_string (&callback));
 
-  retval = debug_data->real_sf->qf->map_symtabs_matching_filename
-    (objfile, name, real_path, callback, data);
+  bool retval = (debug_data->real_sf->qf->map_symtabs_matching_filename
+		 (objfile, name, real_path, callback));
 
   fprintf_filtered (gdb_stdlog,
 		    "qf->map_symtabs_matching_filename (...) = %d\n",
@@ -291,29 +286,28 @@ debug_qf_map_matching_symbols (struct objfile *objfile,
 static void
 debug_qf_expand_symtabs_matching
   (struct objfile *objfile,
-   expand_symtabs_file_matcher_ftype *file_matcher,
-   expand_symtabs_symbol_matcher_ftype *symbol_matcher,
-   expand_symtabs_exp_notify_ftype *expansion_notify,
-   enum search_domain kind, void *data)
+   gdb::function_view<expand_symtabs_file_matcher_ftype> file_matcher,
+   gdb::function_view<expand_symtabs_symbol_matcher_ftype> symbol_matcher,
+   gdb::function_view<expand_symtabs_exp_notify_ftype> expansion_notify,
+   enum search_domain kind)
 {
   const struct debug_sym_fns_data *debug_data
     = ((const struct debug_sym_fns_data *)
        objfile_data (objfile, symfile_debug_objfile_data_key));
 
   fprintf_filtered (gdb_stdlog,
-		    "qf->expand_symtabs_matching (%s, %s, %s, %s, %s, %s)\n",
+		    "qf->expand_symtabs_matching (%s, %s, %s, %s, %s)\n",
 		    objfile_debug_name (objfile),
-		    host_address_to_string (file_matcher),
-		    host_address_to_string (symbol_matcher),
-		    host_address_to_string (expansion_notify),
-		    search_domain_name (kind),
-		    host_address_to_string (data));
+		    host_address_to_string (&file_matcher),
+		    host_address_to_string (&symbol_matcher),
+		    host_address_to_string (&expansion_notify),
+		    search_domain_name (kind));
 
   debug_data->real_sf->qf->expand_symtabs_matching (objfile,
 						    file_matcher,
 						    symbol_matcher,
 						    expansion_notify,
-						    kind, data);
+						    kind);
 }
 
 static struct compunit_symtab *
@@ -390,20 +384,20 @@ static const struct quick_symbol_functions debug_sym_quick_functions =
 
 /* Debugging version of struct sym_probe_fns.  */
 
-static VEC (probe_p) *
+static const std::vector<probe *> &
 debug_sym_get_probes (struct objfile *objfile)
 {
   const struct debug_sym_fns_data *debug_data
     = ((const struct debug_sym_fns_data *)
        objfile_data (objfile, symfile_debug_objfile_data_key));
-  VEC (probe_p) *retval;
 
-  retval = debug_data->real_sf->sym_probe_fns->sym_get_probes (objfile);
+  const std::vector<probe *> &retval
+    = debug_data->real_sf->sym_probe_fns->sym_get_probes (objfile);
 
   fprintf_filtered (gdb_stdlog,
 		    "probes->sym_get_probes (%s) = %s\n",
 		    objfile_debug_name (objfile),
-		    host_address_to_string (retval));
+		    host_address_to_string (retval.data ()));
 
   return retval;
 }
@@ -678,8 +672,6 @@ show_debug_symfile (struct ui_file *file, int from_tty,
 {
   fprintf_filtered (file, _("Symfile debugging is %s.\n"), value);
 }
-
-initialize_file_ftype _initialize_symfile_debug;
 
 void
 _initialize_symfile_debug (void)

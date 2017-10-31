@@ -1,6 +1,6 @@
 /* tc-aarch64.c -- Assemble for the AArch64 ISA
 
-   Copyright (C) 2009-2016 Free Software Foundation, Inc.
+   Copyright (C) 2009-2017 Free Software Foundation, Inc.
    Contributed by ARM Ltd.
 
    This file is part of GAS.
@@ -62,12 +62,20 @@ static symbolS *GOT_symbol;
 /* Which ABI to use.  */
 enum aarch64_abi_type
 {
-  AARCH64_ABI_LP64 = 0,
-  AARCH64_ABI_ILP32 = 1
+  AARCH64_ABI_NONE = 0,
+  AARCH64_ABI_LP64 = 1,
+  AARCH64_ABI_ILP32 = 2
 };
 
+#ifndef DEFAULT_ARCH
+#define DEFAULT_ARCH "aarch64"
+#endif
+
+/* DEFAULT_ARCH is initialized in gas/configure.tgt.  */
+static const char *default_arch = DEFAULT_ARCH;
+
 /* AArch64 ABI for the output file.  */
-static enum aarch64_abi_type aarch64_abi = AARCH64_ABI_LP64;
+static enum aarch64_abi_type aarch64_abi = AARCH64_ABI_NONE;
 
 /* When non-zero, program to a 32-bit model, in which the C data types
    int, long and all pointer types are 32-bit objects (ILP32); or to a
@@ -138,9 +146,9 @@ static aarch64_instruction inst;
 static bfd_boolean parse_operands (char *, const aarch64_opcode *);
 static bfd_boolean programmer_friendly_fixup (aarch64_instruction *);
 
-/* Diagnostics inline function utilites.
+/* Diagnostics inline function utilities.
 
-   These are lightweight utlities which should only be called by parse_operands
+   These are lightweight utilities which should only be called by parse_operands
    and other parsers.  GAS processes each assembly line by parsing it against
    instruction template(s), in the case of multiple templates (for the same
    mnemonic name), those templates are tried one by one until one succeeds or
@@ -151,7 +159,7 @@ static bfd_boolean programmer_friendly_fixup (aarch64_instruction *);
    the parsing; we don't want to slow down the whole parsing by recording
    non-user errors in detail.
 
-   Remember that the objective is to help GAS pick up the most approapriate
+   Remember that the objective is to help GAS pick up the most appropriate
    error message in the case of multiple templates, e.g. FMOV which has 8
    templates.  */
 
@@ -790,7 +798,7 @@ aarch64_reg_parse_32_64 (char **ccp, aarch64_opnd_qualifier_t *qualifier)
    succeeds; otherwise return FALSE.
 
    Accept only one occurrence of:
-   8b 16b 2h 4h 8h 2s 4s 1d 2d
+   4b 8b 16b 2h 4h 8h 2s 4s 1d 2d
    b h s d q  */
 static bfd_boolean
 parse_vector_type_for_operand (aarch64_reg_type reg_type,
@@ -837,7 +845,7 @@ elt_size:
       element_size = 64;
       break;
     case 'q':
-      if (width == 1)
+      if (reg_type == REG_TYPE_ZN || width == 1)
 	{
 	  type = NT_q;
 	  element_size = 128;
@@ -851,8 +859,10 @@ elt_size:
 	first_error (_("missing element size"));
       return FALSE;
     }
-  if (width != 0 && width * element_size != 64 && width * element_size != 128
-      && !(width == 2 && element_size == 16))
+  if (width != 0 && width * element_size != 64
+      && width * element_size != 128
+      && !(width == 2 && element_size == 16)
+      && !(width == 4 && element_size == 8))
     {
       first_error_fmt (_
 		       ("invalid element size %d and vector size combination %c"),
@@ -972,7 +982,7 @@ parse_typed_reg (char **ccp, aarch64_reg_type type, aarch64_reg_type *rtype,
 	/* Expect index. In the new scheme we cannot have
 	   Vn.[bhsdq] represent a scalar. Therefore any
 	   Vn.[bhsdq] should have an index following it.
-	   Except in reglists ofcourse.  */
+	   Except in reglists of course.  */
 	atype.defined |= NTA_HASINDEX;
       else
 	atype.defined |= NTA_HASTYPE;
@@ -992,7 +1002,7 @@ parse_typed_reg (char **ccp, aarch64_reg_type type, aarch64_reg_type *rtype,
 	  return PARSE_FAIL;
 	}
 
-      if (in_reg_list == TRUE)
+      if (in_reg_list)
 	{
 	  first_error (_("index not allowed inside register list"));
 	  return PARSE_FAIL;
@@ -1744,7 +1754,7 @@ add_to_lit_pool (expressionS *exp, int size)
 }
 
 /* Can't use symbol_new here, so have to create a symbol and then at
-   a later date assign it a value. Thats what these functions do.  */
+   a later date assign it a value. That's what these functions do.  */
 
 static void
 symbol_locate (symbolS * symbolP,
@@ -2398,7 +2408,7 @@ aarch64_gas_internal_fixup_p (void)
   return inst.reloc.type == BFD_RELOC_AARCH64_GAS_INTERNAL_FIXUP;
 }
 
-/* Assign the immediate value to the relavant field in *OPERAND if
+/* Assign the immediate value to the relevant field in *OPERAND if
    RELOC->EXP is a constant expression; otherwise, flag that *OPERAND
    needs an internal fixup in a later stage.
    ADDR_OFF_P determines whether it is the field ADDR.OFFSET.IMM or
@@ -2679,14 +2689,14 @@ static struct reloc_table_entry reloc_table[] = {
    0,				/* adr_type */
    0,
    0,
-   BFD_RELOC_AARCH64_TLSDESC_ADD_LO12_NC,
+   BFD_RELOC_AARCH64_TLSDESC_ADD_LO12,
    BFD_RELOC_AARCH64_TLSDESC_LD_LO12_NC,
    0},
 
   /* Get to the page containing GOT TLS entry for a symbol.
      The same as GD, we allocate two consecutive GOT slots
      for module index and module offset, the only difference
-     with GD is the module offset should be intialized to
+     with GD is the module offset should be initialized to
      zero without any outstanding runtime relocation. */
   {"tlsldm", 0,
    BFD_RELOC_AARCH64_TLSLD_ADR_PREL21, /* adr_type */
@@ -3001,7 +3011,7 @@ parse_shift (char **str, aarch64_opnd_info *operand, enum parse_shift_mode mode)
   switch (mode)
     {
     case SHIFTED_LOGIC_IMM:
-      if (aarch64_extend_operator_p (kind) == TRUE)
+      if (aarch64_extend_operator_p (kind))
 	{
 	  set_syntax_error (_("extending shift is not permitted"));
 	  return FALSE;
@@ -3092,7 +3102,7 @@ parse_shift (char **str, aarch64_opnd_info *operand, enum parse_shift_mode mode)
     operand->shifter.amount = 1;
   else if (exp.X_op == O_absent)
     {
-      if (aarch64_extend_operator_p (kind) == FALSE || exp_has_prefix)
+      if (!aarch64_extend_operator_p (kind) || exp_has_prefix)
 	{
 	  set_syntax_error (_("missing shift amount"));
 	  return FALSE;
@@ -4203,7 +4213,7 @@ reset_aarch64_instruction (aarch64_instruction *instruction)
   instruction->reloc.type = BFD_RELOC_UNUSED;
 }
 
-/* Data strutures storing one user error in the assembly code related to
+/* Data structures storing one user error in the assembly code related to
    operands.  */
 
 struct operand_error_record
@@ -4413,7 +4423,7 @@ find_best_match (const aarch64_inst *instr,
       const aarch64_opnd_qualifier_t *qualifiers = *qualifiers_list;
 
       /* Most opcodes has much fewer patterns in the list.  */
-      if (empty_qualifier_sequence_p (qualifiers) == TRUE)
+      if (empty_qualifier_sequence_p (qualifiers))
 	{
 	  DEBUG_TRACE_IF (i == 0, "empty list of qualifier sequence");
 	  break;
@@ -4434,7 +4444,7 @@ find_best_match (const aarch64_inst *instr,
   return idx;
 }
 
-/* Assign qualifiers in the qualifier seqence (headed by QUALIFIERS) to the
+/* Assign qualifiers in the qualifier sequence (headed by QUALIFIERS) to the
    corresponding operands in *INSTR.  */
 
 static inline void
@@ -4621,7 +4631,7 @@ output_operand_error_record (const operand_error_record *record, char *str)
 	    {
 	      /* Most opcodes has much fewer patterns in the list.
 		 First NIL qualifier indicates the end in the list.   */
-	      if (empty_qualifier_sequence_p (*qualifiers_list) == TRUE)
+	      if (empty_qualifier_sequence_p (*qualifiers_list))
 		break;
 
 	      if (i != qlf_idx)
@@ -4684,7 +4694,7 @@ output_operand_error_record (const operand_error_record *record, char *str)
 
    When this function is called, the operand error information had
    been collected for an assembly line and there will be multiple
-   errors in the case of mulitple instruction templates; output the
+   errors in the case of multiple instruction templates; output the
    error message that most closely describes the problem.  */
 
 static void
@@ -4713,7 +4723,7 @@ output_operand_error_report (char *str)
     }
 
   /* Find the error kind of the highest severity.  */
-  DEBUG_TRACE ("multiple opcode entres with error kind");
+  DEBUG_TRACE ("multiple opcode entries with error kind");
   kind = AARCH64_OPDE_NIL;
   for (curr = head; curr != NULL; curr = curr->next)
     {
@@ -5133,7 +5143,7 @@ process_movw_reloc_info (void)
   return TRUE;
 }
 
-/* A primitive log caculator.  */
+/* A primitive log calculator.  */
 
 static inline unsigned int
 get_logsz (unsigned int size)
@@ -5203,7 +5213,7 @@ ldst_lo12_determine_real_reloc_type (void)
     gas_assert (logsz <= 4);
 
   /* In reloc.c, these pseudo relocation types should be defined in similar
-     order as above reloc_ldst_lo12 array. Because the array index calcuation
+     order as above reloc_ldst_lo12 array. Because the array index calculation
      below relies on this.  */
   return reloc_ldst_lo12[inst.reloc.type - BFD_RELOC_AARCH64_LDST_LO12][logsz];
 }
@@ -5283,7 +5293,7 @@ parse_operands (char *str, const aarch64_opcode *opcode)
 	  backtrack_pos = str;
 	}
 
-      /* Expect comma between operands; the backtrack mechanizm will take
+      /* Expect comma between operands; the backtrack mechanism will take
 	 care of cases of omitted optional operand.  */
       if (i > 0 && ! skip_past_char (&str, ','))
 	{
@@ -5431,6 +5441,9 @@ parse_operands (char *str, const aarch64_opcode *opcode)
 	  info->qualifier = AARCH64_OPND_QLF_S_D;
 	  break;
 
+	case AARCH64_OPND_SVE_Zm3_INDEX:
+	case AARCH64_OPND_SVE_Zm3_22_INDEX:
+	case AARCH64_OPND_SVE_Zm4_INDEX:
 	case AARCH64_OPND_SVE_Zn_INDEX:
 	  reg_type = REG_TYPE_ZN;
 	  goto vector_reg_index;
@@ -5567,6 +5580,8 @@ parse_operands (char *str, const aarch64_opcode *opcode)
 	case AARCH64_OPND_IMM_ROT1:
 	case AARCH64_OPND_IMM_ROT2:
 	case AARCH64_OPND_IMM_ROT3:
+	case AARCH64_OPND_SVE_IMM_ROT1:
+	case AARCH64_OPND_SVE_IMM_ROT2:
 	  po_imm_nc_or_fail ();
 	  info->imm.value = val;
 	  break;
@@ -6090,6 +6105,7 @@ parse_operands (char *str, const aarch64_opcode *opcode)
 	  /* No qualifier.  */
 	  break;
 
+	case AARCH64_OPND_SVE_ADDR_RI_S4x16:
 	case AARCH64_OPND_SVE_ADDR_RI_S4xVL:
 	case AARCH64_OPND_SVE_ADDR_RI_S4x2xVL:
 	case AARCH64_OPND_SVE_ADDR_RI_S4x3xVL:
@@ -6756,6 +6772,7 @@ aarch64_canonicalize_symbol_name (char *name)
    also have mixed-case names.	*/
 
 #define REGDEF(s,n,t) { #s, n, REG_TYPE_##t, TRUE }
+#define REGDEF_ALIAS(s, n, t) { #s, n, REG_TYPE_##t, FALSE}
 #define REGNUM(p,n,t) REGDEF(p##n, n, t)
 #define REGSET16(p,t) \
   REGNUM(p, 0,t), REGNUM(p, 1,t), REGNUM(p, 2,t), REGNUM(p, 3,t), \
@@ -6777,6 +6794,10 @@ static const reg_entry reg_names[] = {
   REGSET31 (x, R_64), REGSET31 (X, R_64),
   REGSET31 (w, R_32), REGSET31 (W, R_32),
 
+  REGDEF_ALIAS (ip0, 16, R_64), REGDEF_ALIAS (IP0, 16, R_64),
+  REGDEF_ALIAS (ip1, 17, R_64), REGDEF_ALIAS (IP1, 16, R_64),
+  REGDEF_ALIAS (fp, 29, R_64), REGDEF_ALIAS (FP, 29, R_64),
+  REGDEF_ALIAS (lr, 30, R_64), REGDEF_ALIAS (LR, 30, R_64),
   REGDEF (wsp, 31, SP_32), REGDEF (WSP, 31, SP_32),
   REGDEF (sp, 31, SP_64), REGDEF (SP, 31, SP_64),
 
@@ -6809,6 +6830,7 @@ static const reg_entry reg_names[] = {
 };
 
 #undef REGDEF
+#undef REGDEF_ALIAS
 #undef REGNUM
 #undef REGSET16
 #undef REGSET31
@@ -6952,7 +6974,7 @@ aarch64_handle_align (fragS * fragP)
    Note - despite the name this initialisation is not done when the frag
    is created, but only when its type is assigned.  A frag can be created
    and used a long time before its type is set, so beware of assuming that
-   this initialisationis performed first.  */
+   this initialisation is performed first.  */
 
 #ifndef OBJ_ELF
 void
@@ -6969,6 +6991,11 @@ aarch64_init_frag (fragS * fragP, int max_chars)
      later if the alignment ends up empty.  */
   if (!fragP->tc_frag_data.recorded)
     fragP->tc_frag_data.recorded = 1;
+
+  /* PR 21809: Do not set a mapping state for debug sections
+     - it just confuses other tools.  */
+  if (bfd_get_section_flags (NULL, now_seg) & SEC_DEBUGGING)
+    return;
 
   switch (fragP->fr_type)
     {
@@ -7671,7 +7698,7 @@ md_apply_fix (fixS * fixP, valueT * valP, segT seg)
     case BFD_RELOC_AARCH64_TLSDESC_LD_LO12_NC:
       fixP->fx_r_type = (ilp32_p
 			 ? BFD_RELOC_AARCH64_TLSDESC_LD32_LO12_NC
-			 : BFD_RELOC_AARCH64_TLSDESC_LD64_LO12_NC);
+			 : BFD_RELOC_AARCH64_TLSDESC_LD64_LO12);
       S_SET_THREAD_LOCAL (fixP->fx_addsy);
       /* Should always be exported to object file, see
 	 aarch64_force_relocation().  */
@@ -7679,11 +7706,11 @@ md_apply_fix (fixS * fixP, valueT * valP, segT seg)
       gas_assert (seg->use_rela_p);
       break;
 
-    case BFD_RELOC_AARCH64_TLSDESC_ADD_LO12_NC:
+    case BFD_RELOC_AARCH64_TLSDESC_ADD_LO12:
     case BFD_RELOC_AARCH64_TLSDESC_ADR_PAGE21:
     case BFD_RELOC_AARCH64_TLSDESC_ADR_PREL21:
     case BFD_RELOC_AARCH64_TLSDESC_LD32_LO12_NC:
-    case BFD_RELOC_AARCH64_TLSDESC_LD64_LO12_NC:
+    case BFD_RELOC_AARCH64_TLSDESC_LD64_LO12:
     case BFD_RELOC_AARCH64_TLSDESC_LD_PREL19:
     case BFD_RELOC_AARCH64_TLSGD_ADD_LO12_NC:
     case BFD_RELOC_AARCH64_TLSGD_ADR_PAGE21:
@@ -7911,11 +7938,11 @@ aarch64_force_relocation (struct fix *fixp)
     case BFD_RELOC_AARCH64_LDST32_LO12:
     case BFD_RELOC_AARCH64_LDST64_LO12:
     case BFD_RELOC_AARCH64_LDST8_LO12:
-    case BFD_RELOC_AARCH64_TLSDESC_ADD_LO12_NC:
+    case BFD_RELOC_AARCH64_TLSDESC_ADD_LO12:
     case BFD_RELOC_AARCH64_TLSDESC_ADR_PAGE21:
     case BFD_RELOC_AARCH64_TLSDESC_ADR_PREL21:
     case BFD_RELOC_AARCH64_TLSDESC_LD32_LO12_NC:
-    case BFD_RELOC_AARCH64_TLSDESC_LD64_LO12_NC:
+    case BFD_RELOC_AARCH64_TLSDESC_LD64_LO12:
     case BFD_RELOC_AARCH64_TLSDESC_LD_PREL19:
     case BFD_RELOC_AARCH64_TLSDESC_OFF_G0_NC:
     case BFD_RELOC_AARCH64_TLSDESC_OFF_G1:
@@ -7968,6 +7995,22 @@ aarch64_force_relocation (struct fix *fixp)
 }
 
 #ifdef OBJ_ELF
+
+/* Implement md_after_parse_args.  This is the earliest time we need to decide
+   ABI.  If no -mabi specified, the ABI will be decided by target triplet.  */
+
+void
+aarch64_after_parse_args (void)
+{
+  if (aarch64_abi != AARCH64_ABI_NONE)
+    return;
+
+  /* DEFAULT_ARCH will have ":32" extension if it's configured for ILP32.  */
+  if (strlen (default_arch) > 7 && strcmp (default_arch + 7, ":32") == 0)
+    aarch64_abi = AARCH64_ABI_ILP32;
+  else
+    aarch64_abi = AARCH64_ABI_LP64;
+}
 
 const char *
 elf64_aarch64_target_format (void)
@@ -8360,14 +8403,22 @@ static const struct aarch64_cpu_option_table aarch64_cpus[] = {
 				  AARCH64_FEATURE_CRC), "Cortex-A72"},
   {"cortex-a73", AARCH64_FEATURE (AARCH64_ARCH_V8,
 				  AARCH64_FEATURE_CRC), "Cortex-A73"},
+  {"cortex-a55", AARCH64_FEATURE (AARCH64_ARCH_V8_2,
+				  AARCH64_FEATURE_RCPC | AARCH64_FEATURE_F16 | AARCH64_FEATURE_DOTPROD),
+				  "Cortex-A55"},
+  {"cortex-a75", AARCH64_FEATURE (AARCH64_ARCH_V8_2,
+				  AARCH64_FEATURE_RCPC | AARCH64_FEATURE_F16 | AARCH64_FEATURE_DOTPROD),
+				  "Cortex-A75"},
   {"exynos-m1", AARCH64_FEATURE (AARCH64_ARCH_V8,
 				 AARCH64_FEATURE_CRC | AARCH64_FEATURE_CRYPTO),
 				"Samsung Exynos M1"},
   {"falkor", AARCH64_FEATURE (AARCH64_ARCH_V8,
-			      AARCH64_FEATURE_CRC | AARCH64_FEATURE_CRYPTO),
+			      AARCH64_FEATURE_CRC | AARCH64_FEATURE_CRYPTO
+			      | AARCH64_FEATURE_RDMA),
    "Qualcomm Falkor"},
   {"qdf24xx", AARCH64_FEATURE (AARCH64_ARCH_V8,
-			       AARCH64_FEATURE_CRC | AARCH64_FEATURE_CRYPTO),
+			       AARCH64_FEATURE_CRC | AARCH64_FEATURE_CRYPTO
+			       | AARCH64_FEATURE_RDMA),
    "Qualcomm QDF24XX"},
   {"thunderx", AARCH64_FEATURE (AARCH64_ARCH_V8,
 				AARCH64_FEATURE_CRC | AARCH64_FEATURE_CRYPTO),
@@ -8436,8 +8487,16 @@ static const struct aarch64_option_cpu_value_table aarch64_features[] = {
   {"profile",		AARCH64_FEATURE (AARCH64_FEATURE_PROFILE, 0),
 			AARCH64_ARCH_NONE},
   {"sve",		AARCH64_FEATURE (AARCH64_FEATURE_SVE, 0),
-			AARCH64_FEATURE (AARCH64_FEATURE_FP
+			AARCH64_FEATURE (AARCH64_FEATURE_F16
+					 | AARCH64_FEATURE_SIMD
+					 | AARCH64_FEATURE_COMPNUM, 0)},
+  {"compnum",		AARCH64_FEATURE (AARCH64_FEATURE_COMPNUM, 0),
+			AARCH64_FEATURE (AARCH64_FEATURE_F16
 					 | AARCH64_FEATURE_SIMD, 0)},
+  {"rcpc",		AARCH64_FEATURE (AARCH64_FEATURE_RCPC, 0),
+			AARCH64_ARCH_NONE},
+  {"dotprod",		AARCH64_FEATURE (AARCH64_FEATURE_DOTPROD, 0),
+			AARCH64_ARCH_NONE},
   {NULL,		AARCH64_ARCH_NONE, AARCH64_ARCH_NONE},
 };
 

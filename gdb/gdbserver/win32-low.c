@@ -1,5 +1,5 @@
 /* Low level interface to Windows debugging, for gdbserver.
-   Copyright (C) 2006-2016 Free Software Foundation, Inc.
+   Copyright (C) 2006-2017 Free Software Foundation, Inc.
 
    Contributed by Leo Zayas.  Based on "win32-nat.c" from GDB.
 
@@ -32,6 +32,8 @@
 #include <tlhelp32.h>
 #include <psapi.h>
 #include <process.h>
+#include "gdb_tilde_expand.h"
+#include "common-inferior.h"
 
 #ifndef USE_WIN32API
 #include <sys/cygwin.h>
@@ -198,7 +200,7 @@ thread_rec (ptid_t ptid, int get_context)
   if (thread == NULL)
     return NULL;
 
-  th = (win32_thread_info *) inferior_target_data (thread);
+  th = (win32_thread_info *) thread_target_data (thread);
   if (get_context)
     win32_require_context (th);
   return th;
@@ -229,10 +231,9 @@ child_add_thread (DWORD pid, DWORD tid, HANDLE h, void *tlb)
 
 /* Delete a thread from the list of threads.  */
 static void
-delete_thread_info (struct inferior_list_entry *entry)
+delete_thread_info (thread_info *thread)
 {
-  struct thread_info *thread = (struct thread_info *) entry;
-  win32_thread_info *th = (win32_thread_info *) inferior_target_data (thread);
+  win32_thread_info *th = (win32_thread_info *) thread_target_data (thread);
 
   remove_thread (thread);
   CloseHandle (th->h);
@@ -243,15 +244,14 @@ delete_thread_info (struct inferior_list_entry *entry)
 static void
 child_delete_thread (DWORD pid, DWORD tid)
 {
-  struct inferior_list_entry *thread;
   ptid_t ptid;
 
   /* If the last thread is exiting, just return.  */
-  if (one_inferior_p (&all_threads))
+  if (all_threads.size () == 1)
     return;
 
   ptid = ptid_build (pid, tid, 0);
-  thread = find_inferior_id (&all_threads, ptid);
+  thread_info *thread = find_inferior_id (&all_threads, ptid);
   if (thread == NULL)
     return;
 
@@ -429,11 +429,10 @@ do_initial_child_stuff (HANDLE proch, DWORD pid, int attached)
 /* Resume all artificially suspended threads if we are continuing
    execution.  */
 static int
-continue_one_thread (struct inferior_list_entry *this_thread, void *id_ptr)
+continue_one_thread (thread_info *thread, void *id_ptr)
 {
-  struct thread_info *thread = (struct thread_info *) this_thread;
   int thread_id = * (int *) id_ptr;
-  win32_thread_info *th = (win32_thread_info *) inferior_target_data (thread);
+  win32_thread_info *th = (win32_thread_info *) thread_target_data (thread);
 
   if (thread_id == -1 || thread_id == th->tid)
     {
@@ -562,10 +561,12 @@ static BOOL
 create_process (const char *program, char *args,
 		DWORD flags, PROCESS_INFORMATION *pi)
 {
+  const char *inferior_cwd = get_inferior_cwd ();
+  std::string expanded_infcwd = gdb_tilde_expand (inferior_cwd);
   BOOL ret;
 
 #ifdef _WIN32_WCE
-  wchar_t *p, *wprogram, *wargs;
+  wchar_t *p, *wprogram, *wargs, *wcwd = NULL;
   size_t argslen;
 
   wprogram = alloca ((strlen (program) + 1) * sizeof (wchar_t));
@@ -579,6 +580,19 @@ create_process (const char *program, char *args,
   wargs = alloca ((argslen + 1) * sizeof (wchar_t));
   mbstowcs (wargs, args, argslen + 1);
 
+  if (inferior_cwd != NULL)
+    {
+      std::replace (expanded_infcwd.begin (), expanded_infcwd.end (),
+		    '/', '\\');
+      wcwd = alloca ((expanded_infcwd.size () + 1) * sizeof (wchar_t));
+      if (mbstowcs (wcwd, expanded_infcwd.c_str (),
+		    expanded_infcwd.size () + 1) == NULL)
+	{
+	  error (_("\
+Could not convert the expanded inferior cwd to wide-char."));
+	}
+    }
+
   ret = CreateProcessW (wprogram, /* image name */
 			wargs,    /* command line */
 			NULL,     /* security, not supported */
@@ -586,7 +600,7 @@ create_process (const char *program, char *args,
 			FALSE,    /* inherit handles, not supported */
 			flags,    /* start flags */
 			NULL,     /* environment, not supported */
-			NULL,     /* current directory, not supported */
+			wcwd,     /* current directory */
 			NULL,     /* start info, not supported */
 			pi);      /* proc info */
 #else
@@ -599,7 +613,7 @@ create_process (const char *program, char *args,
 			TRUE,     /* inherit handles */
 			flags,    /* start flags */
 			NULL,     /* environment */
-			NULL,     /* current directory */
+			expanded_infcwd.c_str (), /* current directory */
 			&si,      /* start info */
 			pi);      /* proc info */
 #endif
@@ -608,13 +622,13 @@ create_process (const char *program, char *args,
 }
 
 /* Start a new process.
-   PROGRAM is a path to the program to execute.
-   ARGS is a standard NULL-terminated array of arguments,
-   to be passed to the inferior as ``argv''.
+   PROGRAM is the program name.
+   PROGRAM_ARGS is the vector containing the inferior's args.
    Returns the new PID on success, -1 on failure.  Registers the new
    process with the process list.  */
 static int
-win32_create_inferior (char *program, char **program_args)
+win32_create_inferior (const char *program,
+		       const std::vector<char *> &program_args)
 {
 #ifndef USE_WIN32API
   char real_path[PATH_MAX];
@@ -622,11 +636,12 @@ win32_create_inferior (char *program, char **program_args)
 #endif
   BOOL ret;
   DWORD flags;
-  char *args;
   int argslen;
   int argc;
   PROCESS_INFORMATION pi;
   DWORD err;
+  std::string str_program_args = stringify_argv (program_args);
+  char *args = (char *) str_program_args.c_str ();
 
   /* win32_wait needs to know we're not attaching.  */
   attaching = 0;
@@ -652,18 +667,6 @@ win32_create_inferior (char *program, char **program_args)
   program = real_path;
 #endif
 
-  argslen = 1;
-  for (argc = 1; program_args[argc]; argc++)
-    argslen += strlen (program_args[argc]) + 1;
-  args = (char *) alloca (argslen);
-  args[0] = '\0';
-  for (argc = 1; program_args[argc]; argc++)
-    {
-      /* FIXME: Can we do better about quoting?  How does Cygwin
-	 handle this?  */
-      strcat (args, " ");
-      strcat (args, program_args[argc]);
-    }
   OUTMSG2 (("Command line is \"%s\"\n", args));
 
 #ifdef CREATE_NEW_PROCESS_GROUP
@@ -1341,10 +1344,9 @@ handle_exception (struct target_waitstatus *ourstatus)
 
 
 static void
-suspend_one_thread (struct inferior_list_entry *entry)
+suspend_one_thread (thread_info *thread)
 {
-  struct thread_info *thread = (struct thread_info *) entry;
-  win32_thread_info *th = (win32_thread_info *) inferior_target_data (thread);
+  win32_thread_info *th = (win32_thread_info *) thread_target_data (thread);
 
   if (!th->suspended)
     {
@@ -1482,7 +1484,7 @@ get_child_debug_event (struct target_waitstatus *ourstatus)
       child_delete_thread (current_event.dwProcessId,
 			   current_event.dwThreadId);
 
-      current_thread = (struct thread_info *) all_threads.head;
+      current_thread = get_first_thread ();
       return 1;
 
     case CREATE_PROCESS_DEBUG_EVENT:
@@ -1495,16 +1497,12 @@ get_child_debug_event (struct target_waitstatus *ourstatus)
       current_process_handle = current_event.u.CreateProcessInfo.hProcess;
       main_thread_id = current_event.dwThreadId;
 
-      ourstatus->kind = TARGET_WAITKIND_EXECD;
-      ourstatus->value.execd_pathname = "Main executable";
-
       /* Add the main thread.  */
       child_add_thread (current_event.dwProcessId,
 			main_thread_id,
 			current_event.u.CreateProcessInfo.hThread,
 			current_event.u.CreateProcessInfo.lpThreadLocalBase);
 
-      ourstatus->value.related_pid = debug_event_ptid (&current_event);
 #ifdef _WIN32_WCE
       if (!attaching)
 	{
@@ -1632,7 +1630,6 @@ win32_wait (ptid_t ptid, struct target_waitstatus *ourstatus, int options)
 	  OUTMSG (("Ignoring unknown internal event, %d\n", ourstatus->kind));
 	  /* fall-through */
 	case TARGET_WAITKIND_SPURIOUS:
-	case TARGET_WAITKIND_EXECD:
 	  /* do nothing, just continue */
 	  child_continue (DBG_CONTINUE, -1);
 	  break;

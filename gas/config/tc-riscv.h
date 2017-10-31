@@ -1,5 +1,5 @@
 /* tc-riscv.h -- header file for tc-riscv.c.
-   Copyright 2011-2016 Free Software Foundation, Inc.
+   Copyright (C) 2011-2017 Free Software Foundation, Inc.
 
    Contributed by Andrew Waterman (andrew@sifive.com).
    Based on MIPS target.
@@ -87,7 +87,9 @@ extern void riscv_pre_output_hook (void);
 
 /* Postpone text-section label subtraction calculation until linking, since
    linker relaxations might change the deltas.  */
-#define TC_FORCE_RELOCATION_SUB_SAME(FIX, SEG) ((SEG)->flags & SEC_CODE)
+#define TC_FORCE_RELOCATION_SUB_SAME(FIX, SEG)	\
+  (GENERIC_FORCE_RELOCATION_SUB_SAME (FIX, SEG)	\
+   || ((SEG)->flags & SEC_CODE) != 0)
 #define TC_FORCE_RELOCATION_SUB_LOCAL(FIX, SEG) 1
 #define TC_VALIDATE_FIX_SUB(FIX, SEG) 1
 #define TC_FORCE_RELOCATION_LOCAL(FIX) 1
@@ -111,5 +113,8 @@ extern int tc_riscv_regname_to_dw2regnum (char *);
 
 #define elf_tc_final_processing riscv_elf_final_processing
 extern void riscv_elf_final_processing (void);
+
+/* Adjust debug_line after relaxation.  */
+#define DWARF2_USE_FIXED_ADVANCE_PC 1
 
 #endif /* TC_RISCV */

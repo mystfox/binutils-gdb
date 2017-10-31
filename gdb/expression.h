@@ -1,6 +1,6 @@
 /* Definitions for expressions stored in reversed prefix form, for GDB.
 
-   Copyright (C) 1986-2016 Free Software Foundation, Inc.
+   Copyright (C) 1986-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -22,7 +22,6 @@
 
 
 #include "symtab.h"		/* Needed for "struct block" type.  */
-#include "doublest.h"		/* Needed for DOUBLEST.  */
 
 
 /* Definitions for saved C expressions.  */
@@ -64,9 +63,9 @@ union exp_element
   {
     enum exp_opcode opcode;
     struct symbol *symbol;
+    struct minimal_symbol *msymbol;
     LONGEST longconst;
-    DOUBLEST doubleconst;
-    gdb_byte decfloatconst[16];
+    gdb_byte floatconst[16];
     /* Really sizeof (union exp_element) characters (or less for the last
        element of a string).  */
     char string;
@@ -146,12 +145,12 @@ extern struct value *evaluate_subexp_standard
 
 extern void print_expression (struct expression *, struct ui_file *);
 
-extern char *op_name (struct expression *exp, enum exp_opcode opcode);
+extern const char *op_name (struct expression *exp, enum exp_opcode opcode);
 
-extern char *op_string (enum exp_opcode);
+extern const char *op_string (enum exp_opcode);
 
 extern void dump_raw_expression (struct expression *,
-				 struct ui_file *, char *);
+				 struct ui_file *, const char *);
 extern void dump_prefix_expression (struct expression *, struct ui_file *);
 
 /* In an OP_RANGE expression, either bound could be empty, indicating

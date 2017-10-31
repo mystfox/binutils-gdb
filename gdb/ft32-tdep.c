@@ -1,6 +1,6 @@
 /* Target-dependent code for FT32.
 
-   Copyright (C) 2009-2016 Free Software Foundation, Inc.
+   Copyright (C) 2009-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -44,10 +44,6 @@
 #include <algorithm>
 
 #define RAM_BIAS  0x800000  /* Bias added to RAM addresses.  */
-
-/* Local functions.  */
-
-extern void _initialize_ft32_tdep (void);
 
 /* Use an invalid address -1 as 'not available' marker.  */
 enum { REG_UNAVAIL = (CORE_ADDR) (-1) };
@@ -127,7 +123,7 @@ static void
 ft32_store_return_value (struct type *type, struct regcache *regcache,
 			 const gdb_byte *valbuf)
 {
-  struct gdbarch *gdbarch = get_regcache_arch (regcache);
+  struct gdbarch *gdbarch = regcache->arch ();
   enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
   CORE_ADDR regval;
   int len = TYPE_LENGTH (type);
@@ -404,7 +400,7 @@ static void
 ft32_extract_return_value (struct type *type, struct regcache *regcache,
 			   gdb_byte *dst)
 {
-  struct gdbarch *gdbarch = get_regcache_arch (regcache);
+  struct gdbarch *gdbarch = regcache->arch ();
   enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
   bfd_byte *valbuf = dst;
   int len = TYPE_LENGTH (type);
@@ -597,12 +593,12 @@ ft32_gdbarch_init (struct gdbarch_info info, struct gdbarch_list *arches)
     return arches->gdbarch;
 
   /* Allocate space for the new architecture.  */
-  tdep = XNEW (struct gdbarch_tdep);
+  tdep = XCNEW (struct gdbarch_tdep);
   gdbarch = gdbarch_alloc (&info, tdep);
 
   /* Create a type for PC.  We can't use builtin types here, as they may not
      be defined.  */
-  void_type = arch_type (gdbarch, TYPE_CODE_VOID, 1, "void");
+  void_type = arch_type (gdbarch, TYPE_CODE_VOID, TARGET_CHAR_BIT, "void");
   func_void_type = make_function_type (void_type, NULL);
   tdep->pc_type = arch_pointer_type (gdbarch, 4 * TARGET_CHAR_BIT, NULL,
 				     func_void_type);
@@ -636,8 +632,6 @@ ft32_gdbarch_init (struct gdbarch_info info, struct gdbarch_list *arches)
   set_gdbarch_dummy_id (gdbarch, ft32_dummy_id);
 
   set_gdbarch_unwind_pc (gdbarch, ft32_unwind_pc);
-
-  set_gdbarch_print_insn (gdbarch, print_insn_ft32);
 
   /* Hook in ABI-specific overrides, if they have been registered.  */
   gdbarch_init_osabi (info, gdbarch);

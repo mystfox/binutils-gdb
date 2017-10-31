@@ -1,6 +1,6 @@
 dnl Process this file with autoconf to produce a configure script.
 dnl
-dnl   Copyright (C) 2012-2016 Free Software Foundation, Inc.
+dnl   Copyright (C) 2012-2017 Free Software Foundation, Inc.
 dnl
 dnl This file is free software; you can redistribute it and/or modify
 dnl it under the terms of the GNU General Public License as published by
@@ -76,7 +76,7 @@ AC_EXEEXT
 
 # host-specific stuff:
 
-ALL_LINGUAS="fr sv tr es da de id pt_BR ro nl fi vi ga zh_CN it uk"
+ALL_LINGUAS="fr sv tr es da de id pt_BR ro nl fi vi ga zh_CN it uk sr"
 ZW_GNU_GETTEXT_SISTER_DIR
 AM_PO_SUBDIRS
 
@@ -210,25 +210,6 @@ AC_SUBST(SHARED_DEPENDENCIES)
 
 # target-specific stuff:
 
-# Check if `bfd_mips_elf_get_abiflags' is present in BFD, needed by
-# `mips-dis.c'.  Avoid using AC_CHECK_LIB as it uses a cache variable
-# which could hold the wrong value if we are rerun due to the
-# `../bfd/libbfd.la' dependency for `config.status', so use a handcoded
-# sequence which is equivalent but does not use the cache.
-CYG_AC_PATH_BFD
-AC_MSG_CHECKING([for bfd_mips_elf_get_abiflags in -lbfd])
-opcodes_save_LIBS=$LIBS
-LIBS="$BFDLIB -lbfd ../libiberty/libiberty.a `test -e ../bfd/libbfd.la && . ../bfd/libbfd.la; echo $dependency_libs`"
-AC_LINK_IFELSE([AC_LANG_CALL([], [bfd_mips_elf_get_abiflags])],
-               [opcodes_lib_bfd_bfd_mips_elf_get_abiflags=yes],
-               [opcodes_lib_bfd_bfd_mips_elf_get_abiflags=no])
-LIBS=$opcodes_save_LIBS
-AC_MSG_RESULT([$opcodes_lib_bfd_bfd_mips_elf_get_abiflags])
-if test x"$opcodes_lib_bfd_bfd_mips_elf_get_abiflags" = xyes; then
-  AC_DEFINE([HAVE_BFD_MIPS_ELF_GET_ABIFLAGS], [1],
-    [Define to 1 if you have the `bfd_mips_elf_get_abiflags' function.])
-fi
-
 # Canonicalize the secondary target names.
 if test -n "$enable_targets" ; then
     for targ in `echo $enable_targets | sed 's/,/ /g'`
@@ -326,6 +307,7 @@ if test x${all_targets} = xfalse ; then
 	bfd_pj_arch)		ta="$ta pj-dis.lo pj-opc.lo" ;;
 	bfd_powerpc_arch)	ta="$ta ppc-dis.lo ppc-opc.lo" ;;
 	bfd_powerpc_64_arch)	ta="$ta ppc-dis.lo ppc-opc.lo" ;;
+	bfd_pru_arch)		ta="$ta pru-dis.lo pru-opc.lo" ;;
 	bfd_pyramid_arch)	;;
 	bfd_romp_arch)		;;
 	bfd_riscv_arch)         ta="$ta riscv-dis.lo riscv-opc.lo" ;;
@@ -366,6 +348,7 @@ if test x${all_targets} = xfalse ; then
 	bfd_vax_arch)		ta="$ta vax-dis.lo" ;;
 	bfd_visium_arch)	ta="$ta visium-dis.lo visium-opc.lo" ;;
 	bfd_w65_arch)		ta="$ta w65-dis.lo" ;;
+        bfd_wasm32_arch)        ta="$ta wasm32-dis.lo" ;;
 	bfd_we32k_arch)		;;
 	bfd_xc16x_arch)		ta="$ta xc16x-asm.lo xc16x-desc.lo xc16x-dis.lo xc16x-ibld.lo xc16x-opc.lo" using_cgen=yes ;;
 	bfd_xgate_arch)		ta="$ta xgate-dis.lo xgate-opc.lo" ;;

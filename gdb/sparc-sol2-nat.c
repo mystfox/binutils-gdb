@@ -1,6 +1,6 @@
 /* Native-dependent code for Solaris SPARC.
 
-   Copyright (C) 2003-2016 Free Software Foundation, Inc.
+   Copyright (C) 2003-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -97,9 +97,6 @@ fill_fpregset (const struct regcache *regcache,
 {
   sparc_collect_fpregset (&sparc_sol2_fpregmap, regcache, regnum, fpregs);
 }
-
-/* Provide a prototype to silence -Wmissing-prototypes.  */
-extern initialize_file_ftype _initialize_sparc_sol2_nat;
 
 void
 _initialize_sparc_sol2_nat (void)

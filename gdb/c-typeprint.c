@@ -1,5 +1,5 @@
 /* Support for printing C and C++ types for GDB, the GNU debugger.
-   Copyright (C) 1986-2016 Free Software Foundation, Inc.
+   Copyright (C) 1986-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -31,6 +31,16 @@
 #include "typeprint.h"
 #include "cp-abi.h"
 #include "cp-support.h"
+
+/* A list of access specifiers used for printing.  */
+
+enum access_specifier
+{
+  s_none,
+  s_public,
+  s_private,
+  s_protected
+};
 
 static void c_type_print_varspec_prefix (struct type *,
 					 struct ui_file *,
@@ -110,7 +120,7 @@ c_print_type (struct type *type,
 		      && !TYPE_VECTOR (type))
 		  || code == TYPE_CODE_MEMBERPTR
 		  || code == TYPE_CODE_METHODPTR
-		  || code == TYPE_CODE_REF)))
+		  || TYPE_IS_REFERENCE (type))))
 	fputs_filtered (" ", stream);
       need_post_space = (varstring != NULL && strcmp (varstring, "") != 0);
       c_type_print_varspec_prefix (type, stream, show, 0, need_post_space,
@@ -226,13 +236,21 @@ cp_type_print_method_args (struct type *mtype, const char *prefix,
 			   language_cplus, DMGL_ANSI);
   fputs_filtered ("(", stream);
 
-  /* Skip the class variable.  */
+  /* Skip the class variable.  We keep this here to accommodate older
+     compilers and debug formats which may not support artificial
+     parameters.  */
   i = staticp ? 0 : 1;
   if (nargs > i)
     {
       while (i < nargs)
 	{
-	  c_print_type (args[i++].type, "", stream, 0, 0, flags);
+	  struct field arg = args[i++];
+
+	  /* Skip any artificial arguments.  */
+	  if (FIELD_ARTIFICIAL (arg))
+	    continue;
+
+	  c_print_type (arg.type, "", stream, 0, 0, flags);
 
 	  if (i == nargs && varargs)
 	    fprintf_filtered (stream, ", ...");
@@ -339,9 +357,10 @@ c_type_print_varspec_prefix (struct type *type,
       break;
 
     case TYPE_CODE_REF:
+    case TYPE_CODE_RVALUE_REF:
       c_type_print_varspec_prefix (TYPE_TARGET_TYPE (type),
 				   stream, show, 1, 0, flags);
-      fprintf_filtered (stream, "&");
+      fprintf_filtered (stream, TYPE_CODE(type) == TYPE_CODE_REF ? "&" : "&&");
       c_type_print_modifier (type, stream, 1, need_post_space);
       break;
 
@@ -408,8 +427,7 @@ c_type_print_modifier (struct type *type, struct ui_file *stream,
   /* We don't print `const' qualifiers for references --- since all
      operators affect the thing referenced, not the reference itself,
      every reference is `const'.  */
-  if (TYPE_CONST (type)
-      && TYPE_CODE (type) != TYPE_CODE_REF)
+  if (TYPE_CONST (type) && !TYPE_IS_REFERENCE (type))
     {
       if (need_pre_space)
 	fprintf_filtered (stream, " ");
@@ -539,7 +557,7 @@ is_type_conversion_operator (struct type *type, int i, int j)
      some other way, feel free to rewrite this function.  */
   const char *name = TYPE_FN_FIELDLIST_NAME (type, i);
 
-  if (!startswith (name, "operator"))
+  if (!startswith (name, CP_OPERATOR_STR))
     return 0;
 
   name += 8;
@@ -720,6 +738,7 @@ c_type_print_varspec_suffix (struct type *type,
 
     case TYPE_CODE_PTR:
     case TYPE_CODE_REF:
+    case TYPE_CODE_RVALUE_REF:
       c_type_print_varspec_suffix (TYPE_TARGET_TYPE (type), stream,
 				   show, 1, 0, flags);
       break;
@@ -817,6 +836,45 @@ c_type_print_template_args (const struct type_print_options *flags,
     fputs_filtered (_("] "), stream);
 }
 
+/* Output an access specifier to STREAM, if needed.  LAST_ACCESS is the
+   last access specifier output (typically returned by this function).  */
+
+static enum access_specifier
+output_access_specifier (struct ui_file *stream,
+			 enum access_specifier last_access,
+			 int level, bool is_protected, bool is_private)
+{
+  if (is_protected)
+    {
+      if (last_access != s_protected)
+	{
+	  last_access = s_protected;
+	  fprintfi_filtered (level + 2, stream,
+			     "protected:\n");
+	}
+    }
+  else if (is_private)
+    {
+      if (last_access != s_private)
+	{
+	  last_access = s_private;
+	  fprintfi_filtered (level + 2, stream,
+			     "private:\n");
+	}
+    }
+  else
+    {
+      if (last_access != s_public)
+	{
+	  last_access = s_public;
+	  fprintfi_filtered (level + 2, stream,
+			     "public:\n");
+	}
+    }
+
+  return last_access;
+}
+
 /* Print the name of the type (or the ultimate pointer target,
    function value or array element), or the description of a structure
    or union.
@@ -841,11 +899,7 @@ c_type_print_base (struct type *type, struct ui_file *stream,
 {
   int i;
   int len, real_len;
-  enum
-    {
-      s_none, s_public, s_private, s_protected
-    }
-  section_type;
+  enum access_specifier section_type;
   int need_access_label = 0;
   int j, len2;
 
@@ -884,12 +938,19 @@ c_type_print_base (struct type *type, struct ui_file *stream,
       fprintf_filtered (stream, _("<unnamed typedef>"));
       break;
 
+    case TYPE_CODE_FUNC:
+    case TYPE_CODE_METHOD:
+      if (TYPE_TARGET_TYPE (type) == NULL)
+	type_print_unknown_return_type (stream);
+      else
+	c_type_print_base (TYPE_TARGET_TYPE (type),
+			   stream, show, level, flags);
+      break;
     case TYPE_CODE_ARRAY:
     case TYPE_CODE_PTR:
     case TYPE_CODE_MEMBERPTR:
     case TYPE_CODE_REF:
-    case TYPE_CODE_FUNC:
-    case TYPE_CODE_METHOD:
+    case TYPE_CODE_RVALUE_REF:
     case TYPE_CODE_METHODPTR:
       c_type_print_base (TYPE_TARGET_TYPE (type),
 			 stream, show, level, flags);
@@ -1018,6 +1079,18 @@ c_type_print_base (struct type *type, struct ui_file *stream,
 			  break;
 		      }
 		  }
+		QUIT;
+		if (!need_access_label)
+		  {
+		    for (i = 0; i < TYPE_TYPEDEF_FIELD_COUNT (type); ++i)
+		      {
+			if (!TYPE_TYPEDEF_FIELD_PRIVATE (type, i))
+			  {
+			    need_access_label = 1;
+			    break;
+			  }
+		      }
+		  }
 	      }
 	    else
 	      {
@@ -1052,6 +1125,19 @@ c_type_print_base (struct type *type, struct ui_file *stream,
 			  break;
 		      }
 		  }
+		QUIT;
+		if (!need_access_label)
+		  {
+		    for (i = 0; i < TYPE_TYPEDEF_FIELD_COUNT (type); ++i)
+		      {
+			if (TYPE_TYPEDEF_FIELD_PROTECTED (type, i)
+			    || TYPE_TYPEDEF_FIELD_PRIVATE (type, i))
+			  {
+			    need_access_label = 1;
+			    break;
+			  }
+		      }
+		  }
 	      }
 
 	    /* If there is a base class for this type,
@@ -1072,33 +1158,10 @@ c_type_print_base (struct type *type, struct ui_file *stream,
 
 		if (need_access_label)
 		  {
-		    if (TYPE_FIELD_PROTECTED (type, i))
-		      {
-			if (section_type != s_protected)
-			  {
-			    section_type = s_protected;
-			    fprintfi_filtered (level + 2, stream,
-					       "protected:\n");
-			  }
-		      }
-		    else if (TYPE_FIELD_PRIVATE (type, i))
-		      {
-			if (section_type != s_private)
-			  {
-			    section_type = s_private;
-			    fprintfi_filtered (level + 2, stream,
-					       "private:\n");
-			  }
-		      }
-		    else
-		      {
-			if (section_type != s_public)
-			  {
-			    section_type = s_public;
-			    fprintfi_filtered (level + 2, stream,
-					       "public:\n");
-			  }
-		      }
+		    section_type = output_access_specifier
+		      (stream, section_type, level,
+		       TYPE_FIELD_PROTECTED (type, i),
+		       TYPE_FIELD_PRIVATE (type, i));
 		  }
 
 		print_spaces_filtered (level + 4, stream);
@@ -1171,33 +1234,10 @@ c_type_print_base (struct type *type, struct ui_file *stream,
 		  inner_cleanup = make_cleanup (null_cleanup, NULL);
 
 		  QUIT;
-		  if (TYPE_FN_FIELD_PROTECTED (f, j))
-		    {
-		      if (section_type != s_protected)
-			{
-			  section_type = s_protected;
-			  fprintfi_filtered (level + 2, stream,
-					     "protected:\n");
-			}
-		    }
-		  else if (TYPE_FN_FIELD_PRIVATE (f, j))
-		    {
-		      if (section_type != s_private)
-			{
-			  section_type = s_private;
-			  fprintfi_filtered (level + 2, stream,
-					     "private:\n");
-			}
-		    }
-		  else
-		    {
-		      if (section_type != s_public)
-			{
-			  section_type = s_public;
-			  fprintfi_filtered (level + 2, stream,
-					     "public:\n");
-			}
-		    }
+		  section_type = output_access_specifier
+		    (stream, section_type, level,
+		     TYPE_FN_FIELD_PROTECTED (f, j),
+		     TYPE_FN_FIELD_PRIVATE (f, j));
 
 		  print_spaces_filtered (level + 4, stream);
 		  if (TYPE_FN_FIELD_VIRTUAL_P (f, j))
@@ -1309,6 +1349,13 @@ c_type_print_base (struct type *type, struct ui_file *stream,
 		  gdb_assert (TYPE_CODE (target) == TYPE_CODE_TYPEDEF);
 		  target = TYPE_TARGET_TYPE (target);
 
+		  if (need_access_label)
+		    {
+		      section_type = output_access_specifier
+			(stream, section_type, level,
+			 TYPE_TYPEDEF_FIELD_PROTECTED (type, i),
+			 TYPE_TYPEDEF_FIELD_PRIVATE (type, i));
+		    }
 		  print_spaces_filtered (level + 4, stream);
 		  fprintf_filtered (stream, "typedef ");
 

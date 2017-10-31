@@ -1,6 +1,6 @@
 /* Output generating routines for GDB.
 
-   Copyright (C) 1999-2016 Free Software Foundation, Inc.
+   Copyright (C) 1999-2017 Free Software Foundation, Inc.
 
    Contributed by Cygnus Solutions.
    Written by Fernando Nasser for Cygnus.
@@ -29,6 +29,8 @@
 #include <memory>
 #include <string>
 #include <memory>
+
+namespace {
 
 /* A header of a ui_out_table.  */
 
@@ -90,6 +92,8 @@ class ui_out_hdr
   /* Printed header text of the column.  */
   std::string m_header;
 };
+
+} // namespace
 
 /* A level of nesting (either a list or a tuple) in a ui_out output.  */
 
@@ -396,22 +400,6 @@ ui_out::table_end ()
   m_table_up = nullptr;
 }
 
-static void
-do_cleanup_table_end (void *data)
-{
-  ui_out *uiout = (ui_out *) data;
-
-  uiout->table_end ();
-}
-
-struct cleanup *
-make_cleanup_ui_out_table_begin_end (ui_out *uiout, int nr_cols, int nr_rows,
-				     const char *tblid)
-{
-  uiout->table_begin (nr_cols, nr_rows, tblid);
-  return make_cleanup (do_cleanup_table_end, uiout);
-}
-
 void
 ui_out::begin (ui_out_type type, const char *id)
 {
@@ -529,15 +517,13 @@ ui_out::field_core_addr (const char *fldname, struct gdbarch *gdbarch,
 }
 
 void
-ui_out::field_stream (const char *fldname, ui_file *stream)
+ui_out::field_stream (const char *fldname, string_file &stream)
 {
-  std::string buffer = ui_file_as_string (stream);
-
-  if (!buffer.empty ())
-    field_string (fldname, buffer.c_str ());
+  if (!stream.empty ())
+    field_string (fldname, stream.c_str ());
   else
     field_skip (fldname);
-  ui_file_rewind (stream);
+  stream.clear ();
 }
 
 /* Used to omit a field.  */
@@ -619,10 +605,10 @@ ui_out::flush ()
   do_flush ();
 }
 
-int
+void
 ui_out::redirect (ui_file *outstream)
 {
-  return do_redirect (outstream);
+  do_redirect (outstream);
 }
 
 /* Test the flags against the mask given.  */

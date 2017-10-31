@@ -1,6 +1,6 @@
 /* Target-dependent code for the VAX.
 
-   Copyright (C) 1986-2016 Free Software Foundation, Inc.
+   Copyright (C) 1986-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -20,7 +20,6 @@
 #include "defs.h"
 #include "arch-utils.h"
 #include "dis-asm.h"
-#include "floatformat.h"
 #include "frame.h"
 #include "frame-base.h"
 #include "frame-unwind.h"
@@ -39,7 +38,7 @@
 static const char *
 vax_register_name (struct gdbarch *gdbarch, int regnum)
 {
-  static char *register_names[] =
+  static const char *register_names[] =
   {
     "r0", "r1", "r2",  "r3",  "r4", "r5", "r6", "r7",
     "r8", "r9", "r10", "r11", "ap", "fp", "sp", "pc",
@@ -108,7 +107,7 @@ static CORE_ADDR
 vax_store_arguments (struct regcache *regcache, int nargs,
 		     struct value **args, CORE_ADDR sp)
 {
-  struct gdbarch *gdbarch = get_regcache_arch (regcache);
+  struct gdbarch *gdbarch = regcache->arch ();
   enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
   gdb_byte buf[4];
   int count = 0;
@@ -502,8 +501,6 @@ vax_gdbarch_init (struct gdbarch_info info, struct gdbarch_list *arches)
   set_gdbarch_deprecated_function_start_offset (gdbarch, 2);
   set_gdbarch_believe_pcc_promotion (gdbarch, 1);
 
-  set_gdbarch_print_insn (gdbarch, print_insn_vax);
-
   set_gdbarch_unwind_pc (gdbarch, vax_unwind_pc);
 
   frame_base_set_default (gdbarch, &vax_frame_base);
@@ -515,9 +512,6 @@ vax_gdbarch_init (struct gdbarch_info info, struct gdbarch_list *arches)
 
   return (gdbarch);
 }
-
-/* Provide a prototype to silence -Wmissing-prototypes.  */
-void _initialize_vax_tdep (void);
 
 void
 _initialize_vax_tdep (void)

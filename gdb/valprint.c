@@ -1,6 +1,6 @@
 /* Print values for GDB, the GNU debugger.
 
-   Copyright (C) 1986-2016 Free Software Foundation, Inc.
+   Copyright (C) 1986-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -27,7 +27,6 @@
 #include "language.h"
 #include "annotate.h"
 #include "valprint.h"
-#include "floatformat.h"
 #include "doublest.h"
 #include "dfp.h"
 #include "extension.h"
@@ -37,6 +36,7 @@
 #include "typeprint.h"
 #include <ctype.h>
 #include <algorithm>
+#include "common/byte-vector.h"
 
 /* Maximum number of wchars returned from wchar_iterate.  */
 #define MAX_WCHARS 4
@@ -83,14 +83,6 @@ struct cmd_list_element *showprintrawlist;
 static int partial_memory_read (CORE_ADDR memaddr, gdb_byte *myaddr,
 				int len, int *errptr);
 
-static void show_print (char *, int);
-
-static void set_print (char *, int);
-
-static void set_radix (char *, int);
-
-static void show_radix (char *, int);
-
 static void set_input_radix (char *, int, struct cmd_list_element *);
 
 static void set_input_radix_1 (int, unsigned);
@@ -102,8 +94,6 @@ static void set_output_radix_1 (int, unsigned);
 static void val_print_type_code_flags (struct type *type,
 				       const gdb_byte *valaddr,
 				       struct ui_file *stream);
-
-void _initialize_valprint (void);
 
 #define PRINT_MAX_DEFAULT 200	/* Start print_max off at this value.  */
 
@@ -281,7 +271,7 @@ int
 val_print_scalar_type_p (struct type *type)
 {
   type = check_typedef (type);
-  while (TYPE_CODE (type) == TYPE_CODE_REF)
+  while (TYPE_IS_REFERENCE (type))
     {
       type = TYPE_TARGET_TYPE (type);
       type = check_typedef (type);
@@ -536,7 +526,7 @@ get_value_addr_contents (struct value *deref_val)
     }
 }
 
-/* generic_val_print helper for TYPE_CODE_REF.  */
+/* generic_val_print helper for TYPE_CODE_{RVALUE_,}REF.  */
 
 static void
 generic_val_print_ref (struct type *type,
@@ -781,25 +771,12 @@ generic_val_print_int (struct type *type,
 		       struct value *original_value,
 		       const struct value_print_options *options)
 {
-  struct gdbarch *gdbarch = get_type_arch (type);
-  int unit_size = gdbarch_addressable_memory_unit_size (gdbarch);
+  struct value_print_options opts = *options;
 
-  if (options->format || options->output_format)
-    {
-      struct value_print_options opts = *options;
-
-      opts.format = (options->format ? options->format
-		     : options->output_format);
-      val_print_scalar_formatted (type, embedded_offset,
-				  original_value, &opts, 0, stream);
-    }
-  else
-    {
-      const gdb_byte *valaddr = value_contents_for_printing (original_value);
-
-      val_print_type_code_int (type, valaddr + embedded_offset * unit_size,
-			       stream);
-    }
+  opts.format = (options->format ? options->format
+		 : options->output_format);
+  val_print_scalar_formatted (type, embedded_offset,
+			      original_value, &opts, 0, stream);
 }
 
 /* generic_val_print helper for TYPE_CODE_CHAR.  */
@@ -838,7 +815,7 @@ generic_val_print_char (struct type *type, struct type *unresolved_type,
     }
 }
 
-/* generic_val_print helper for TYPE_CODE_FLT.  */
+/* generic_val_print helper for TYPE_CODE_FLT and TYPE_CODE_DECFLOAT.  */
 
 static void
 generic_val_print_float (struct type *type,
@@ -859,29 +836,6 @@ generic_val_print_float (struct type *type,
       const gdb_byte *valaddr = value_contents_for_printing (original_value);
 
       print_floating (valaddr + embedded_offset * unit_size, type, stream);
-    }
-}
-
-/* generic_val_print helper for TYPE_CODE_DECFLOAT.  */
-
-static void
-generic_val_print_decfloat (struct type *type,
-			    int embedded_offset, struct ui_file *stream,
-			    struct value *original_value,
-			    const struct value_print_options *options)
-{
-  struct gdbarch *gdbarch = get_type_arch (type);
-  int unit_size = gdbarch_addressable_memory_unit_size (gdbarch);
-
-  if (options->format)
-    val_print_scalar_formatted (type, embedded_offset, original_value,
-				options, 0, stream);
-  else
-    {
-      const gdb_byte *valaddr = value_contents_for_printing (original_value);
-
-      print_decimal_floating (valaddr + embedded_offset * unit_size, type,
-			      stream);
     }
 }
 
@@ -960,6 +914,7 @@ generic_val_print (struct type *type,
       break;
 
     case TYPE_CODE_REF:
+    case TYPE_CODE_RVALUE_REF:
       generic_val_print_ref (type, embedded_offset, stream, recurse,
 			     original_value, options);
       break;
@@ -1007,13 +962,9 @@ generic_val_print (struct type *type,
       break;
 
     case TYPE_CODE_FLT:
+    case TYPE_CODE_DECFLOAT:
       generic_val_print_float (type, embedded_offset, stream,
 			       original_value, options);
-      break;
-
-    case TYPE_CODE_DECFLOAT:
-      generic_val_print_decfloat (type, embedded_offset, stream,
-				  original_value, options);
       break;
 
     case TYPE_CODE_VOID:
@@ -1201,6 +1152,9 @@ common_val_print (struct value *val, struct ui_file *stream, int recurse,
        get a fixed representation of our value.  */
     val = ada_to_fixed_value (val);
 
+  if (value_lazy (val))
+    value_fetch_lazy (val);
+
   val_print (value_type (val),
 	     value_embedded_offset (val), value_address (val),
 	     stream, recurse,
@@ -1231,43 +1185,6 @@ value_print (struct value *val, struct ui_file *stream,
     }
 
   LA_VALUE_PRINT (val, stream, options);
-}
-
-/* Called by various <lang>_val_print routines to print
-   TYPE_CODE_INT's.  TYPE is the type.  VALADDR is the address of the
-   value.  STREAM is where to print the value.  */
-
-void
-val_print_type_code_int (struct type *type, const gdb_byte *valaddr,
-			 struct ui_file *stream)
-{
-  enum bfd_endian byte_order = gdbarch_byte_order (get_type_arch (type));
-
-  if (TYPE_LENGTH (type) > sizeof (LONGEST))
-    {
-      LONGEST val;
-
-      if (TYPE_UNSIGNED (type)
-	  && extract_long_unsigned_integer (valaddr, TYPE_LENGTH (type),
-					    byte_order, &val))
-	{
-	  print_longest (stream, 'u', 0, val);
-	}
-      else
-	{
-	  /* Signed, or we couldn't turn an unsigned value into a
-	     LONGEST.  For signed values, one could assume two's
-	     complement (a reasonable assumption, I think) and do
-	     better than this.  */
-	  print_hex_chars (stream, (unsigned char *) valaddr,
-			   TYPE_LENGTH (type), byte_order);
-	}
-    }
-  else
-    {
-      print_longest (stream, TYPE_UNSIGNED (type) ? 'u' : 'd', 0,
-		     unpack_long (type, valaddr));
-    }
 }
 
 static void
@@ -1442,112 +1359,41 @@ longest_to_int (LONGEST arg)
   return (rtnval);
 }
 
-/* Print a floating point value of type TYPE (not always a
-   TYPE_CODE_FLT), pointed to in GDB by VALADDR, on STREAM.  */
+/* Print a floating point value of floating-point type TYPE,
+   pointed to in GDB by VALADDR, on STREAM.  */
 
 void
 print_floating (const gdb_byte *valaddr, struct type *type,
 		struct ui_file *stream)
 {
-  DOUBLEST doub;
-  int inv;
-  const struct floatformat *fmt = NULL;
-  unsigned len = TYPE_LENGTH (type);
-  enum float_kind kind;
-
-  /* If it is a floating-point, check for obvious problems.  */
+  std::string str;
   if (TYPE_CODE (type) == TYPE_CODE_FLT)
-    fmt = floatformat_from_type (type);
-  if (fmt != NULL)
     {
-      kind = floatformat_classify (fmt, valaddr);
-      if (kind == float_nan)
-	{
-	  if (floatformat_is_negative (fmt, valaddr))
-	    fprintf_filtered (stream, "-");
-	  fprintf_filtered (stream, "nan(");
-	  fputs_filtered ("0x", stream);
-	  fputs_filtered (floatformat_mantissa (fmt, valaddr), stream);
-	  fprintf_filtered (stream, ")");
-	  return;
-	}
-      else if (kind == float_infinite)
-	{
-	  if (floatformat_is_negative (fmt, valaddr))
-	    fputs_filtered ("-", stream);
-	  fputs_filtered ("inf", stream);
-	  return;
-	}
+      const struct floatformat *fmt = floatformat_from_type (type);
+      str = floatformat_to_string (fmt, valaddr);
     }
-
-  /* NOTE: cagney/2002-01-15: The TYPE passed into print_floating()
-     isn't necessarily a TYPE_CODE_FLT.  Consequently, unpack_double
-     needs to be used as that takes care of any necessary type
-     conversions.  Such conversions are of course direct to DOUBLEST
-     and disregard any possible target floating point limitations.
-     For instance, a u64 would be converted and displayed exactly on a
-     host with 80 bit DOUBLEST but with loss of information on a host
-     with 64 bit DOUBLEST.  */
-
-  doub = unpack_double (type, valaddr, &inv);
-  if (inv)
-    {
-      fprintf_filtered (stream, "<invalid float value>");
-      return;
-    }
-
-  /* FIXME: kettenis/2001-01-20: The following code makes too much
-     assumptions about the host and target floating point format.  */
-
-  /* NOTE: cagney/2002-02-03: Since the TYPE of what was passed in may
-     not necessarily be a TYPE_CODE_FLT, the below ignores that and
-     instead uses the type's length to determine the precision of the
-     floating-point value being printed.  */
-
-  if (len < sizeof (double))
-      fprintf_filtered (stream, "%.9g", (double) doub);
-  else if (len == sizeof (double))
-      fprintf_filtered (stream, "%.17g", (double) doub);
   else
-#ifdef PRINTF_HAS_LONG_DOUBLE
-    fprintf_filtered (stream, "%.35Lg", doub);
-#else
-    /* This at least wins with values that are representable as
-       doubles.  */
-    fprintf_filtered (stream, "%.17g", (double) doub);
-#endif
-}
-
-void
-print_decimal_floating (const gdb_byte *valaddr, struct type *type,
-			struct ui_file *stream)
-{
-  enum bfd_endian byte_order = gdbarch_byte_order (get_type_arch (type));
-  char decstr[MAX_DECIMAL_STRING];
-  unsigned len = TYPE_LENGTH (type);
-
-  decimal_to_string (valaddr, len, byte_order, decstr);
-  fputs_filtered (decstr, stream);
-  return;
+    {
+      enum bfd_endian byte_order = gdbarch_byte_order (get_type_arch (type));
+      unsigned len = TYPE_LENGTH (type);
+      str = decimal_to_string (valaddr, len, byte_order);
+    }
+  fputs_filtered (str.c_str (), stream);
 }
 
 void
 print_binary_chars (struct ui_file *stream, const gdb_byte *valaddr,
-		    unsigned len, enum bfd_endian byte_order)
+		    unsigned len, enum bfd_endian byte_order, bool zero_pad)
 {
-
-#define BITS_IN_BYTES 8
-
   const gdb_byte *p;
   unsigned int i;
   int b;
+  bool seen_a_one = false;
 
   /* Declared "int" so it will be signed.
      This ensures that right shift will shift in zeros.  */
 
   const int mask = 0x080;
-
-  /* FIXME: We should be not printing leading zeroes in most cases.  */
 
   if (byte_order == BFD_ENDIAN_BIG)
     {
@@ -1558,14 +1404,17 @@ print_binary_chars (struct ui_file *stream, const gdb_byte *valaddr,
 	  /* Every byte has 8 binary characters; peel off
 	     and print from the MSB end.  */
 
-	  for (i = 0; i < (BITS_IN_BYTES * sizeof (*p)); i++)
+	  for (i = 0; i < (HOST_CHAR_BIT * sizeof (*p)); i++)
 	    {
 	      if (*p & (mask >> i))
-		b = 1;
+		b = '1';
 	      else
-		b = 0;
+		b = '0';
 
-	      fprintf_filtered (stream, "%1d", b);
+	      if (zero_pad || seen_a_one || b == '1')
+		fputc_filtered (b, stream);
+	      if (b == '1')
+		seen_a_one = true;
 	    }
 	}
     }
@@ -1575,17 +1424,37 @@ print_binary_chars (struct ui_file *stream, const gdb_byte *valaddr,
 	   p >= valaddr;
 	   p--)
 	{
-	  for (i = 0; i < (BITS_IN_BYTES * sizeof (*p)); i++)
+	  for (i = 0; i < (HOST_CHAR_BIT * sizeof (*p)); i++)
 	    {
 	      if (*p & (mask >> i))
-		b = 1;
+		b = '1';
 	      else
-		b = 0;
+		b = '0';
 
-	      fprintf_filtered (stream, "%1d", b);
+	      if (zero_pad || seen_a_one || b == '1')
+		fputc_filtered (b, stream);
+	      if (b == '1')
+		seen_a_one = true;
 	    }
 	}
     }
+
+  /* When not zero-padding, ensure that something is printed when the
+     input is 0.  */
+  if (!zero_pad && !seen_a_one)
+    fputc_filtered ('0', stream);
+}
+
+/* A helper for print_octal_chars that emits a single octal digit,
+   optionally suppressing it if is zero and updating SEEN_A_ONE.  */
+
+static void
+emit_octal_digit (struct ui_file *stream, bool *seen_a_one, int digit)
+{
+  if (*seen_a_one || digit != 0)
+    fprintf_filtered (stream, "%o", digit);
+  if (digit != 0)
+    *seen_a_one = true;
 }
 
 /* VALADDR points to an integer of LEN bytes.
@@ -1598,9 +1467,6 @@ print_octal_chars (struct ui_file *stream, const gdb_byte *valaddr,
   const gdb_byte *p;
   unsigned char octa1, octa2, octa3, carry;
   int cycle;
-
-  /* FIXME: We should be not printing leading zeroes in most cases.  */
-
 
   /* Octal is 3 bits, which doesn't fit.  Yuk.  So we have to track
    * the extra bits, which cycle every three bytes:
@@ -1619,23 +1485,30 @@ print_octal_chars (struct ui_file *stream, const gdb_byte *valaddr,
    */
 #define BITS_IN_OCTAL 3
 #define HIGH_ZERO     0340
-#define LOW_ZERO      0016
+#define LOW_ZERO      0034
 #define CARRY_ZERO    0003
+  static_assert (HIGH_ZERO + LOW_ZERO + CARRY_ZERO == 0xff,
+		 "cycle zero constants are wrong");
 #define HIGH_ONE      0200
 #define MID_ONE       0160
 #define LOW_ONE       0016
 #define CARRY_ONE     0001
+  static_assert (HIGH_ONE + MID_ONE + LOW_ONE + CARRY_ONE == 0xff,
+		 "cycle one constants are wrong");
 #define HIGH_TWO      0300
 #define MID_TWO       0070
 #define LOW_TWO       0007
+  static_assert (HIGH_TWO + MID_TWO + LOW_TWO == 0xff,
+		 "cycle two constants are wrong");
 
   /* For 32 we start in cycle 2, with two bits and one bit carry;
      for 64 in cycle in cycle 1, with one bit and a two bit carry.  */
 
-  cycle = (len * BITS_IN_BYTES) % BITS_IN_OCTAL;
+  cycle = (len * HOST_CHAR_BIT) % BITS_IN_OCTAL;
   carry = 0;
 
   fputs_filtered ("0", stream);
+  bool seen_a_one = false;
   if (byte_order == BFD_ENDIAN_BIG)
     {
       for (p = valaddr;
@@ -1650,8 +1523,8 @@ print_octal_chars (struct ui_file *stream, const gdb_byte *valaddr,
 	      octa1 = (HIGH_ZERO & *p) >> 5;
 	      octa2 = (LOW_ZERO & *p) >> 2;
 	      carry = (CARRY_ZERO & *p);
-	      fprintf_filtered (stream, "%o", octa1);
-	      fprintf_filtered (stream, "%o", octa2);
+	      emit_octal_digit (stream, &seen_a_one, octa1);
+	      emit_octal_digit (stream, &seen_a_one, octa2);
 	      break;
 
 	    case 1:
@@ -1661,9 +1534,9 @@ print_octal_chars (struct ui_file *stream, const gdb_byte *valaddr,
 	      octa2 = (MID_ONE & *p) >> 4;
 	      octa3 = (LOW_ONE & *p) >> 1;
 	      carry = (CARRY_ONE & *p);
-	      fprintf_filtered (stream, "%o", octa1);
-	      fprintf_filtered (stream, "%o", octa2);
-	      fprintf_filtered (stream, "%o", octa3);
+	      emit_octal_digit (stream, &seen_a_one, octa1);
+	      emit_octal_digit (stream, &seen_a_one, octa2);
+	      emit_octal_digit (stream, &seen_a_one, octa3);
 	      break;
 
 	    case 2:
@@ -1673,9 +1546,9 @@ print_octal_chars (struct ui_file *stream, const gdb_byte *valaddr,
 	      octa2 = (MID_TWO & *p) >> 3;
 	      octa3 = (LOW_TWO & *p);
 	      carry = 0;
-	      fprintf_filtered (stream, "%o", octa1);
-	      fprintf_filtered (stream, "%o", octa2);
-	      fprintf_filtered (stream, "%o", octa3);
+	      emit_octal_digit (stream, &seen_a_one, octa1);
+	      emit_octal_digit (stream, &seen_a_one, octa2);
+	      emit_octal_digit (stream, &seen_a_one, octa3);
 	      break;
 
 	    default:
@@ -1700,8 +1573,8 @@ print_octal_chars (struct ui_file *stream, const gdb_byte *valaddr,
 	      octa1 = (HIGH_ZERO & *p) >> 5;
 	      octa2 = (LOW_ZERO & *p) >> 2;
 	      carry = (CARRY_ZERO & *p);
-	      fprintf_filtered (stream, "%o", octa1);
-	      fprintf_filtered (stream, "%o", octa2);
+	      emit_octal_digit (stream, &seen_a_one, octa1);
+	      emit_octal_digit (stream, &seen_a_one, octa2);
 	      break;
 
 	    case 1:
@@ -1711,9 +1584,9 @@ print_octal_chars (struct ui_file *stream, const gdb_byte *valaddr,
 	      octa2 = (MID_ONE & *p) >> 4;
 	      octa3 = (LOW_ONE & *p) >> 1;
 	      carry = (CARRY_ONE & *p);
-	      fprintf_filtered (stream, "%o", octa1);
-	      fprintf_filtered (stream, "%o", octa2);
-	      fprintf_filtered (stream, "%o", octa3);
+	      emit_octal_digit (stream, &seen_a_one, octa1);
+	      emit_octal_digit (stream, &seen_a_one, octa2);
+	      emit_octal_digit (stream, &seen_a_one, octa3);
 	      break;
 
 	    case 2:
@@ -1723,9 +1596,9 @@ print_octal_chars (struct ui_file *stream, const gdb_byte *valaddr,
 	      octa2 = (MID_TWO & *p) >> 3;
 	      octa3 = (LOW_TWO & *p);
 	      carry = 0;
-	      fprintf_filtered (stream, "%o", octa1);
-	      fprintf_filtered (stream, "%o", octa2);
-	      fprintf_filtered (stream, "%o", octa3);
+	      emit_octal_digit (stream, &seen_a_one, octa1);
+	      emit_octal_digit (stream, &seen_a_one, octa2);
+	      emit_octal_digit (stream, &seen_a_one, octa3);
 	      break;
 
 	    default:
@@ -1739,12 +1612,58 @@ print_octal_chars (struct ui_file *stream, const gdb_byte *valaddr,
 
 }
 
+/* Possibly negate the integer represented by BYTES.  It contains LEN
+   bytes in the specified byte order.  If the integer is negative,
+   copy it into OUT_VEC, negate it, and return true.  Otherwise, do
+   nothing and return false.  */
+
+static bool
+maybe_negate_by_bytes (const gdb_byte *bytes, unsigned len,
+		       enum bfd_endian byte_order,
+		       gdb::byte_vector *out_vec)
+{
+  gdb_byte sign_byte;
+  if (byte_order == BFD_ENDIAN_BIG)
+    sign_byte = bytes[0];
+  else
+    sign_byte = bytes[len - 1];
+  if ((sign_byte & 0x80) == 0)
+    return false;
+
+  out_vec->resize (len);
+
+  /* Compute -x == 1 + ~x.  */
+  if (byte_order == BFD_ENDIAN_LITTLE)
+    {
+      unsigned carry = 1;
+      for (unsigned i = 0; i < len; ++i)
+	{
+	  unsigned tem = (0xff & ~bytes[i]) + carry;
+	  (*out_vec)[i] = tem & 0xff;
+	  carry = tem / 256;
+	}
+    }
+  else
+    {
+      unsigned carry = 1;
+      for (unsigned i = len; i > 0; --i)
+	{
+	  unsigned tem = (0xff & ~bytes[i - 1]) + carry;
+	  (*out_vec)[i - 1] = tem & 0xff;
+	  carry = tem / 256;
+	}
+    }
+
+  return true;
+}
+
 /* VALADDR points to an integer of LEN bytes.
    Print it in decimal on stream or format it in buf.  */
 
 void
 print_decimal_chars (struct ui_file *stream, const gdb_byte *valaddr,
-		     unsigned len, enum bfd_endian byte_order)
+		     unsigned len, bool is_signed,
+		     enum bfd_endian byte_order)
 {
 #define TEN             10
 #define CARRY_OUT(  x ) ((x) / TEN)	/* extend char to int */
@@ -1754,23 +1673,25 @@ print_decimal_chars (struct ui_file *stream, const gdb_byte *valaddr,
 #define HIGH_NIBBLE( x ) (((x) & 0x0F0) >> 4)
 
   const gdb_byte *p;
-  unsigned char *digits;
   int carry;
   int decimal_len;
   int i, j, decimal_digits;
   int dummy;
   int flip;
 
+  gdb::byte_vector negated_bytes;
+  if (is_signed
+      && maybe_negate_by_bytes (valaddr, len, byte_order, &negated_bytes))
+    {
+      fputs_filtered ("-", stream);
+      valaddr = negated_bytes.data ();
+    }
+
   /* Base-ten number is less than twice as many digits
      as the base 16 number, which is 2 digits per byte.  */
 
   decimal_len = len * 2 * 2;
-  digits = (unsigned char *) xmalloc (decimal_len);
-
-  for (i = 0; i < decimal_len; i++)
-    {
-      digits[i] = 0;
-    }
+  std::vector<unsigned char> digits (decimal_len, 0);
 
   /* Ok, we have an unknown number of bytes of data to be printed in
    * decimal.
@@ -1864,40 +1785,73 @@ print_decimal_chars (struct ui_file *stream, const gdb_byte *valaddr,
   /* Ok, now "digits" is the decimal representation, with
      the "decimal_digits" actual digits.  Print!  */
 
-  for (i = decimal_digits - 1; i >= 0; i--)
+  for (i = decimal_digits - 1; i > 0 && digits[i] == 0; --i)
+    ;
+
+  for (; i >= 0; i--)
     {
       fprintf_filtered (stream, "%1d", digits[i]);
     }
-  xfree (digits);
 }
 
 /* VALADDR points to an integer of LEN bytes.  Print it in hex on stream.  */
 
 void
 print_hex_chars (struct ui_file *stream, const gdb_byte *valaddr,
-		 unsigned len, enum bfd_endian byte_order)
+		 unsigned len, enum bfd_endian byte_order,
+		 bool zero_pad)
 {
   const gdb_byte *p;
-
-  /* FIXME: We should be not printing leading zeroes in most cases.  */
 
   fputs_filtered ("0x", stream);
   if (byte_order == BFD_ENDIAN_BIG)
     {
-      for (p = valaddr;
+      p = valaddr;
+
+      if (!zero_pad)
+	{
+	  /* Strip leading 0 bytes, but be sure to leave at least a
+	     single byte at the end.  */
+	  for (; p < valaddr + len - 1 && !*p; ++p)
+	    ;
+	}
+
+      const gdb_byte *first = p;
+      for (;
 	   p < valaddr + len;
 	   p++)
 	{
-	  fprintf_filtered (stream, "%02x", *p);
+	  /* When not zero-padding, use a different format for the
+	     very first byte printed.  */
+	  if (!zero_pad && p == first)
+	    fprintf_filtered (stream, "%x", *p);
+	  else
+	    fprintf_filtered (stream, "%02x", *p);
 	}
     }
   else
     {
-      for (p = valaddr + len - 1;
+      p = valaddr + len - 1;
+
+      if (!zero_pad)
+	{
+	  /* Strip leading 0 bytes, but be sure to leave at least a
+	     single byte at the end.  */
+	  for (; p >= valaddr + 1 && !*p; --p)
+	    ;
+	}
+
+      const gdb_byte *first = p;
+      for (;
 	   p >= valaddr;
 	   p--)
 	{
-	  fprintf_filtered (stream, "%02x", *p);
+	  /* When not zero-padding, use a different format for the
+	     very first byte printed.  */
+	  if (!zero_pad && p == first)
+	    fprintf_filtered (stream, "%x", *p);
+	  else
+	    fprintf_filtered (stream, "%02x", *p);
 	}
     }
 }
@@ -2428,8 +2382,6 @@ generic_emit_char (int c, struct type *type, struct ui_file *stream,
 {
   enum bfd_endian byte_order
     = gdbarch_byte_order (get_type_arch (type));
-  struct obstack wchar_buf, output;
-  struct cleanup *cleanups;
   gdb_byte *buf;
   int need_escape = 0;
 
@@ -2439,8 +2391,7 @@ generic_emit_char (int c, struct type *type, struct ui_file *stream,
   wchar_iterator iter (buf, TYPE_LENGTH (type), encoding, TYPE_LENGTH (type));
 
   /* This holds the printable form of the wchar_t data.  */
-  obstack_init (&wchar_buf);
-  cleanups = make_cleanup_obstack_free (&wchar_buf);
+  auto_obstack wchar_buf;
 
   while (1)
     {
@@ -2487,8 +2438,7 @@ generic_emit_char (int c, struct type *type, struct ui_file *stream,
     }
 
   /* The output in the host encoding.  */
-  obstack_init (&output);
-  make_cleanup_obstack_free (&output);
+  auto_obstack output;
 
   convert_between_encodings (INTERMEDIATE_ENCODING, host_charset (),
 			     (gdb_byte *) obstack_base (&wchar_buf),
@@ -2497,8 +2447,6 @@ generic_emit_char (int c, struct type *type, struct ui_file *stream,
   obstack_1grow (&output, '\0');
 
   fputs_filtered ((const char *) obstack_base (&output), stream);
-
-  do_cleanups (cleanups);
 }
 
 /* Return the repeat count of the next character/byte in ITER,
@@ -2757,7 +2705,6 @@ generic_printstr (struct ui_file *stream, struct type *type,
   enum bfd_endian byte_order = gdbarch_byte_order (get_type_arch (type));
   unsigned int i;
   int width = TYPE_LENGTH (type);
-  struct obstack wchar_buf, output;
   struct cleanup *cleanup;
   int finished = 0;
   struct converted_character *last;
@@ -2829,8 +2776,7 @@ generic_printstr (struct ui_file *stream, struct type *type,
 
   /* WCHAR_BUF is the obstack we use to represent the string in
      wchar_t form.  */
-  obstack_init (&wchar_buf);
-  make_cleanup_obstack_free (&wchar_buf);
+  auto_obstack wchar_buf;
 
   /* Print the output string to the obstack.  */
   print_converted_chars_to_obstack (&wchar_buf, converted_chars, quote_char,
@@ -2840,8 +2786,7 @@ generic_printstr (struct ui_file *stream, struct type *type,
     obstack_grow_wstr (&wchar_buf, LCST ("..."));
 
   /* OUTPUT is where we collect `char's for printing.  */
-  obstack_init (&output);
-  make_cleanup_obstack_free (&output);
+  auto_obstack output;
 
   convert_between_encodings (INTERMEDIATE_ENCODING, host_charset (),
 			     (gdb_byte *) obstack_base (&wchar_buf),
@@ -2938,13 +2883,10 @@ val_print_string (struct type *elttype, const char *encoding,
 
   if (err != 0)
     {
-      char *str;
-
-      str = memory_error_message (TARGET_XFER_E_IO, gdbarch, addr);
-      make_cleanup (xfree, str);
+      std::string str = memory_error_message (TARGET_XFER_E_IO, gdbarch, addr);
 
       fprintf_filtered (stream, "<error: ");
-      fputs_filtered (str, stream);
+      fputs_filtered (str.c_str (), stream);
       fprintf_filtered (stream, ">");
     }
 
@@ -3048,7 +2990,7 @@ set_output_radix_1 (int from_tty, unsigned radix)
    the 'set input-radix' command.  */
 
 static void
-set_radix (char *arg, int from_tty)
+set_radix (const char *arg, int from_tty)
 {
   unsigned radix;
 
@@ -3066,7 +3008,7 @@ set_radix (char *arg, int from_tty)
 /* Show both the input and output radices.  */
 
 static void
-show_radix (char *arg, int from_tty)
+show_radix (const char *arg, int from_tty)
 {
   if (from_tty)
     {
@@ -3090,7 +3032,7 @@ show_radix (char *arg, int from_tty)
 
 
 static void
-set_print (char *arg, int from_tty)
+set_print (const char *arg, int from_tty)
 {
   printf_unfiltered (
      "\"set print\" must be followed by the name of a print subcommand.\n");
@@ -3098,13 +3040,13 @@ set_print (char *arg, int from_tty)
 }
 
 static void
-show_print (char *args, int from_tty)
+show_print (const char *args, int from_tty)
 {
   cmd_show_list (showprintlist, from_tty, "");
 }
 
 static void
-set_print_raw (char *arg, int from_tty)
+set_print_raw (const char *arg, int from_tty)
 {
   printf_unfiltered (
      "\"set print raw\" must be followed by the name of a \"print raw\" subcommand.\n");
@@ -3112,7 +3054,7 @@ set_print_raw (char *arg, int from_tty)
 }
 
 static void
-show_print_raw (char *args, int from_tty)
+show_print_raw (const char *args, int from_tty)
 {
   cmd_show_list (showprintrawlist, from_tty, "");
 }

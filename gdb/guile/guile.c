@@ -1,6 +1,6 @@
 /* General GDB/Guile code.
 
-   Copyright (C) 2014-2016 Free Software Foundation, Inc.
+   Copyright (C) 2014-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -163,10 +163,7 @@ const struct extension_language_ops guile_extension_ops =
 static void
 guile_repl_command (char *arg, int from_tty)
 {
-  struct cleanup *cleanup;
-
-  cleanup = make_cleanup_restore_integer (&current_ui->async);
-  current_ui->async = 0;
+  scoped_restore restore_async = make_scoped_restore (&current_ui->async, 0);
 
   arg = skip_spaces (arg);
 
@@ -183,8 +180,6 @@ guile_repl_command (char *arg, int from_tty)
       dont_repeat ();
       gdbscm_enter_repl ();
     }
-
-  do_cleanups (cleanup);
 }
 
 /* Implementation of the gdb "guile" command.
@@ -196,10 +191,7 @@ guile_repl_command (char *arg, int from_tty)
 static void
 guile_command (char *arg, int from_tty)
 {
-  struct cleanup *cleanup;
-
-  cleanup = make_cleanup_restore_integer (&current_ui->async);
-  current_ui->async = 0;
+  scoped_restore restore_async = make_scoped_restore (&current_ui->async, 0);
 
   arg = skip_spaces (arg);
 
@@ -209,19 +201,18 @@ guile_command (char *arg, int from_tty)
 
       if (msg != NULL)
 	{
+	  /* It is ok that this is a "dangling cleanup" because we
+	     throw immediately.  */
 	  make_cleanup (xfree, msg);
 	  error ("%s", msg);
 	}
     }
   else
     {
-      struct command_line *l = get_command_line (guile_control, "");
+      command_line_up l = get_command_line (guile_control, "");
 
-      make_cleanup_free_command_lines (&l);
-      execute_control_command_untraced (l);
+      execute_control_command_untraced (l.get ());
     }
-
-  do_cleanups (cleanup);
 }
 
 /* Given a command_line, return a command string suitable for passing
@@ -327,12 +318,10 @@ gdbscm_execute_gdb_command (SCM command_scm, SCM rest)
 
   TRY
     {
-      struct cleanup *inner_cleanups;
+      scoped_restore restore_async = make_scoped_restore (&current_ui->async,
+							  0);
 
-      inner_cleanups = make_cleanup_restore_integer (&current_ui->async);
-      current_ui->async = 0;
-
-      prevent_dont_repeat ();
+      scoped_restore preventer = prevent_dont_repeat ();
       if (to_string)
 	to_string_res = execute_command_to_string (command, from_tty);
       else
@@ -340,8 +329,6 @@ gdbscm_execute_gdb_command (SCM command_scm, SCM rest)
 
       /* Do any commands attached to breakpoint we stopped at.  */
       bpstat_do_actions ();
-
-      do_cleanups (inner_cleanups);
     }
   CATCH (ex, RETURN_MASK_ALL)
     {
@@ -421,11 +408,9 @@ guile_command (char *arg, int from_tty)
     {
       /* Even if Guile isn't enabled, we still have to slurp the
 	 command list to the corresponding "end".  */
-      struct command_line *l = get_command_line (guile_control, "");
-      struct cleanup *cleanups = make_cleanup_free_command_lines (&l);
+      command_line_up l = get_command_line (guile_control, "");
 
-      execute_control_command_untraced (l);
-      do_cleanups (cleanups);
+      execute_control_command_untraced (l.get ());
     }
 }
 
@@ -440,7 +425,7 @@ static struct cmd_list_element *info_guile_list;
 /* Function for use by 'set guile' prefix command.  */
 
 static void
-set_guile_command (char *args, int from_tty)
+set_guile_command (const char *args, int from_tty)
 {
   help_list (set_guile_list, "set guile ", all_commands, gdb_stdout);
 }
@@ -448,7 +433,7 @@ set_guile_command (char *args, int from_tty)
 /* Function for use by 'show guile' prefix command.  */
 
 static void
-show_guile_command (char *args, int from_tty)
+show_guile_command (const char *args, int from_tty)
 {
   cmd_show_list (show_guile_list, from_tty, "");
 }
@@ -458,7 +443,7 @@ show_guile_command (char *args, int from_tty)
    "info scheme" with no args.  */
 
 static void
-info_guile_command (char *args, int from_tty)
+info_guile_command (const char *args, int from_tty)
 {
   printf_unfiltered (_("\"info guile\" must be followed"
 		       " by the name of an info command.\n"));
@@ -829,9 +814,6 @@ message == an error message without a stack will be printed."),
 			NULL, NULL,
 			&set_guile_list, &show_guile_list);
 }
-
-/* Provide a prototype to silence -Wmissing-prototypes.  */
-extern initialize_file_ftype _initialize_guile;
 
 void
 _initialize_guile (void)

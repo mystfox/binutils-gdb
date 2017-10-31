@@ -1,5 +1,5 @@
 /* tc-riscv.c -- RISC-V assembler
-   Copyright 2011-2016 Free Software Foundation, Inc.
+   Copyright (C) 2011-2017 Free Software Foundation, Inc.
 
    Contributed by Andrew Waterman (andrew@sifive.com).
    Based on MIPS target.
@@ -121,6 +121,18 @@ riscv_subset_supports (const char *feature)
 }
 
 static void
+riscv_clear_subsets (void)
+{
+  while (riscv_subsets != NULL)
+    {
+      struct riscv_subset *next = riscv_subsets->next;
+      free ((void *) riscv_subsets->name);
+      free (riscv_subsets);
+      riscv_subsets = next;
+    }
+}
+
+static void
 riscv_add_subset (const char *subset)
 {
   struct riscv_subset *s = xmalloc (sizeof *s);
@@ -135,9 +147,11 @@ riscv_add_subset (const char *subset)
 static void
 riscv_set_arch (const char *s)
 {
-  const char *all_subsets = "imafdc";
-  const char *extension = NULL;
+  const char *all_subsets = "imafdqc";
+  char *extension = NULL;
   const char *p = s;
+
+  riscv_clear_subsets();
 
   if (strncmp (p, "rv32", 4) == 0)
     {
@@ -159,7 +173,7 @@ riscv_set_arch (const char *s)
 
       case 'g':
 	p++;
-	for ( ; *all_subsets != 'c'; all_subsets++)
+	for ( ; *all_subsets != 'q'; all_subsets++)
 	  {
 	    const char subset[] = {*all_subsets, '\0'};
 	    riscv_add_subset (subset);
@@ -174,7 +188,8 @@ riscv_set_arch (const char *s)
     {
       if (*p == 'x')
 	{
-	  char *subset = xstrdup (p), *q = subset;
+	  char *subset = xstrdup (p);
+	  char *q = subset;
 
 	  while (*++q != '\0' && *q != '_')
 	    ;
@@ -186,7 +201,6 @@ riscv_set_arch (const char *s)
 	  extension = subset;
 	  riscv_add_subset (subset);
 	  p += strlen (subset);
-	  free (subset);
 	}
       else if (*p == '_')
 	p++;
@@ -200,6 +214,8 @@ riscv_set_arch (const char *s)
       else
 	as_fatal ("-march=%s: unsupported ISA subset `%c'", s, *p);
     }
+
+  free (extension);
 }
 
 /* Handle of the OPCODE hash table.  */
@@ -354,6 +370,7 @@ relaxed_branch_length (fragS *fragp, asection *sec, int update)
 
   if (fragp->fr_symbol != NULL
       && S_IS_DEFINED (fragp->fr_symbol)
+      && !S_IS_WEAK (fragp->fr_symbol)
       && sec == S_GET_SEGMENT (fragp->fr_symbol))
     {
       offsetT val = S_GET_VALUE (fragp->fr_symbol) + fragp->fr_offset;
@@ -499,6 +516,7 @@ validate_riscv_insn (const struct riscv_opcode *opc)
 	  case 'c': break; /* RS1, constrained to equal sp */
 	  case 'i': used_bits |= ENCODE_RVC_SIMM3(-1U); break;
 	  case 'j': used_bits |= ENCODE_RVC_IMM (-1U); break;
+	  case 'o': used_bits |= ENCODE_RVC_IMM (-1U); break;
 	  case 'k': used_bits |= ENCODE_RVC_LW_IMM (-1U); break;
 	  case 'l': used_bits |= ENCODE_RVC_LD_IMM (-1U); break;
 	  case 'm': used_bits |= ENCODE_RVC_LWSP_IMM (-1U); break;
@@ -681,9 +699,6 @@ append_insn (struct riscv_cl_insn *ip, expressionS *address_expr,
 			    address_expr->X_add_number);
 	  return;
 	}
-      else if (address_expr->X_op == O_constant)
-	ip->insn_opcode |= riscv_apply_const_reloc (reloc_type,
-						    address_expr->X_add_number);
       else
 	{
 	  howto = bfd_reloc_type_lookup (stdoutput, reloc_type);
@@ -1323,6 +1338,13 @@ rvc_imm_done:
 		  ip->insn_opcode |=
 		    ENCODE_RVC_LDSP_IMM (imm_expr->X_add_number);
 		  goto rvc_imm_done;
+		case 'o':
+		  if (my_getSmallExpression (imm_expr, imm_reloc, s, p)
+		      || imm_expr->X_op != O_constant
+		      || !VALID_RVC_IMM (imm_expr->X_add_number))
+		    break;
+		  ip->insn_opcode |= ENCODE_RVC_IMM (imm_expr->X_add_number);
+		  goto rvc_imm_done;
 		case 'K':
 		  if (my_getSmallExpression (imm_expr, imm_reloc, s, p)
 		      || imm_expr->X_op != O_constant
@@ -1419,8 +1441,8 @@ rvc_lui:
 	      my_getExpression (imm_expr, s);
 	      check_absolute_expr (ip, imm_expr);
 	      if ((unsigned long) imm_expr->X_add_number > 31)
-		as_warn (_("Improper shift amount (%lu)"),
-			 (unsigned long) imm_expr->X_add_number);
+		as_bad (_("Improper shift amount (%lu)"),
+			(unsigned long) imm_expr->X_add_number);
 	      INSERT_OPERAND (SHAMTW, *ip, imm_expr->X_add_number);
 	      imm_expr->X_op = O_absent;
 	      s = expr_end;
@@ -1430,8 +1452,8 @@ rvc_lui:
 	      my_getExpression (imm_expr, s);
 	      check_absolute_expr (ip, imm_expr);
 	      if ((unsigned long) imm_expr->X_add_number >= xlen)
-		as_warn (_("Improper shift amount (%lu)"),
-			 (unsigned long) imm_expr->X_add_number);
+		as_bad (_("Improper shift amount (%lu)"),
+			(unsigned long) imm_expr->X_add_number);
 	      INSERT_OPERAND (SHAMT, *ip, imm_expr->X_add_number);
 	      imm_expr->X_op = O_absent;
 	      s = expr_end;
@@ -1441,8 +1463,8 @@ rvc_lui:
 	      my_getExpression (imm_expr, s);
 	      check_absolute_expr (ip, imm_expr);
 	      if ((unsigned long) imm_expr->X_add_number > 31)
-		as_warn (_("Improper CSRxI immediate (%lu)"),
-			 (unsigned long) imm_expr->X_add_number);
+		as_bad (_("Improper CSRxI immediate (%lu)"),
+			(unsigned long) imm_expr->X_add_number);
 	      INSERT_OPERAND (RS1, *ip, imm_expr->X_add_number);
 	      imm_expr->X_op = O_absent;
 	      s = expr_end;
@@ -1456,8 +1478,8 @@ rvc_lui:
 		  my_getExpression (imm_expr, s);
 		  check_absolute_expr (ip, imm_expr);
 		  if ((unsigned long) imm_expr->X_add_number > 0xfff)
-		    as_warn (_("Improper CSR address (%lu)"),
-			     (unsigned long) imm_expr->X_add_number);
+		    as_bad (_("Improper CSR address (%lu)"),
+			    (unsigned long) imm_expr->X_add_number);
 		  INSERT_OPERAND (CSR, *ip, imm_expr->X_add_number);
 		  imm_expr->X_op = O_absent;
 		  s = expr_end;
@@ -1796,6 +1818,7 @@ riscv_after_parse_args (void)
     riscv_set_arch (xlen == 64 ? "rv64g" : "rv32g");
 
   /* Add the RVC extension, regardless of -march, to support .option rvc.  */
+  riscv_set_rvc (FALSE);
   if (riscv_subset_supports ("c"))
     riscv_set_rvc (TRUE);
   else
@@ -1817,8 +1840,12 @@ riscv_after_parse_args (void)
       float_abi = FLOAT_ABI_SOFT;
 
       for (subset = riscv_subsets; subset != NULL; subset = subset->next)
-	if (strcasecmp (subset->name, "D") == 0)
-	  float_abi = FLOAT_ABI_DOUBLE;
+	{
+	  if (strcasecmp (subset->name, "D") == 0)
+	    float_abi = FLOAT_ABI_DOUBLE;
+	  if (strcasecmp (subset->name, "Q") == 0)
+	    float_abi = FLOAT_ABI_QUAD;
+	}
     }
 
   /* Insert float_abi into the EF_RISCV_FLOAT_ABI field of elf_flags.  */
@@ -1839,6 +1866,8 @@ md_apply_fix (fixS *fixP, valueT *valP, segT seg ATTRIBUTE_UNUSED)
   unsigned int subtype;
   bfd_byte *buf = (bfd_byte *) (fixP->fx_frag->fr_literal + fixP->fx_where);
   bfd_boolean relaxable = FALSE;
+  offsetT loc;
+  segT sub_segment;
 
   /* Remember value for tc_gen_reloc.  */
   fixP->fx_addnumber = *valP;
@@ -1850,11 +1879,12 @@ md_apply_fix (fixS *fixP, valueT *valP, segT seg ATTRIBUTE_UNUSED)
     case BFD_RELOC_RISCV_LO12_S:
       bfd_putl32 (riscv_apply_const_reloc (fixP->fx_r_type, *valP)
 		  | bfd_getl32 (buf), buf);
+      if (fixP->fx_addsy == NULL)
+	fixP->fx_done = TRUE;
       relaxable = TRUE;
       break;
 
     case BFD_RELOC_RISCV_GOT_HI20:
-    case BFD_RELOC_RISCV_PCREL_HI20:
     case BFD_RELOC_RISCV_ADD8:
     case BFD_RELOC_RISCV_ADD16:
     case BFD_RELOC_RISCV_ADD32:
@@ -1878,11 +1908,32 @@ md_apply_fix (fixS *fixP, valueT *valP, segT seg ATTRIBUTE_UNUSED)
     case BFD_RELOC_RISCV_TLS_GD_HI20:
     case BFD_RELOC_RISCV_TLS_DTPREL32:
     case BFD_RELOC_RISCV_TLS_DTPREL64:
-      S_SET_THREAD_LOCAL (fixP->fx_addsy);
+      if (fixP->fx_addsy != NULL)
+	S_SET_THREAD_LOCAL (fixP->fx_addsy);
+      else
+	as_bad_where (fixP->fx_file, fixP->fx_line,
+		      _("TLS relocation against a constant"));
       break;
 
-    case BFD_RELOC_64:
     case BFD_RELOC_32:
+      /* Use pc-relative relocation for FDE initial location.
+	 The symbol address in .eh_frame may be adjusted in
+	 _bfd_elf_discard_section_eh_frame, and the content of
+	 .eh_frame will be adjusted in _bfd_elf_write_section_eh_frame.
+	 Therefore, we cannot insert a relocation whose addend symbol is
+	 in .eh_frame. Othrewise, the value may be adjusted twice.*/
+      if (fixP->fx_addsy && fixP->fx_subsy
+	  && (sub_segment = S_GET_SEGMENT (fixP->fx_subsy))
+	  && strcmp (sub_segment->name, ".eh_frame") == 0
+	  && S_GET_VALUE (fixP->fx_subsy)
+	     == fixP->fx_frag->fr_address + fixP->fx_where)
+	{
+	  fixP->fx_r_type = BFD_RELOC_RISCV_32_PCREL;
+	  fixP->fx_subsy = NULL;
+	  break;
+	}
+      /* Fall through.  */
+    case BFD_RELOC_64:
     case BFD_RELOC_16:
     case BFD_RELOC_8:
     case BFD_RELOC_RISCV_CFA:
@@ -1918,30 +1969,31 @@ md_apply_fix (fixS *fixP, valueT *valP, segT seg ATTRIBUTE_UNUSED)
 
 	    case BFD_RELOC_RISCV_CFA:
 	      /* Load the byte to get the subtype.  */
-	      subtype = bfd_get_8 (NULL, &fixP->fx_frag->fr_literal[fixP->fx_where]);
+	      subtype = bfd_get_8 (NULL, &((fragS *) (fixP->fx_frag->fr_opcode))->fr_literal[fixP->fx_where]);
+	      loc = fixP->fx_frag->fr_fix - (subtype & 7);
 	      switch (subtype)
 		{
 		case DW_CFA_advance_loc1:
-		  fixP->fx_where++;
-		  fixP->fx_next->fx_where++;
+		  fixP->fx_where = loc + 1;
+		  fixP->fx_next->fx_where = loc + 1;
 		  fixP->fx_r_type = BFD_RELOC_RISCV_SET8;
 		  fixP->fx_next->fx_r_type = BFD_RELOC_RISCV_SUB8;
 		  break;
 
 		case DW_CFA_advance_loc2:
 		  fixP->fx_size = 2;
-		  fixP->fx_where++;
 		  fixP->fx_next->fx_size = 2;
-		  fixP->fx_next->fx_where++;
+		  fixP->fx_where = loc + 1;
+		  fixP->fx_next->fx_where = loc + 1;
 		  fixP->fx_r_type = BFD_RELOC_RISCV_SET16;
 		  fixP->fx_next->fx_r_type = BFD_RELOC_RISCV_SUB16;
 		  break;
 
 		case DW_CFA_advance_loc4:
 		  fixP->fx_size = 4;
-		  fixP->fx_where++;
 		  fixP->fx_next->fx_size = 4;
-		  fixP->fx_next->fx_where++;
+		  fixP->fx_where = loc;
+		  fixP->fx_next->fx_where = loc;
 		  fixP->fx_r_type = BFD_RELOC_RISCV_SET32;
 		  fixP->fx_next->fx_r_type = BFD_RELOC_RISCV_SUB32;
 		  break;
@@ -1950,6 +2002,8 @@ md_apply_fix (fixS *fixP, valueT *valP, segT seg ATTRIBUTE_UNUSED)
 		  if (subtype < 0x80 && (subtype & 0x40))
 		    {
 		      /* DW_CFA_advance_loc */
+		      fixP->fx_frag = (fragS *) fixP->fx_frag->fr_opcode;
+		      fixP->fx_next->fx_frag = fixP->fx_frag;
 		      fixP->fx_r_type = BFD_RELOC_RISCV_SET6;
 		      fixP->fx_next->fx_r_type = BFD_RELOC_RISCV_SUB6;
 		    }
@@ -2023,8 +2077,12 @@ md_apply_fix (fixS *fixP, valueT *valP, segT seg ATTRIBUTE_UNUSED)
       relaxable = TRUE;
       break;
 
+    case BFD_RELOC_RISCV_PCREL_HI20:
     case BFD_RELOC_RISCV_PCREL_LO12_S:
     case BFD_RELOC_RISCV_PCREL_LO12_I:
+      relaxable = riscv_opts.relax;
+      break;
+
     case BFD_RELOC_RISCV_ALIGN:
       break;
 
@@ -2033,6 +2091,10 @@ md_apply_fix (fixS *fixP, valueT *valP, segT seg ATTRIBUTE_UNUSED)
       if (bfd_reloc_type_lookup (stdoutput, fixP->fx_r_type) != NULL)
 	as_fatal (_("internal error: bad relocation #%d"), fixP->fx_r_type);
     }
+
+  if (fixP->fx_subsy != NULL)
+    as_bad_where (fixP->fx_file, fixP->fx_line,
+		  _("unsupported symbol subtraction"));
 
   /* Add an R_RISCV_RELAX reloc if the reloc is relaxable.  */
   if (relaxable && fixP->fx_tcbit && fixP->fx_addsy != NULL)
@@ -2055,13 +2117,12 @@ riscv_pre_output_hook (void)
   for (s = stdoutput->sections; s; s = s->next)
     for (frch = seg_info (s)->frchainP; frch; frch = frch->frch_next)
       {
-	const fragS *frag;
+	fragS *frag;
 
 	for (frag = frch->frch_root; frag; frag = frag->fr_next)
 	  {
 	    if (frag->fr_type == rs_cfa)
 	      {
-		fragS *loc4_frag;
 		expressionS exp;
 
 		symbolS *add_symbol = frag->fr_symbol->sy_value.X_add_symbol;
@@ -2072,8 +2133,7 @@ riscv_pre_output_hook (void)
 		exp.X_add_number = 0;
 		exp.X_op_symbol = op_symbol;
 
-		loc4_frag = (fragS *) frag->fr_opcode;
-		fix_new_exp (loc4_frag, (int) frag->fr_offset, 1, &exp, 0,
+		fix_new_exp (frag, (int) frag->fr_offset, 1, &exp, 0,
 			     BFD_RELOC_RISCV_CFA);
 	      }
 	  }
@@ -2217,30 +2277,21 @@ bfd_boolean
 riscv_frag_align_code (int n)
 {
   bfd_vma bytes = (bfd_vma) 1 << n;
-  bfd_vma min_text_alignment_order = riscv_opts.rvc ? 1 : 2;
-  bfd_vma min_text_alignment = (bfd_vma) 1 << min_text_alignment_order;
-
-  /* First, get back to minimal alignment.  */
-  frag_align_code (min_text_alignment_order, 0);
+  bfd_vma worst_case_bytes = bytes - (riscv_opts.rvc ? 2 : 4);
+  char *nops = frag_more (worst_case_bytes);
+  expressionS ex;
 
   /* When not relaxing, riscv_handle_align handles code alignment.  */
   if (!riscv_opts.relax)
     return FALSE;
 
-  if (bytes > min_text_alignment)
-    {
-      bfd_vma worst_case_bytes = bytes - min_text_alignment;
-      char *nops = frag_more (worst_case_bytes);
-      expressionS ex;
+  ex.X_op = O_constant;
+  ex.X_add_number = worst_case_bytes;
 
-      ex.X_op = O_constant;
-      ex.X_add_number = worst_case_bytes;
+  riscv_make_nops (nops, worst_case_bytes);
 
-      riscv_make_nops (nops, worst_case_bytes);
-
-      fix_new_exp (frag_now, nops - frag_now->fr_literal, 0,
-		   &ex, FALSE, BFD_RELOC_RISCV_ALIGN);
-    }
+  fix_new_exp (frag_now, nops - frag_now->fr_literal, 0,
+	       &ex, FALSE, BFD_RELOC_RISCV_ALIGN);
 
   return TRUE;
 }
@@ -2447,15 +2498,10 @@ md_show_usage (FILE *stream)
 {
   fprintf (stream, _("\
 RISC-V options:\n\
-  -m32           assemble RV32 code\n\
-  -m64           assemble RV64 code (default)\n\
   -fpic          generate position-independent code\n\
   -fno-pic       don't generate position-independent code (default)\n\
-  -msoft-float   don't use F registers for floating-point values\n\
-  -mhard-float   use F registers for floating-point values (default)\n\
-  -mno-rvc       disable the C extension for compressed instructions (default)\n\
-  -mrvc          enable the C extension for compressed instructions\n\
-  -march=ISA     set the RISC-V architecture, RV64IMAFD by default\n\
+  -march=ISA     set the RISC-V architecture\n\
+  -mabi=ABI      set the RISC-V ABI\n\
 "));
 }
 

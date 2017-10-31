@@ -1,5 +1,5 @@
 /* GDB variable objects API.
-   Copyright (C) 1999-2016 Free Software Foundation, Inc.
+   Copyright (C) 1999-2017 Free Software Foundation, Inc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -51,7 +51,7 @@ enum varobj_scope_status
   };
 
 /* String representations of gdb's format codes (defined in varobj.c).  */
-extern char *varobj_format_string[];
+extern const char *varobj_format_string[];
 
 /* Struct that describes a variable object instance.  */
 
@@ -233,7 +233,7 @@ extern struct varobj *varobj_create (const char *objname,
 				     const char *expression, CORE_ADDR frame,
 				     enum varobj_type type);
 
-extern char *varobj_gen_name (void);
+extern std::string varobj_gen_name (void);
 
 extern struct varobj *varobj_get_handle (const char *name);
 
@@ -319,8 +319,6 @@ extern void varobj_enable_pretty_printing (void);
 extern int varobj_has_more (const struct varobj *var, int to);
 
 extern int varobj_is_dynamic_p (const struct varobj *var);
-
-extern struct cleanup *varobj_ensure_python_env (const struct varobj *var);
 
 extern int varobj_default_value_is_changeable_p (const struct varobj *var);
 extern int varobj_value_is_changeable_p (const struct varobj *var);

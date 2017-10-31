@@ -1,5 +1,5 @@
 /* MI Command Set - MI output generating routines for GDB.
-   Copyright (C) 2000-2016 Free Software Foundation, Inc.
+   Copyright (C) 2000-2017 Free Software Foundation, Inc.
    Contributed by Cygnus Solutions (a Red Hat company).
 
    This file is part of GDB.
@@ -30,7 +30,7 @@ class mi_ui_out : public ui_out
 {
 public:
 
-  explicit mi_ui_out (int mi_version, ui_file *stream);
+  explicit mi_ui_out (int mi_version);
   virtual ~mi_ui_out ();
 
   /* MI-specific */
@@ -67,7 +67,7 @@ protected:
     ATTRIBUTE_PRINTF (2,0);
   virtual void do_wrap_hint (const char *identstring) override;
   virtual void do_flush () override;
-  virtual int do_redirect (struct ui_file * outstream) override;
+  virtual void do_redirect (struct ui_file *outstream) override;
 
   virtual bool do_is_mi_like_p () override
   { return true; }
@@ -77,6 +77,11 @@ private:
   void field_separator ();
   void open (const char *name, ui_out_type type);
   void close (ui_out_type type);
+
+  /* Convenience method that returns the MI out's string stream cast
+     to its appropriate type.  Assumes/asserts that output was not
+     redirected.  */
+  string_file *main_stream ();
 
   bool m_suppress_field_separator;
   bool m_suppress_output;

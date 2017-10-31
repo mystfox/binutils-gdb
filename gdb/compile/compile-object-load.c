@@ -1,6 +1,6 @@
 /* Load module for 'compile' command.
 
-   Copyright (C) 2014-2016 Free Software Foundation, Inc.
+   Copyright (C) 2014-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -612,7 +612,6 @@ compile_object_load (const compile_file_names &file_names,
 		     enum compile_i_scope_types scope, void *scope_data)
 {
   struct cleanup *cleanups, *cleanups_free_objfile;
-  bfd *abfd;
   struct setup_sections_data setup_sections_data;
   CORE_ADDR addr, regs_addr, out_value_addr = 0;
   struct symbol *func_sym;
@@ -625,45 +624,45 @@ compile_object_load (const compile_file_names &file_names,
   unsigned dptr_type_len = TYPE_LENGTH (dptr_type);
   struct compile_module *retval;
   struct type *regs_type, *out_value_type = NULL;
-  char *filename, **matching;
+  char **matching;
   struct objfile *objfile;
   int expect_parameters;
   struct type *expect_return_type;
   struct munmap_list *munmap_list_head = NULL;
 
-  filename = tilde_expand (file_names.object_file ());
-  cleanups = make_cleanup (xfree, filename);
+  gdb::unique_xmalloc_ptr<char> filename
+    (tilde_expand (file_names.object_file ()));
 
-  abfd = gdb_bfd_open (filename, gnutarget, -1);
+  gdb_bfd_ref_ptr abfd (gdb_bfd_open (filename.get (), gnutarget, -1));
   if (abfd == NULL)
     error (_("\"%s\": could not open as compiled module: %s"),
-          filename, bfd_errmsg (bfd_get_error ()));
-  make_cleanup_bfd_unref (abfd);
+          filename.get (), bfd_errmsg (bfd_get_error ()));
 
-  if (!bfd_check_format_matches (abfd, bfd_object, &matching))
+  if (!bfd_check_format_matches (abfd.get (), bfd_object, &matching))
     error (_("\"%s\": not in loadable format: %s"),
-          filename, gdb_bfd_errmsg (bfd_get_error (), matching));
+          filename.get (), gdb_bfd_errmsg (bfd_get_error (), matching));
 
-  if ((bfd_get_file_flags (abfd) & (EXEC_P | DYNAMIC)) != 0)
-    error (_("\"%s\": not in object format."), filename);
+  if ((bfd_get_file_flags (abfd.get ()) & (EXEC_P | DYNAMIC)) != 0)
+    error (_("\"%s\": not in object format."), filename.get ());
 
   setup_sections_data.last_size = 0;
   setup_sections_data.last_section_first = abfd->sections;
   setup_sections_data.last_prot = -1;
   setup_sections_data.last_max_alignment = 1;
   setup_sections_data.munmap_list_headp = &munmap_list_head;
-  make_cleanup (munmap_listp_free_cleanup, &munmap_list_head);
-  bfd_map_over_sections (abfd, setup_sections, &setup_sections_data);
-  setup_sections (abfd, NULL, &setup_sections_data);
+  cleanups = make_cleanup (munmap_listp_free_cleanup, &munmap_list_head);
+  bfd_map_over_sections (abfd.get (), setup_sections, &setup_sections_data);
+  setup_sections (abfd.get (), NULL, &setup_sections_data);
 
-  storage_needed = bfd_get_symtab_upper_bound (abfd);
+  storage_needed = bfd_get_symtab_upper_bound (abfd.get ());
   if (storage_needed < 0)
     error (_("Cannot read symbols of compiled module \"%s\": %s"),
-          filename, bfd_errmsg (bfd_get_error ()));
+          filename.get (), bfd_errmsg (bfd_get_error ()));
 
   /* SYMFILE_VERBOSE is not passed even if FROM_TTY, user is not interested in
      "Reading symbols from ..." message for automatically generated file.  */
-  objfile = symbol_file_add_from_bfd (abfd, filename, 0, NULL, 0, NULL);
+  objfile = symbol_file_add_from_bfd (abfd.get (), filename.get (),
+				      0, NULL, 0, NULL);
   cleanups_free_objfile = make_cleanup_free_objfile (objfile);
 
   func_sym = lookup_global_symbol_from_objfile (objfile,
@@ -712,10 +711,10 @@ compile_object_load (const compile_file_names &file_names,
      called from default_symfile_relocate.  */
   symbol_table = (asymbol **) obstack_alloc (&objfile->objfile_obstack,
 					     storage_needed);
-  number_of_symbols = bfd_canonicalize_symtab (abfd, symbol_table);
+  number_of_symbols = bfd_canonicalize_symtab (abfd.get (), symbol_table);
   if (number_of_symbols < 0)
     error (_("Cannot parse symbols of compiled module \"%s\": %s"),
-          filename, bfd_errmsg (bfd_get_error ()));
+          filename.get (), bfd_errmsg (bfd_get_error ()));
 
   missing_symbols = 0;
   for (symp = symbol_table; symp < symbol_table + number_of_symbols; symp++)
@@ -764,14 +763,14 @@ compile_object_load (const compile_file_names &file_names,
 	default:
 	  warning (_("Could not find symbol \"%s\" "
 		     "for compiled module \"%s\"."),
-		   sym->name, filename);
+		   sym->name, filename.get ());
 	  missing_symbols++;
 	}
     }
   if (missing_symbols)
     error (_("%ld symbols were missing, cannot continue."), missing_symbols);
 
-  bfd_map_over_sections (abfd, copy_sections, symbol_table);
+  bfd_map_over_sections (abfd.get (), copy_sections, symbol_table);
 
   regs_type = get_regs_type (func_sym, objfile);
   if (regs_type == NULL)

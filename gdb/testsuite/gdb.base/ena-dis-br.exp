@@ -1,6 +1,6 @@
 # This testcase is part of GDB, the GNU debugger.
 
-# Copyright 1997-2016 Free Software Foundation, Inc.
+# Copyright 1997-2017 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -369,7 +369,7 @@ proc test_ena_dis_br { what } {
 
     # Now enable(disable) $b1 fooo.1, it should give error on fooo.
     gdb_test "$what $b1 fooo.1" \
-       "Bad breakpoint number 'fooo'" \
+       "Bad breakpoint number 'fooo\\.1'" \
        "$what \$b1 fooo.1"
 
     # $b1 should be enabled(disabled).

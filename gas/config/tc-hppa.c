@@ -1,5 +1,5 @@
 /* tc-hppa.c -- Assemble for the PA
-   Copyright (C) 1989-2016 Free Software Foundation, Inc.
+   Copyright (C) 1989-2017 Free Software Foundation, Inc.
 
    This file is part of GAS, the GNU Assembler.
 
@@ -5216,9 +5216,7 @@ pa_ip (char *str)
 	      s = expr_end;
 	      CHECK_FIELD (num, 63, 0, strict);
 	      if (num & 0x20)
-		;
-	      else
-		opcode |= (1 << 13);
+		opcode &= ~(1 << 13);
 	      INSERT_FIELD_AND_CONTINUE (opcode, num & 0x1f, 21);
 
 	    /* Handle a 5 bit immediate at 10.  */
@@ -5687,7 +5685,7 @@ pa_ip (char *str)
       /* If this instruction is specific to a particular architecture,
 	 then set a new architecture.  This automatic promotion crud is
 	 for compatibility with HP's old assemblers only.  */
-      if (match == TRUE
+      if (match
 	  && bfd_get_mach (stdoutput) < insn->arch
 	  && !bfd_set_arch_mach (stdoutput, bfd_arch_hppa, insn->arch))
 	{
@@ -7025,7 +7023,7 @@ pa_procend (int unused ATTRIBUTE_UNUSED)
 
 #ifdef OBJ_ELF
   /* ELF needs to mark the end of each function so that it can compute
-     the size of the function (apparently its needed in the symbol table).  */
+     the size of the function (apparently it's needed in the symbol table).  */
   hppa_elf_mark_end_of_function ();
 #endif
 

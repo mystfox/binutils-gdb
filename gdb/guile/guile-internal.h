@@ -1,6 +1,6 @@
 /* Internal header for GDB/Scheme code.
 
-   Copyright (C) 2014-2016 Free Software Foundation, Inc.
+   Copyright (C) 2014-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -560,6 +560,8 @@ extern SCM tyscm_scm_from_type (struct type *type);
 
 extern type_smob *tyscm_get_type_smob_arg_unsafe (SCM type_scm, int arg_pos,
 						  const char *func_name);
+
+extern struct type *tyscm_scm_to_type (SCM t_scm);
 
 extern struct type *tyscm_type_smob_type (type_smob *t_smob);
 

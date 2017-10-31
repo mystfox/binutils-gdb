@@ -1,6 +1,6 @@
 /* Ada language support definitions for GDB, the GNU debugger.
 
-   Copyright (C) 1992-2016 Free Software Foundation, Inc.
+   Copyright (C) 1992-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -159,7 +159,7 @@ extern int ada_get_field_index (const struct type *type,
 
 extern int ada_parse (struct parser_state *);    /* Defined in ada-exp.y */
 
-extern void ada_yyerror (char *); /* Defined in ada-exp.y */
+extern void ada_yyerror (const char *); /* Defined in ada-exp.y */
 
                         /* Defined in ada-typeprint.c */
 extern void ada_print_type (struct type *, const char *, struct ui_file *, int,
@@ -243,7 +243,7 @@ extern void ada_fill_in_ada_prototype (struct symbol *);
 
 extern int user_select_syms (struct block_symbol *, int, int);
 
-extern int get_selections (int *, int, int, int, char *);
+extern int get_selections (int *, int, int, int, const char *);
 
 extern int ada_scan_number (const char *, int, LONGEST *, int *);
 
@@ -288,9 +288,9 @@ extern int ada_is_others_clause (struct type *, int);
 
 extern int ada_in_variant (LONGEST, struct type *, int);
 
-extern char *ada_variant_discrim_name (struct type *);
+extern const char *ada_variant_discrim_name (struct type *);
 
-extern struct value *ada_value_struct_elt (struct value *, char *, int);
+extern struct value *ada_value_struct_elt (struct value *, const char *, int);
 
 extern int ada_is_aligner_type (struct type *);
 
@@ -335,7 +335,7 @@ extern const char *ada_type_name (struct type *);
 extern struct type *ada_find_parallel_type (struct type *,
                                             const char *suffix);
 
-extern LONGEST get_int_var_value (char *, int *);
+extern bool get_int_var_value (const char *, LONGEST &value);
 
 extern struct symbol *ada_find_renaming_symbol (struct symbol *name_sym,
                                                 const struct block *block);
@@ -379,18 +379,19 @@ extern void create_ada_exception_catchpoint
 
 /* Some information about a given Ada exception.  */
 
-typedef struct ada_exc_info
+struct ada_exc_info
 {
   /* The name of the exception.  */
   const char *name;
 
   /* The address of the symbol corresponding to that exception.  */
   CORE_ADDR addr;
-} ada_exc_info;
 
-DEF_VEC_O(ada_exc_info);
+  bool operator< (const ada_exc_info &) const;
+  bool operator== (const ada_exc_info &) const;
+};
 
-extern VEC(ada_exc_info) *ada_exceptions_list (const char *regexp);
+extern std::vector<ada_exc_info> ada_exceptions_list (const char *regexp);
 
 /* Tasking-related: ada-tasks.c */
 

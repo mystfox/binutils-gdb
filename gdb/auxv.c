@@ -1,6 +1,6 @@
 /* Auxiliary vector support for GDB, the GNU debugger.
 
-   Copyright (C) 2004-2016 Free Software Foundation, Inc.
+   Copyright (C) 2004-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -566,9 +566,6 @@ info_auxv_command (char *cmd, int from_tty)
 	error (_("Auxiliary vector is empty."));
     }
 }
-
-
-extern initialize_file_ftype _initialize_auxv; /* -Wmissing-prototypes; */
 
 void
 _initialize_auxv (void)

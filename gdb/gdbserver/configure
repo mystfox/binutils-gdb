@@ -607,6 +607,7 @@ ustinc
 ustlibs
 ALLOCA
 CCDEPMODE
+CONFIG_SRC_SUBDIR
 DEPDIR
 am__leading_dot
 host_noncanonical
@@ -5813,6 +5814,12 @@ fi
   fi
 
 
+if $development; then
+
+$as_echo "#define GDB_SELF_TEST 1" >>confdefs.h
+
+fi
+
  case ${build_alias} in
   "") build_noncanonical=${build} ;;
   *) build_noncanonical=${build_alias} ;;
@@ -5846,6 +5853,14 @@ rmdir .tst 2>/dev/null
 DEPDIR="${am__leading_dot}deps"
 
 ac_config_commands="$ac_config_commands depdir"
+
+
+
+# Create sub-directories for objects and dependencies.
+CONFIG_SRC_SUBDIR="arch"
+
+
+ac_config_commands="$ac_config_commands gdbdepdir"
 
 
 depcc="$CC"   am_compiler_list=
@@ -6754,7 +6769,7 @@ $as_echo "#define HAVE_LANGINFO_CODESET 1" >>confdefs.h
   fi
 
 
-  for ac_header in linux/perf_event.h locale.h memory.h signal.h 		   sys/resource.h sys/socket.h sys/syscall.h 		   sys/un.h sys/wait.h 		   thread_db.h wait.h
+  for ac_header in linux/perf_event.h locale.h memory.h signal.h 		   sys/resource.h sys/socket.h sys/syscall.h 		   sys/un.h sys/wait.h 		   thread_db.h wait.h 		   termios.h termio.h sgtty.h
 do :
   as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
 ac_fn_c_check_header_mongrel "$LINENO" "$ac_header" "$as_ac_Header" "$ac_includes_default"
@@ -7148,12 +7163,20 @@ build_warnings="-Wall -Wpointer-arith \
 -Wno-unused -Wunused-value -Wunused-function \
 -Wno-switch -Wno-char-subscripts \
 -Wempty-body -Wunused-but-set-parameter -Wunused-but-set-variable \
--Wno-sign-compare -Wno-write-strings -Wno-narrowing"
+-Wno-sign-compare -Wno-narrowing -Wno-error=maybe-uninitialized \
+-Wno-mismatched-tags"
 
-# Enable -Wno-format by default when using gcc on mingw since many
-# GCC versions complain about %I64.
 case "${host}" in
-  *-*-mingw32*) build_warnings="$build_warnings -Wno-format" ;;
+  *-*-mingw32*)
+    # Enable -Wno-format by default when using gcc on mingw since many
+    # GCC versions complain about %I64.
+    build_warnings="$build_warnings -Wno-format" ;;
+  *-*-solaris*)
+    # Solaris 11.4 <python2.7/ceval.h> uses #pragma no_inline that GCC
+    # doesn't understand.
+    build_warnings="$build_warnings -Wno-unknown-pragmas"
+    # Solaris 11 <unistd.h> marks vfork deprecated.
+    build_warnings="$build_warnings -Wno-deprecated-declarations" ;;
   *) build_warnings="$build_warnings -Wformat-nonliteral" ;;
 esac
 
@@ -7219,9 +7242,9 @@ $as_echo_n "checking compiler warning flags... " >&6; }
 	*)
 	    # Check whether GCC accepts it.
 	    saved_CFLAGS="$CFLAGS"
-	    CFLAGS="$CFLAGS $wtest"
+	    CFLAGS="$CFLAGS -Werror $wtest"
 	    saved_CXXFLAGS="$CXXFLAGS"
-	    CXXFLAGS="$CXXFLAGS $wtest"
+	    CXXFLAGS="$CXXFLAGS -Werror $wtest"
 	    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
@@ -7496,6 +7519,32 @@ _ACEOF
 
 
 fi
+
+
+# See if <sys/user.h> supports the %fs_base and %gs_bas amd64 segment registers.
+# Older amd64 Linux's don't have the fs_base and gs_base members of
+# `struct user_regs_struct'.
+ac_fn_c_check_member "$LINENO" "struct user_regs_struct" "fs_base" "ac_cv_member_struct_user_regs_struct_fs_base" "#include <sys/user.h>
+"
+if test "x$ac_cv_member_struct_user_regs_struct_fs_base" = x""yes; then :
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_STRUCT_USER_REGS_STRUCT_FS_BASE 1
+_ACEOF
+
+
+fi
+ac_fn_c_check_member "$LINENO" "struct user_regs_struct" "gs_base" "ac_cv_member_struct_user_regs_struct_gs_base" "#include <sys/user.h>
+"
+if test "x$ac_cv_member_struct_user_regs_struct_gs_base" = x""yes; then :
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_STRUCT_USER_REGS_STRUCT_GS_BASE 1
+_ACEOF
+
+
+fi
+
 
 
 ac_fn_c_check_type "$LINENO" "socklen_t" "ac_cv_type_socklen_t" "#include <sys/types.h>
@@ -9104,6 +9153,7 @@ cat >>$CONFIG_STATUS <<_ACEOF || ac_write_fail=1
 # INIT-COMMANDS
 #
 ac_aux_dir=$ac_aux_dir DEPDIR=$DEPDIR
+ac_aux_dir=$ac_aux_dir DEPDIR=$DEPDIR CONFIG_SRC_SUBDIR="$CONFIG_SRC_SUBDIR"
 
 _ACEOF
 
@@ -9115,6 +9165,7 @@ do
   case $ac_config_target in
     "config.h") CONFIG_HEADERS="$CONFIG_HEADERS config.h:config.in" ;;
     "depdir") CONFIG_COMMANDS="$CONFIG_COMMANDS depdir" ;;
+    "gdbdepdir") CONFIG_COMMANDS="$CONFIG_COMMANDS gdbdepdir" ;;
     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
 
   *) as_fn_error "invalid argument: \`$ac_config_target'" "$LINENO" 5;;
@@ -9661,6 +9712,11 @@ $as_echo "$as_me: executing $ac_file commands" >&6;}
 
   case $ac_file$ac_mode in
     "depdir":C) $SHELL $ac_aux_dir/mkinstalldirs $DEPDIR ;;
+    "gdbdepdir":C)
+  for subdir in ${CONFIG_SRC_SUBDIR}
+  do
+      $SHELL $ac_aux_dir/mkinstalldirs $subdir/$DEPDIR
+  done ;;
     "Makefile":F) case x$CONFIG_HEADERS in
 xconfig.h:config.in)
 echo > stamp-h ;;

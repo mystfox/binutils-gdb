@@ -1,5 +1,5 @@
 /* Output generating routines for GDB CLI.
-   Copyright (C) 1999-2016 Free Software Foundation, Inc.
+   Copyright (C) 1999-2017 Free Software Foundation, Inc.
    Contributed by Cygnus Solutions.
 
    This file is part of GDB.
@@ -60,7 +60,7 @@ protected:
     ATTRIBUTE_PRINTF (2,0);
   virtual void do_wrap_hint (const char *identstring) override;
   virtual void do_flush () override;
-  virtual int do_redirect (struct ui_file * outstream) override;
+  virtual void do_redirect (struct ui_file *outstream) override;
 
   bool suppress_output ()
   { return m_suppress_output; }

@@ -1,5 +1,5 @@
 # This shell script emits a C file. -*- C -*-
-#   Copyright (C) 2013-2016 Free Software Foundation, Inc.
+#   Copyright (C) 2013-2017 Free Software Foundation, Inc.
 #
 # This file is part of the GNU Binutils.
 #
@@ -44,7 +44,7 @@ v850_after_open (void)
       && !bfd_link_relocatable (&link_info)
       && link_info.input_bfds != NULL
       && ! v850_elf_create_sections (& link_info))
-	einfo ("%X%P: can not create note section: %E\n");
+	einfo (_("%X%P: can not create note section: %E\n"));
 
   gld${EMULATION_NAME}_after_open ();
 }

@@ -1,5 +1,5 @@
 /* Remote serial interface for local (hardwired) serial ports for GO32.
-   Copyright (C) 1992-2016 Free Software Foundation, Inc.
+   Copyright (C) 1992-2017 Free Software Foundation, Inc.
 
    Contributed by Nigel Stephens, Algorithmics Ltd. (nigel@algor.co.uk).
 
@@ -899,7 +899,7 @@ gdb_pipe (int pdes[2])
 }
 
 static void
-dos_info (char *arg, int from_tty)
+info_serial_command (char *arg, int from_tty)
 {
   struct dos_ttystate *port;
 #ifdef DOS_STATS
@@ -926,9 +926,6 @@ dos_info (char *arg, int from_tty)
       printf_filtered ("%s:\t%lu\n", cntnames[i], (unsigned long) cnts[i]);
 #endif
 }
-
-/* -Wmissing-prototypes */
-extern initialize_file_ftype _initialize_ser_dos;
 
 void
 _initialize_ser_dos (void)
@@ -999,6 +996,6 @@ Show COM4 interrupt request."), NULL,
 			    NULL, /* FIXME: i18n: */
 			    &setlist, &showlist);
 
-  add_info ("serial", dos_info,
+  add_info ("serial", info_serial_command,
 	    _("Print DOS serial port status."));
 }

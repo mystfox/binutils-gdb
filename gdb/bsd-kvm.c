@@ -1,6 +1,6 @@
 /* BSD Kernel Data Access Library (libkvm) interface.
 
-   Copyright (C) 2004-2016 Free Software Foundation, Inc.
+   Copyright (C) 2004-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -17,6 +17,7 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
+#define _KMEMUSER
 #include "defs.h"
 #include "cli/cli-cmds.h"
 #include "command.h"
@@ -36,7 +37,9 @@
 #include "readline/readline.h"
 #include <sys/param.h>
 #include <sys/proc.h>
+#ifdef HAVE_SYS_USER_H
 #include <sys/user.h>
+#endif
 
 #include "bsd-kvm.h"
 
@@ -268,7 +271,7 @@ bsd_kvm_fetch_registers (struct target_ops *ops,
 struct cmd_list_element *bsd_kvm_cmdlist;
 
 static void
-bsd_kvm_cmd (char *arg, int fromtty)
+bsd_kvm_cmd (const char *arg, int fromtty)
 {
   /* ??? Should this become an alias for "target kvm"?  */
 }
@@ -329,7 +332,7 @@ bsd_kvm_thread_alive (struct target_ops *ops,
   return 1;
 }
 
-static char *
+static const char *
 bsd_kvm_pid_to_str (struct target_ops *ops, ptid_t ptid)
 {
   static char buf[64];

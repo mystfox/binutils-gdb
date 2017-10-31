@@ -1,6 +1,6 @@
 /* Target-dependent code for Renesas Super-H, for GDB.
 
-   Copyright (C) 1993-2016 Free Software Foundation, Inc.
+   Copyright (C) 1993-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -33,7 +33,6 @@
 #include "dis-asm.h"
 #include "inferior.h"
 #include "arch-utils.h"
-#include "floatformat.h"
 #include "regcache.h"
 #include "doublest.h"
 #include "osabi.h"
@@ -111,7 +110,7 @@ sh_is_renesas_calling_convention (struct type *func_type)
 static const char *
 sh_sh_register_name (struct gdbarch *gdbarch, int reg_nr)
 {
-  static char *register_names[] = {
+  static const char *register_names[] = {
     "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",
     "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
     "pc", "pr", "gbr", "vbr", "mach", "macl", "sr",
@@ -133,7 +132,7 @@ sh_sh_register_name (struct gdbarch *gdbarch, int reg_nr)
 static const char *
 sh_sh3_register_name (struct gdbarch *gdbarch, int reg_nr)
 {
-  static char *register_names[] = {
+  static const char *register_names[] = {
     "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",
     "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
     "pc", "pr", "gbr", "vbr", "mach", "macl", "sr",
@@ -155,7 +154,7 @@ sh_sh3_register_name (struct gdbarch *gdbarch, int reg_nr)
 static const char *
 sh_sh3e_register_name (struct gdbarch *gdbarch, int reg_nr)
 {
-  static char *register_names[] = {
+  static const char *register_names[] = {
     "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",
     "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
     "pc", "pr", "gbr", "vbr", "mach", "macl", "sr",
@@ -177,7 +176,7 @@ sh_sh3e_register_name (struct gdbarch *gdbarch, int reg_nr)
 static const char *
 sh_sh2e_register_name (struct gdbarch *gdbarch, int reg_nr)
 {
-  static char *register_names[] = {
+  static const char *register_names[] = {
     "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",
     "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
     "pc", "pr", "gbr", "vbr", "mach", "macl", "sr",
@@ -199,7 +198,7 @@ sh_sh2e_register_name (struct gdbarch *gdbarch, int reg_nr)
 static const char *
 sh_sh2a_register_name (struct gdbarch *gdbarch, int reg_nr)
 {
-  static char *register_names[] = {
+  static const char *register_names[] = {
     /* general registers 0-15 */
     "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",
     "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
@@ -239,7 +238,7 @@ sh_sh2a_register_name (struct gdbarch *gdbarch, int reg_nr)
 static const char *
 sh_sh2a_nofpu_register_name (struct gdbarch *gdbarch, int reg_nr)
 {
-  static char *register_names[] = {
+  static const char *register_names[] = {
     /* general registers 0-15 */
     "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",
     "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
@@ -279,7 +278,7 @@ sh_sh2a_nofpu_register_name (struct gdbarch *gdbarch, int reg_nr)
 static const char *
 sh_sh_dsp_register_name (struct gdbarch *gdbarch, int reg_nr)
 {
-  static char *register_names[] = {
+  static const char *register_names[] = {
     "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",
     "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
     "pc", "pr", "gbr", "vbr", "mach", "macl", "sr",
@@ -301,7 +300,7 @@ sh_sh_dsp_register_name (struct gdbarch *gdbarch, int reg_nr)
 static const char *
 sh_sh3_dsp_register_name (struct gdbarch *gdbarch, int reg_nr)
 {
-  static char *register_names[] = {
+  static const char *register_names[] = {
     "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",
     "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
     "pc", "pr", "gbr", "vbr", "mach", "macl", "sr",
@@ -324,7 +323,7 @@ sh_sh3_dsp_register_name (struct gdbarch *gdbarch, int reg_nr)
 static const char *
 sh_sh4_register_name (struct gdbarch *gdbarch, int reg_nr)
 {
-  static char *register_names[] = {
+  static const char *register_names[] = {
     /* general registers 0-15 */
     "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",
     "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
@@ -362,7 +361,7 @@ sh_sh4_register_name (struct gdbarch *gdbarch, int reg_nr)
 static const char *
 sh_sh4_nofpu_register_name (struct gdbarch *gdbarch, int reg_nr)
 {
-  static char *register_names[] = {
+  static const char *register_names[] = {
     /* general registers 0-15 */
     "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",
     "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
@@ -398,7 +397,7 @@ sh_sh4_nofpu_register_name (struct gdbarch *gdbarch, int reg_nr)
 static const char *
 sh_sh4al_dsp_register_name (struct gdbarch *gdbarch, int reg_nr)
 {
-  static char *register_names[] = {
+  static const char *register_names[] = {
     "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",
     "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
     "pc", "pr", "gbr", "vbr", "mach", "macl", "sr",
@@ -1311,7 +1310,7 @@ static void
 sh_extract_return_value_nofpu (struct type *type, struct regcache *regcache,
 			       gdb_byte *valbuf)
 {
-  struct gdbarch *gdbarch = get_regcache_arch (regcache);
+  struct gdbarch *gdbarch = regcache->arch ();
   enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
   int len = TYPE_LENGTH (type);
 
@@ -1336,7 +1335,7 @@ static void
 sh_extract_return_value_fpu (struct type *type, struct regcache *regcache,
 			     gdb_byte *valbuf)
 {
-  struct gdbarch *gdbarch = get_regcache_arch (regcache);
+  struct gdbarch *gdbarch = regcache->arch ();
   if (sh_treat_as_flt_p (type))
     {
       int len = TYPE_LENGTH (type);
@@ -1362,7 +1361,7 @@ static void
 sh_store_return_value_nofpu (struct type *type, struct regcache *regcache,
 			     const gdb_byte *valbuf)
 {
-  struct gdbarch *gdbarch = get_regcache_arch (regcache);
+  struct gdbarch *gdbarch = regcache->arch ();
   enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
   ULONGEST val;
   int len = TYPE_LENGTH (type);
@@ -1384,7 +1383,7 @@ static void
 sh_store_return_value_fpu (struct type *type, struct regcache *regcache,
 			   const gdb_byte *valbuf)
 {
-  struct gdbarch *gdbarch = get_regcache_arch (regcache);
+  struct gdbarch *gdbarch = regcache->arch ();
   if (sh_treat_as_flt_p (type))
     {
       int len = TYPE_LENGTH (type);
@@ -1552,6 +1551,19 @@ sh_register_reggroup_p (struct gdbarch *gdbarch, int regnum,
    The other pseudo registers (the FVs) also don't pose a problem
    because they are stored as 4 individual FP elements.  */
 
+static struct type *
+sh_littlebyte_bigword_type (struct gdbarch *gdbarch)
+{
+  struct gdbarch_tdep *tdep = gdbarch_tdep (gdbarch);
+
+  if (tdep->sh_littlebyte_bigword_type == NULL)
+    tdep->sh_littlebyte_bigword_type
+      = arch_float_type (gdbarch, -1, "builtin_type_sh_littlebyte_bigword",
+                         floatformats_ieee_double_littlebyte_bigword);
+
+  return tdep->sh_littlebyte_bigword_type;
+}
+
 static void
 sh_register_convert_to_virtual (struct gdbarch *gdbarch, int regnum,
 				struct type *type, gdb_byte *from, gdb_byte *to)
@@ -1564,12 +1576,8 @@ sh_register_convert_to_virtual (struct gdbarch *gdbarch, int regnum,
     }
 
   if (regnum >= DR0_REGNUM && regnum <= DR_LAST_REGNUM)
-    {
-      DOUBLEST val;
-      floatformat_to_doublest (&floatformat_ieee_double_littlebyte_bigword,
-			       from, &val);
-      store_typed_floating (to, type, val);
-    }
+    convert_typed_floating (from, sh_littlebyte_bigword_type (gdbarch),
+			    to, type);
   else
     error
       ("sh_register_convert_to_virtual called with non DR register number");
@@ -1587,11 +1595,8 @@ sh_register_convert_to_raw (struct gdbarch *gdbarch, struct type *type,
     }
 
   if (regnum >= DR0_REGNUM && regnum <= DR_LAST_REGNUM)
-    {
-      DOUBLEST val = extract_typed_floating (from, type);
-      floatformat_from_doublest (&floatformat_ieee_double_littlebyte_bigword,
-				 &val, to);
-    }
+    convert_typed_floating (from, type,
+			    to, sh_littlebyte_bigword_type (gdbarch));
   else
     error (_("sh_register_convert_to_raw called with non DR register number"));
 }
@@ -1648,13 +1653,14 @@ sh_pseudo_register_read (struct gdbarch *gdbarch, struct regcache *regcache,
 			 int reg_nr, gdb_byte *buffer)
 {
   int base_regnum;
-  gdb_byte temp_buffer[MAX_REGISTER_SIZE];
   enum register_status status;
 
   if (reg_nr == PSEUDO_BANK_REGNUM)
     return regcache_raw_read (regcache, BANK_REGNUM, buffer);
   else if (reg_nr >= DR0_REGNUM && reg_nr <= DR_LAST_REGNUM)
     {
+      /* Enough space for two float registers.  */
+      gdb_byte temp_buffer[4 * 2];
       base_regnum = dr_reg_base_num (gdbarch, reg_nr);
 
       /* Build the value in the provided buffer.  */
@@ -1687,7 +1693,6 @@ sh_pseudo_register_write (struct gdbarch *gdbarch, struct regcache *regcache,
 			  int reg_nr, const gdb_byte *buffer)
 {
   int base_regnum, portion;
-  gdb_byte temp_buffer[MAX_REGISTER_SIZE];
 
   if (reg_nr == PSEUDO_BANK_REGNUM)
     {
@@ -1703,6 +1708,8 @@ sh_pseudo_register_write (struct gdbarch *gdbarch, struct regcache *regcache,
     }
   else if (reg_nr >= DR0_REGNUM && reg_nr <= DR_LAST_REGNUM)
     {
+      /* Enough space for two float registers.  */
+      gdb_byte temp_buffer[4 * 2];
       base_regnum = dr_reg_base_num (gdbarch, reg_nr);
 
       /* We must pay attention to the endiannes.  */
@@ -2158,7 +2165,7 @@ sh_corefile_supply_regset (const struct regset *regset,
 			   struct regcache *regcache,
 			   int regnum, const void *regs, size_t len)
 {
-  struct gdbarch *gdbarch = get_regcache_arch (regcache);
+  struct gdbarch *gdbarch = regcache->arch ();
   struct gdbarch_tdep *tdep = gdbarch_tdep (gdbarch);
   const struct sh_corefile_regmap *regmap = (regset == &sh_corefile_gregset
 					     ? tdep->core_gregmap
@@ -2184,7 +2191,7 @@ sh_corefile_collect_regset (const struct regset *regset,
 			    const struct regcache *regcache,
 			    int regnum, void *regs, size_t len)
 {
-  struct gdbarch *gdbarch = get_regcache_arch (regcache);
+  struct gdbarch *gdbarch = regcache->arch ();
   struct gdbarch_tdep *tdep = gdbarch_tdep (gdbarch);
   const struct sh_corefile_regmap *regmap = (regset == &sh_corefile_gregset
 					     ? tdep->core_gregmap
@@ -2268,6 +2275,10 @@ sh_gdbarch_init (struct gdbarch_info info, struct gdbarch_list *arches)
   set_gdbarch_int_bit (gdbarch, 4 * TARGET_CHAR_BIT);
   set_gdbarch_long_bit (gdbarch, 4 * TARGET_CHAR_BIT);
   set_gdbarch_long_long_bit (gdbarch, 8 * TARGET_CHAR_BIT);
+
+  set_gdbarch_wchar_bit (gdbarch, 2 * TARGET_CHAR_BIT);
+  set_gdbarch_wchar_signed (gdbarch, 0);
+
   set_gdbarch_float_bit (gdbarch, 4 * TARGET_CHAR_BIT);
   set_gdbarch_double_bit (gdbarch, 8 * TARGET_CHAR_BIT);
   set_gdbarch_long_double_bit (gdbarch, 8 * TARGET_CHAR_BIT);
@@ -2285,7 +2296,6 @@ sh_gdbarch_init (struct gdbarch_info info, struct gdbarch_list *arches)
   set_gdbarch_breakpoint_kind_from_pc (gdbarch, sh_breakpoint_kind_from_pc);
   set_gdbarch_sw_breakpoint_from_kind (gdbarch, sh_sw_breakpoint_from_kind);
 
-  set_gdbarch_print_insn (gdbarch, print_insn_sh);
   set_gdbarch_register_sim_regno (gdbarch, legacy_register_sim_regno);
 
   set_gdbarch_return_value (gdbarch, sh_return_value_nofpu);
@@ -2426,20 +2436,18 @@ sh_gdbarch_init (struct gdbarch_info info, struct gdbarch_list *arches)
 }
 
 static void
-show_sh_command (char *args, int from_tty)
+show_sh_command (const char *args, int from_tty)
 {
   help_list (showshcmdlist, "show sh ", all_commands, gdb_stdout);
 }
 
 static void
-set_sh_command (char *args, int from_tty)
+set_sh_command (const char *args, int from_tty)
 {
   printf_unfiltered
     ("\"set sh\" must be followed by an appropriate subcommand.\n");
   help_list (setshcmdlist, "set sh ", all_commands, gdb_stdout);
 }
-
-extern initialize_file_ftype _initialize_sh_tdep;  /* -Wmissing-prototypes */
 
 void
 _initialize_sh_tdep (void)

@@ -1,5 +1,5 @@
 /* tc-i386.c -- Assemble Intel syntax code for ix86/x86-64
-   Copyright (C) 2009-2016 Free Software Foundation, Inc.
+   Copyright (C) 2009-2017 Free Software Foundation, Inc.
 
    This file is part of GAS, the GNU Assembler.
 
@@ -26,7 +26,7 @@ static struct
     int has_offset;		/* 1 if operand has offset.  */
     unsigned int in_offset;	/* >=1 if processing operand of offset.  */
     unsigned int in_bracket;	/* >=1 if processing operand in brackets.  */
-    unsigned int in_scale;	/* >=1 if processing multipication operand
+    unsigned int in_scale;	/* >=1 if processing multiplication operand
 				 * in brackets.  */
     i386_operand_type reloc_types;	/* Value obtained from lex_got().  */
     const reg_entry *base;	/* Base register (if any).  */
@@ -932,13 +932,7 @@ i386_intel_operand (char *operand_string, int got_a_float)
 
       if (intel_state.seg)
 	{
-	  for (;;)
-	    {
-	      expP = symbol_get_value_expression (intel_state.seg);
-	      if (expP->X_op != O_full_ptr)
-		break;
-	      intel_state.seg = expP->X_add_symbol;
-	    }
+	  expP = symbol_get_value_expression (intel_state.seg);
 	  if (expP->X_op != O_register)
 	    {
 	      as_bad (_("segment register name expected"));

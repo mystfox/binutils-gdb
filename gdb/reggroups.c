@@ -1,6 +1,6 @@
 /* Register groupings for GDB, the GNU debugger.
 
-   Copyright (C) 2002-2016 Free Software Foundation, Inc.
+   Copyright (C) 2002-2017 Free Software Foundation, Inc.
 
    Contributed by Red Hat.
 
@@ -262,7 +262,7 @@ reggroups_dump (struct gdbarch *gdbarch, struct ui_file *file)
 }
 
 static void
-maintenance_print_reggroups (char *args, int from_tty)
+maintenance_print_reggroups (const char *args, int from_tty)
 {
   struct gdbarch *gdbarch = get_current_arch ();
 
@@ -270,14 +270,11 @@ maintenance_print_reggroups (char *args, int from_tty)
     reggroups_dump (gdbarch, gdb_stdout);
   else
     {
-      struct cleanup *cleanups;
-      struct ui_file *file = gdb_fopen (args, "w");
+      stdio_file file;
 
-      if (file == NULL)
+      if (!file.open (args, "w"))
 	perror_with_name (_("maintenance print reggroups"));
-      cleanups = make_cleanup_ui_file_delete (file);
-      reggroups_dump (gdbarch, file);
-      do_cleanups (cleanups);
+      reggroups_dump (gdbarch, &file);
     }
 }
 
@@ -297,8 +294,6 @@ struct reggroup *const vector_reggroup = &vector_group;
 struct reggroup *const all_reggroup = &all_group;
 struct reggroup *const save_reggroup = &save_group;
 struct reggroup *const restore_reggroup = &restore_group;
-
-extern initialize_file_ftype _initialize_reggroup; /* -Wmissing-prototypes */
 
 void
 _initialize_reggroup (void)

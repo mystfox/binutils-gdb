@@ -1,6 +1,6 @@
 /* Native-dependent code for OpenBSD/powerpc.
 
-   Copyright (C) 2004-2016 Free Software Foundation, Inc.
+   Copyright (C) 2004-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -75,9 +75,9 @@ ppcobsd_fetch_registers (struct target_ops *ops,
 			 struct regcache *regcache, int regnum)
 {
   struct reg regs;
+  pid_t pid = ptid_get_pid (regcache_get_ptid (regcache));
 
-  if (ptrace (PT_GETREGS, ptid_get_pid (inferior_ptid),
-	      (PTRACE_TYPE_ARG3) &regs, 0) == -1)
+  if (ptrace (PT_GETREGS, pid, (PTRACE_TYPE_ARG3) &regs, 0) == -1)
     perror_with_name (_("Couldn't get registers"));
 
   ppc_supply_gregset (&ppcobsd_gregset, regcache, -1,
@@ -89,12 +89,11 @@ ppcobsd_fetch_registers (struct target_ops *ops,
 
 #ifdef PT_GETFPREGS
   if (regnum == -1
-      || getfpregs_supplies (get_regcache_arch (regcache), regnum))
+      || getfpregs_supplies (regcache->arch (), regnum))
     {
       struct fpreg fpregs;
 
-      if (ptrace (PT_GETFPREGS, ptid_get_pid (inferior_ptid),
-		  (PTRACE_TYPE_ARG3) &fpregs, 0) == -1)
+      if (ptrace (PT_GETFPREGS, pid, (PTRACE_TYPE_ARG3) &fpregs, 0) == -1)
 	perror_with_name (_("Couldn't get floating point status"));
 
       ppc_supply_fpregset (&ppcobsd_fpregset, regcache, -1,
@@ -111,9 +110,9 @@ ppcobsd_store_registers (struct target_ops *ops,
 			 struct regcache *regcache, int regnum)
 {
   struct reg regs;
+  pid_t pid = ptid_get_pid (regcache_get_ptid (regcache));
 
-  if (ptrace (PT_GETREGS, ptid_get_pid (inferior_ptid),
-	      (PTRACE_TYPE_ARG3) &regs, 0) == -1)
+  if (ptrace (PT_GETREGS, pid, (PTRACE_TYPE_ARG3) &regs, 0) == -1)
     perror_with_name (_("Couldn't get registers"));
 
   ppc_collect_gregset (&ppcobsd_gregset, regcache,
@@ -123,25 +122,22 @@ ppcobsd_store_registers (struct target_ops *ops,
 			regnum, &regs, sizeof regs);
 #endif
 
-  if (ptrace (PT_SETREGS, ptid_get_pid (inferior_ptid),
-	      (PTRACE_TYPE_ARG3) &regs, 0) == -1)
+  if (ptrace (PT_SETREGS, pid, (PTRACE_TYPE_ARG3) &regs, 0) == -1)
     perror_with_name (_("Couldn't write registers"));
 
 #ifdef PT_GETFPREGS
   if (regnum == -1
-      || getfpregs_supplies (get_regcache_arch (regcache), regnum))
+      || getfpregs_supplies (regcache->arch (), regnum))
     {
       struct fpreg fpregs;
 
-      if (ptrace (PT_GETFPREGS, ptid_get_pid (inferior_ptid),
-		  (PTRACE_TYPE_ARG3) &fpregs, 0) == -1)
+      if (ptrace (PT_GETFPREGS, pid, (PTRACE_TYPE_ARG3) &fpregs, 0) == -1)
 	perror_with_name (_("Couldn't get floating point status"));
 
       ppc_collect_fpregset (&ppcobsd_fpregset, regcache,
 			    regnum, &fpregs, sizeof fpregs);
 
-      if (ptrace (PT_SETFPREGS, ptid_get_pid (inferior_ptid),
-		  (PTRACE_TYPE_ARG3) &fpregs, 0) == -1)
+      if (ptrace (PT_SETFPREGS, pid, (PTRACE_TYPE_ARG3) &fpregs, 0) == -1)
 	perror_with_name (_("Couldn't write floating point status"));
     }
 #endif
@@ -151,7 +147,7 @@ ppcobsd_store_registers (struct target_ops *ops,
 static int
 ppcobsd_supply_pcb (struct regcache *regcache, struct pcb *pcb)
 {
-  struct gdbarch *gdbarch = get_regcache_arch (regcache);
+  struct gdbarch *gdbarch = regcache->arch ();
   struct gdbarch_tdep *tdep = gdbarch_tdep (gdbarch);
   struct switchframe sf;
   struct callframe cf;
@@ -184,10 +180,6 @@ ppcobsd_supply_pcb (struct regcache *regcache, struct pcb *pcb)
 
   return 1;
 }
-
-
-/* Provide a prototype to silence -Wmissing-prototypes.  */
-void _initialize_ppcobsd_nat (void);
 
 void
 _initialize_ppcobsd_nat (void)

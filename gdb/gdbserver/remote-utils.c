@@ -1,5 +1,5 @@
 /* Remote utility routines for the remote server for GDB.
-   Copyright (C) 1986-2016 Free Software Foundation, Inc.
+   Copyright (C) 1986-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -17,12 +17,13 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "server.h"
-#include "terminal.h"
+#include "gdb_termios.h"
 #include "target.h"
 #include "gdbthread.h"
 #include "tdesc.h"
 #include "dll.h"
 #include "rsp-low.h"
+#include "gdbthread.h"
 #include <ctype.h>
 #if HAVE_SYS_IOCTL_H
 #include <sys/ioctl.h>
@@ -217,9 +218,9 @@ handle_accept_event (int err, gdb_client_data client_data)
    NAME is the filename used for communication.  */
 
 void
-remote_prepare (char *name)
+remote_prepare (const char *name)
 {
-  char *port_str;
+  const char *port_str;
 #ifdef USE_WIN32API
   static int winsock_initialized;
 #endif
@@ -284,9 +285,9 @@ remote_prepare (char *name)
    NAME is the filename used for communication.  */
 
 void
-remote_open (char *name)
+remote_open (const char *name)
 {
-  char *port_str;
+  const char *port_str;
 
   port_str = strchr (name, ':');
 #ifdef USE_WIN32API
@@ -532,7 +533,7 @@ write_ptid (char *buf, ptid_t ptid)
 }
 
 static ULONGEST
-hex_or_minus_one (char *buf, char **obuf)
+hex_or_minus_one (const char *buf, const char **obuf)
 {
   ULONGEST ret;
 
@@ -553,10 +554,10 @@ hex_or_minus_one (char *buf, char **obuf)
 /* Extract a PTID from BUF.  If non-null, OBUF is set to the to one
    passed the last parsed char.  Returns null_ptid on error.  */
 ptid_t
-read_ptid (char *buf, char **obuf)
+read_ptid (const char *buf, const char **obuf)
 {
-  char *p = buf;
-  char *pp;
+  const char *p = buf;
+  const char *pp;
   ULONGEST pid = 0, tid = 0;
 
   if (*p == 'p')
@@ -1188,7 +1189,7 @@ prepare_resume_reply (char *buf, ptid_t ptid,
 
 	saved_thread = current_thread;
 
-	current_thread = find_thread_ptid (ptid);
+	switch_to_thread (ptid);
 
 	regp = current_target_desc ()->expedite_regs;
 

@@ -1,5 +1,5 @@
 /* PPC ELF support for BFD.
-   Copyright (C) 1995-2016 Free Software Foundation, Inc.
+   Copyright (C) 1995-2017 Free Software Foundation, Inc.
 
    By Michael Meissner, Cygnus Support, <meissner@cygnus.com>,
    from information in the System V Application Binary Interface,
@@ -73,10 +73,14 @@ START_RELOC_NUMBERS (elf_ppc_reloc_type)
   RELOC_NUMBER (R_PPC_ADDR30,		 37)
 
 #ifndef RELOC_MACROS_GEN_FUNC
-/* Fake relocations for branch stubs, only used internally by ld.  */
+/* Relocations only used internally by ld.  If you need to use these
+   reloc numbers, you can change them to some other unused value
+   without affecting the ABI.  They will never appear in object files.  */
   RELOC_NUMBER (R_PPC_RELAX,		 48)
   RELOC_NUMBER (R_PPC_RELAX_PLT,	 49)
   RELOC_NUMBER (R_PPC_RELAX_PLTREL24,	 50)
+/* Reloc only used internally by gas.  As above, value is unimportant.  */
+  RELOC_NUMBER (R_PPC_16DX_HA,		 51)
 #endif
 
   /* Relocs added to support TLS.  */
@@ -148,6 +152,7 @@ START_RELOC_NUMBERS (elf_ppc_reloc_type)
   RELOC_NUMBER (R_PPC_VLE_SDAREL_HI16D,	230)
   RELOC_NUMBER (R_PPC_VLE_SDAREL_HA16A,	231)
   RELOC_NUMBER (R_PPC_VLE_SDAREL_HA16D,	232)
+  RELOC_NUMBER (R_PPC_VLE_ADDR20,	233)
 
 /* Power9 split rel16 for addpcis.  */
   RELOC_NUMBER (R_PPC_REL16DX_HA,	246)

@@ -1,5 +1,5 @@
 /* GNU/Linux/ARM specific low level interface, for the remote server for GDB.
-   Copyright (C) 1995-2016 Free Software Foundation, Inc.
+   Copyright (C) 1995-2017 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -263,7 +263,8 @@ get_next_pcs_read_memory_unsigned_integer (CORE_ADDR memaddr,
   ULONGEST res;
 
   res = 0;
-  (*the_target->read_memory) (memaddr, (unsigned char *) &res, len);
+  target_read_memory (memaddr, (unsigned char *) &res, len);
+
   return res;
 }
 
@@ -466,9 +467,8 @@ struct update_registers_data
 };
 
 static int
-update_registers_callback (struct inferior_list_entry *entry, void *arg)
+update_registers_callback (thread_info *thread, void *arg)
 {
-  struct thread_info *thread = (struct thread_info *) entry;
   struct lwp_info *lwp = get_thread_lwp (thread);
   struct update_registers_data *data = (struct update_registers_data *) arg;
 
@@ -639,6 +639,14 @@ arm_new_process (void)
   return info;
 }
 
+/* Called when a process is being deleted.  */
+
+static void
+arm_delete_process (struct arch_process_info *info)
+{
+  xfree (info);
+}
+
 /* Called when a new thread is detected.  */
 static void
 arm_new_thread (struct lwp_info *lwp)
@@ -652,6 +660,14 @@ arm_new_thread (struct lwp_info *lwp)
     info->wpts_changed[i] = 1;
 
   lwp->arch_private = info;
+}
+
+/* Function to call when a thread is being deleted.  */
+
+static void
+arm_delete_thread (struct arch_lwp_info *arch_lwp)
+{
+  xfree (arch_lwp);
 }
 
 static void
@@ -690,7 +706,7 @@ arm_new_fork (struct process_info *parent, struct process_info *child)
 
   /* Mark all the hardware breakpoints and watchpoints as changed to
      make sure that the registers will be updated.  */
-  child_lwp = find_lwp_pid (ptid_of (child));
+  child_lwp = find_lwp_pid (ptid_t (child->pid));
   child_lwp_info = child_lwp->arch_private;
   for (i = 0; i < MAX_BPTS; i++)
     child_lwp_info->bpts_changed[i] = 1;
@@ -804,7 +820,7 @@ get_next_pcs_syscall_next_pc (struct arm_get_next_pcs *self)
       unsigned long this_instr;
       unsigned long svc_operand;
 
-      (*the_target->read_memory) (pc, (unsigned char *) &this_instr, 4);
+      target_read_memory (pc, (unsigned char *) &this_instr, 4);
       svc_operand = (0x00ffffff & this_instr);
 
       if (svc_operand)  /* OABI.  */
@@ -924,11 +940,10 @@ arm_arch_setup (void)
 
 /* Fetch the next possible PCs after the current instruction executes.  */
 
-static VEC (CORE_ADDR) *
+static std::vector<CORE_ADDR>
 arm_gdbserver_get_next_pcs (struct regcache *regcache)
 {
   struct arm_get_next_pcs next_pcs_ctx;
-  VEC (CORE_ADDR) *next_pcs = NULL;
 
   arm_get_next_pcs_ctor (&next_pcs_ctx,
 			 &get_next_pcs_ops,
@@ -938,9 +953,7 @@ arm_gdbserver_get_next_pcs (struct regcache *regcache)
 			 1,
 			 regcache);
 
-  next_pcs = arm_get_next_pcs (&next_pcs_ctx);
-
-  return next_pcs;
+  return arm_get_next_pcs (&next_pcs_ctx);
 }
 
 /* Support for hardware single step.  */
@@ -1054,7 +1067,9 @@ struct linux_target_ops the_low_target = {
   NULL, /* supply_ptrace_register */
   NULL, /* siginfo_fixup */
   arm_new_process,
+  arm_delete_process,
   arm_new_thread,
+  arm_delete_thread,
   arm_new_fork,
   arm_prepare_to_resume,
   NULL, /* process_qsupported */
